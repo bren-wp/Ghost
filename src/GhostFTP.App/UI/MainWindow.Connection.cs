@@ -33,7 +33,7 @@ public sealed partial class MainWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "GhostFTP startup error", MessageBoxButton.OK, MessageBoxImage.Error);
+            GhostMessageDialog.Error(this, "Ghost FTP could not finish startup.", ex.Message, "Startup error");
         }
     }
 
@@ -110,18 +110,14 @@ public sealed partial class MainWindow
                     throw new InvalidOperationException("Port must be between 1 and 65535.");
 
                 var securityMode = (FtpSecurityMode)Math.Max(0, _security.SelectedIndex);
-                if (securityMode == FtpSecurityMode.Plain)
-                {
-                    var unsafeChoice = MessageBox.Show(
+                if (securityMode == FtpSecurityMode.Plain && !GhostMessageDialog.Confirm(
                         this,
-                        "Plain FTP sends usernames, passwords and file data without TLS encryption. Continue only if this is an intentionally trusted network/server.",
-                        "GhostFTP security warning",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning,
-                        MessageBoxResult.No);
-                    if (unsafeChoice != MessageBoxResult.Yes)
-                        throw new OperationCanceledException(ct);
-                }
+                        "Plain FTP is not encrypted",
+                        "Plain FTP sends usernames, passwords and file data without TLS encryption. Continue only when this is an intentionally trusted server or isolated network.",
+                        "Use plain FTP",
+                        danger: true,
+                        warning: true))
+                    throw new OperationCanceledException(ct);
 
                 newOptions = new FtpConnectionOptions
                 {
@@ -166,7 +162,7 @@ public sealed partial class MainWindow
         {
             await DisconnectCoreAsync();
             SetStatus("Connection failed", "Danger");
-            MessageBox.Show(this, ex.Message, "GhostFTP connection", MessageBoxButton.OK, MessageBoxImage.Error);
+            GhostMessageDialog.Error(this, "Ghost FTP could not connect to the server.", ex.Message, "Connection failed");
         }
         finally
         {
