@@ -37,8 +37,10 @@ jobs:
       - name: Dependency, version, privacy and brand audit
         shell: pwsh
         run: ./audit-source.ps1
-      - name: Self-test
+      - name: Core self-test
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
+      - name: WPF editable input smoke-test
+        run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
       - name: Build portable and setup packages
         if: github.event_name == 'push'
         shell: pwsh
