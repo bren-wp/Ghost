@@ -87,24 +87,35 @@ or double-click/run:
 build-release.bat
 ```
 
-The `release` directory will contain:
+The `release` directory and every official tagged GitHub Release contain the simple direct-download names:
 
 ```text
-GhostFTP-Portable-win-x64.exe
+setup.exe                 standard Windows x64 installer
+portable.exe              standard Windows x64 portable app
+setup-arm64.exe           Windows ARM64 installer
+portable-arm64.exe        Windows ARM64 portable app
+```
+
+Architecture-explicit copies and checksums are published alongside them:
+
+```text
 GhostFTP-Setup-win-x64.exe
-GhostFTP-Portable-win-arm64.exe
+GhostFTP-Portable-win-x64.exe
 GhostFTP-Setup-win-arm64.exe
+GhostFTP-Portable-win-arm64.exe
 SHA256SUMS.txt
 ```
 
+CI and the Release workflow fail if `setup.exe` or `portable.exe` are missing or empty.
+
 ## GitHub Actions
 
-- `CI` builds the solution and runs dependency-free self-tests on every push/PR to `main`.
-- `Release` builds x64 + ARM64 portable/setup artifacts, calculates SHA-256 hashes and can publish tag-based GitHub Releases.
+- `CI` builds the solution, audits privacy/dependencies, runs self-tests, builds x64 + ARM64 packages and verifies `setup.exe` + `portable.exe` on every push to `main`.
+- `Release` repeats those checks and publishes the verified executables plus SHA-256 checksums for version tags.
 
 ## Portable vs installed data
 
-`GhostFTP-Portable-*.exe` stores profiles/settings in a `Data` folder next to the executable. Installed GhostFTP stores them under the current user's local application-data directory.
+`portable.exe` and `GhostFTP-Portable-*.exe` store profiles/settings in a `Data` folder next to the executable. Installed GhostFTP stores them under the current user's local application-data directory.
 
 Passwords are not saved unless **Remember password** is enabled. Saved passwords are protected with Windows DPAPI for the current Windows user.
 
