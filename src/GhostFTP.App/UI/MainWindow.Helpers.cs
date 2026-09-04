@@ -1,37 +1,40 @@
-using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
-using GhostFTP.Core.Services;
-using GhostFTP.Services;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
+using GhostFTP.Design;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
-
 
 namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
-    private Button ToolButton(string text, Action action)
+    private Button ToolButton(string text, Action action, bool primary = false, bool danger = false)
     {
-        var button = Theme.Button(text);
-        button.Padding = new Thickness(11, 6, 11, 6);
-        button.MinHeight = 32;
+        var button = GhostTheme.Button(text, primary: primary, danger: danger);
+        button.Padding = new Thickness(10, 5, 10, 5);
+        button.MinHeight = 30;
+        button.Margin = new Thickness(0, 0, 6, 5);
         button.Click += (_, _) => action();
         return button;
     }
 
-    private Button ToolButton(string text, Func<Task> action)
+    private Button ToolButton(string text, Func<Task> action, bool primary = false, bool danger = false)
     {
-        var button = Theme.Button(text);
-        button.Padding = new Thickness(11, 6, 11, 6);
-        button.MinHeight = 32;
+        var button = GhostTheme.Button(text, primary: primary, danger: danger);
+        button.Padding = new Thickness(10, 5, 10, 5);
+        button.MinHeight = 30;
+        button.Margin = new Thickness(0, 0, 6, 5);
         button.Click += async (_, _) =>
         {
-            try { await action(); }
-            catch (Exception ex) { ShowOperationError("The operation failed.", ex); }
+            try
+            {
+                await action();
+            }
+            catch (Exception ex)
+            {
+                ShowOperationError("The operation failed.", ex);
+            }
         };
         return button;
     }
@@ -39,24 +42,23 @@ public sealed partial class MainWindow
     private static GridView CreateFileGrid(bool local)
     {
         var grid = new GridView { AllowsColumnReorder = true };
-        grid.Columns.Add(Column("Name", "Name", 250));
-        grid.Columns.Add(Column("Type", "Type", 80));
-        grid.Columns.Add(Column("Size", "SizeText", 100));
-        grid.Columns.Add(Column("Modified", "ModifiedText", 145));
-        if (!local) grid.Columns.Add(Column("Permissions", "Permissions", 110));
+        grid.Columns.Add(Column("Name", "Name", local ? 230 : 205));
+        grid.Columns.Add(Column("Type", "Type", 74));
+        grid.Columns.Add(Column("Size", "SizeText", 84));
+        grid.Columns.Add(Column("Modified", "ModifiedText", 134));
         return grid;
     }
 
     private static GridView CreateQueueGrid()
     {
-        var grid = new GridView();
-        grid.Columns.Add(Column("Item", "DisplayName", 180));
-        grid.Columns.Add(Column("Direction", "Direction", 90));
-        grid.Columns.Add(Column("State", "State", 90));
-        grid.Columns.Add(Column("Progress", "ProgressText", 80));
-        grid.Columns.Add(Column("Speed", "SpeedText", 100));
-        grid.Columns.Add(Column("Source", "Source", 330));
-        grid.Columns.Add(Column("Destination", "Destination", 330));
+        var grid = new GridView { AllowsColumnReorder = true };
+        grid.Columns.Add(Column("Item", "DisplayName", 165));
+        grid.Columns.Add(Column("Direction", "Direction", 78));
+        grid.Columns.Add(Column("State", "State", 76));
+        grid.Columns.Add(Column("Progress", "ProgressText", 72));
+        grid.Columns.Add(Column("Speed", "SpeedText", 86));
+        grid.Columns.Add(Column("Source", "Source", 220));
+        grid.Columns.Add(Column("Destination", "Destination", 220));
         return grid;
     }
 
@@ -79,21 +81,148 @@ public sealed partial class MainWindow
         return menu;
     }
 
-    private static void AddAt(Grid grid, UIElement element, int column)
+    private void ShowOperationError(string message, Exception ex)
     {
-        Grid.SetColumn(element, column);
-        grid.Children.Add(element);
+        MessageBox.Show(this, message + "\n\n" + ex.Message, "GhostFTP", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
-    private void ShowOperationError(string message, Exception ex) =>
-        MessageBox.Show(this, message + "\n\n" + ex.Message, "GhostFTP", MessageBoxButton.OK, MessageBoxImage.Error);
+    private void UpdatePaneSummaries()
+    {
+        _localSummary.Text = SummaryText(_localItems.Count, _localList.SelectedItems.Count);
+        _remoteSummary.Text = IsConnected
+            ? SummaryText(_remoteItems.Count, _remoteList.SelectedItems.Count)
+            : "Not connected";
+    }
+
+    private static string SummaryText(int count, int selected)
+    {
+        var items = count == 1 ? "1 item" : $"{count} items";
+        return selected > 0 ? $"{items} · {selected} selected" : items;
+    }
+
+    private void NavigateLocalHome()
+    {
+        NavigateLocalQuick(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+    }
+
+    private void NavigateLocalQuick(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path)) return;
+        _localPath = path;
+        RefreshLocal();
+    }
+
+    private async Task NavigateRemoteHomeAsync()
+    {
+        if (!IsConnected) return;
+        _remotePath = "/";
+        try
+        {
+            await _session!.ChangeDirectoryAsync(_remotePath);
+            _remotePath = await _session.GetWorkingDirectoryAsync();
+        }
+        catch
+        {
+            _remotePath = "/";
+        }
+        await RefreshRemoteAsync();
+    }
+
+    private void RevealLocalSelected()
+    {
+        if (_localList.SelectedItem is not LocalItem item) return;
+        try
+        {
+            if (item.IsDirectory)
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{item.FullPath}\"") { UseShellExecute = true });
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.FullPath}\"") { UseShellExecute = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not open File Explorer.", ex);
+        }
+    }
+
+    private void CopyLocalPath()
+    {
+        if (_localList.SelectedItem is LocalItem item) CopyText(item.FullPath);
+    }
+
+    private void CopyRemotePath()
+    {
+        if (_remoteList.SelectedItem is RemoteItem item) CopyText(item.FullPath);
+    }
+
+    private void CopyText(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not copy the path to the clipboard.", ex);
+        }
+    }
+
+    private async Task HandleShortcutAsync(KeyEventArgs e)
+    {
+        var typing = Keyboard.FocusedElement is TextBox or PasswordBox or ComboBox;
+        var remoteActive = _remoteList.IsKeyboardFocusWithin || _remotePathBox.IsKeyboardFocusWithin || _remoteFilter.IsKeyboardFocusWithin;
+
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F)
+        {
+            (remoteActive ? _remoteFilter : _localFilter).Focus();
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.L)
+        {
+            var path = remoteActive ? _remotePathBox : _localPathBox;
+            path.Focus();
+            path.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
+        if (typing) return;
+
+        if (e.Key == Key.F5)
+        {
+            if (remoteActive && IsConnected) await RefreshRemoteAsync();
+            else RefreshLocal();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F2)
+        {
+            if (remoteActive) await RenameRemoteSelectedAsync();
+            else RenameLocalSelected();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Delete)
+        {
+            if (remoteActive) await DeleteRemoteSelectedAsync();
+            else DeleteLocalSelected();
+            e.Handled = true;
+        }
+    }
 
     private static string FormatBytes(long value)
     {
         double number = Math.Max(0, value);
         string[] units = ["B", "KB", "MB", "GB", "TB"];
         var index = 0;
-        while (number >= 1024 && index < units.Length - 1) { number /= 1024; index++; }
+        while (number >= 1024 && index < units.Length - 1)
+        {
+            number /= 1024;
+            index++;
+        }
         return $"{number:0.#} {units[index]}";
     }
 }
