@@ -1,6 +1,6 @@
 # Ghost FTP UI / UX guidelines
 
-This document defines the Windows desktop visual, interaction and branding rules for Ghost FTP 1.3. The desktop app and setup/uninstall experience must behave as one product, not as separate visual systems.
+This document defines the Windows desktop visual, interaction and branding rules for Ghost FTP 1.3.1. The desktop app and setup/uninstall experience must behave as one product, not as separate visual systems.
 
 ## One brand only
 
@@ -12,9 +12,10 @@ Every user-visible product surface uses **Ghost FTP** or the compact identifier 
 - setup/uninstall UI;
 - Windows uninstall metadata;
 - icons, screenshots or README artwork;
-- shipping documentation.
+- shipping documentation;
+- repository paths or source identifiers intended for the product identity.
 
-Shared identity values and the programmatic icon live in `GhostBrand`. Repository artwork lives under `assets/brand` and `assets/readme`. CI rejects the previous alternate brand identity if it returns.
+Shared identity values and the programmatic icon live in `GhostBrand`. Repository artwork lives under `assets/brand` and `assets/readme`. CI scans both text and repository paths for disallowed legacy identity tokens.
 
 ## Single design source
 
@@ -42,18 +43,49 @@ Primary actions must be visually stronger than maintenance/destructive actions. 
 - Local and Remote panes have equal visual weight.
 - Long lists scroll internally instead of growing the whole window.
 - Grid columns scale with panel width and must not force unnecessary horizontal scrolling at the supported minimum window size.
-- Dark mode must never expose default white WPF input/list/header surfaces.
+- Dark mode must never expose unintended white WPF list/header/dropdown surfaces.
 - Spacing should use a small consistent rhythm rather than ad-hoc per-control gaps.
 
-## Forms
+## Editable controls
 
 Every connection field requires a visible label. Placeholder-only forms are not allowed for Host, Port, Security, Username or Password.
 
+Text input is a functional requirement, not a styling detail. Shared Ghost FTP text/password controls must retain **native WPF editing behavior**.
+
+Do not replace the TextBox or PasswordBox editor/content-host template merely to obtain rounded corners. Custom replacement templates can break caret rendering, mouse focus, IME, keyboard layouts, selection or text entry while still compiling successfully.
+
+The shared controls may set:
+
+- foreground/background resources;
+- border colors;
+- typography;
+- padding and minimum height;
+- caret/highlight colors;
+- focusability and tab-stop behavior;
+- maximum input length where a protocol field has a meaningful bound.
+
+They must preserve:
+
+- normal text and numeric entry;
+- caret placement;
+- mouse/keyboard focus;
+- selection;
+- Tab navigation;
+- Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+Z;
+- keyboard layouts and IME input.
+
+Current practical limits include a 253-character Host field, 5-character Port field and bounded Username input. Semantic validation still occurs when a connection/profile is submitted rather than blocking ordinary typing/paste at the keystroke level.
+
+`GhostFTP.UiSmoke` is part of CI and Release validation. It creates the real shared WPF controls on a Windows STA thread and verifies that text/password values can be mutated and editable state remains enabled.
+
+## Quick Connect
+
 - Quick Connect is optimized for repeated use.
-- Saved-profile editing may include explanatory hints.
+- Host, Port, Security, Username and Password remain visibly labeled.
 - FTPS Explicit remains the recommended/default security choice.
-- Password persistence remains opt-in.
-- Controls must use the shared Ghost FTP dark/light treatment instead of platform-default white chrome.
+- Enter from Password may initiate Connect.
+- Password persistence remains opt-in through saved profiles; Quick Connect itself does not silently persist credentials.
+- Validation errors appear in Ghost FTP dialogs and must not terminate the application.
 
 ## File panes
 
@@ -72,6 +104,23 @@ Both file panes provide consistent interaction:
 
 Local-only conveniences include Desktop, Documents, Downloads and Open in File Explorer. Remote-only actions must not appear enabled while disconnected.
 
+Remote folder creation must report server failures accurately. An FTP `550` is not assumed to mean “already exists”; Ghost FTP verifies that the directory actually exists and is accessible before reporting success.
+
+## Transfer queue
+
+The Transfers area is an operational workspace, not only a progress display.
+
+Supported queue actions include:
+
+- retry selected failed/cancelled transfers;
+- cancel selected;
+- cancel all active/queued transfers;
+- clear finished/cancelled/failed transfers;
+- copy source path;
+- copy destination path.
+
+Queue selection supports multiple jobs. Queue-capacity failures remain visible as failed jobs with an error instead of escaping as an unhandled UI exception.
+
 ## Keyboard shortcuts
 
 - `F5` — refresh active pane.
@@ -82,6 +131,12 @@ Local-only conveniences include Desktop, Documents, Downloads and Open in File E
 - `Enter` in the Quick Connect password field — connect.
 
 Destructive shortcuts must continue to honor the user's delete-confirmation setting.
+
+## Dialogs and error boundaries
+
+Normal user-facing errors, confirmations and destructive-operation prompts use Ghost FTP-styled dialogs rather than default platform MessageBox chrome.
+
+Synchronous toolbar/context-menu actions and asynchronous operations both need local exception boundaries. A failed filesystem operation, queue action or server command should result in actionable feedback while preserving the main window whenever recovery is possible.
 
 ## Status and feedback
 
@@ -110,7 +165,7 @@ The design system covers at least:
 
 `GhostWindowChrome` is the only DWM integration helper. Mica and rounded corners are enhancements, not hard dependencies. The applications continue to run when those calls are unavailable or fail.
 
-The shared `GhostBrand.IconSource` is applied to app, setup and dialogs so titlebar/taskbar identity remains consistent without an external icon package.
+The shared `GhostBrand.IconSource` is applied to app, setup and dialogs so titlebar/taskbar identity remains consistent without an external icon package. Build-time icon generation separately embeds the Ghost FTP icon in the real executable resource.
 
 ## Accessibility and maintainability
 
@@ -119,5 +174,6 @@ The shared `GhostBrand.IconSource` is applied to app, setup and dialogs so title
 - Avoid tiny unlabeled icon-only controls for primary workflows.
 - Selection and disabled states remain visually distinct.
 - Buttons retain text labels even when an icon/glyph is present.
+- Editable controls remain reachable by keyboard.
 - Shared UI code stays centralized; duplicated theme/chrome/identity implementations are technical debt and rejected by audit where possible.
-- New UI work must pass CI compilation, brand/privacy/dependency audit and self-tests before release packaging.
+- New UI work must pass CI compilation, brand/privacy/dependency audit, Core self-tests and WPF editable-input smoke tests before release packaging.
