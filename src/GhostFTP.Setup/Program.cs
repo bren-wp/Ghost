@@ -1,3 +1,4 @@
+using GhostFTP.Design;
 using System.IO;
 using System.Windows;
 
@@ -11,7 +12,10 @@ public static class Program
         var executableName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         var uninstall = args.Any(x => string.Equals(x, "--uninstall", StringComparison.OrdinalIgnoreCase))
             || executableName.Contains("Uninstall", StringComparison.OrdinalIgnoreCase);
+
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+        GhostTheme.Apply(GhostTheme.IsSystemDark());
+
         var window = new SetupWindow(uninstall);
         app.MainWindow = window;
         return app.Run(window);
