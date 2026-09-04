@@ -137,12 +137,12 @@ public static class GhostTheme
         return stack;
     }
 
-    public static Button Button(string text, bool primary = false, bool danger = false, bool subtle = false)
+    public static System.Windows.Controls.Button Button(string text, bool primary = false, bool danger = false, bool subtle = false)
     {
         var foreground = danger || primary ? Brushes.White : R("Text");
         var background = danger ? R("Danger") : primary ? R("Accent") : subtle ? Brushes.Transparent : R("Surface2");
         var border = danger ? R("Danger") : primary ? R("Accent") : subtle ? Brushes.Transparent : R("Border");
-        return new Button
+        return new System.Windows.Controls.Button
         {
             Content = text,
             FontFamily = UiFont,
@@ -334,11 +334,11 @@ public static class GhostTheme
         presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
         presenter.SetBinding(ContentPresenter.MarginProperty, new Binding("Padding") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
         border.AppendChild(presenter);
-        var template = new ControlTemplate(typeof(Button)) { VisualTree = border };
+        var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = border };
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
         hover.Setters.Add(new Setter(Control.OpacityProperty, 0.9));
         template.Triggers.Add(hover);
-        var pressed = new Trigger { Property = Button.IsPressedProperty, Value = true };
+        var pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
         pressed.Setters.Add(new Setter(Control.OpacityProperty, 0.74));
         template.Triggers.Add(pressed);
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
