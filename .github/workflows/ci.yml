@@ -56,7 +56,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-1.1.0-Windows
+          name: GhostFTP-1.2.0-Windows
           path: release/*
           if-no-files-found: error
           retention-days: 30
