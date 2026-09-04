@@ -18,11 +18,12 @@ env:
 jobs:
   release:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - name: Validate release version
@@ -45,8 +46,27 @@ jobs:
       - name: Build release packages
         shell: pwsh
         run: ./build-release.ps1
+      - name: Verify required GitHub Release assets
+        shell: pwsh
+        run: |
+          $required = @(
+            'release/portable.exe',
+            'release/setup.exe',
+            'release/portable-arm64.exe',
+            'release/setup-arm64.exe',
+            'release/GhostFTP-Portable-win-x64.exe',
+            'release/GhostFTP-Setup-win-x64.exe',
+            'release/GhostFTP-Portable-win-arm64.exe',
+            'release/GhostFTP-Setup-win-arm64.exe',
+            'release/SHA256SUMS.txt'
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path -PathType Leaf) -or (Get-Item $path).Length -le 0) {
+              throw "Required GitHub Release asset is missing or empty: $path"
+            }
+          }
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: GhostFTP-release
           path: release/*
@@ -58,4 +78,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" release/* --title "GhostFTP ${{ github.ref_name }}" --generate-notes --verify-tag
+          gh release create "${{ github.ref_name }}" `
+            release/setup.exe `
+            release/portable.exe `
+            release/setup-arm64.exe `
+            release/portable-arm64.exe `
+            release/GhostFTP-Setup-win-x64.exe `
+            release/GhostFTP-Portable-win-x64.exe `
+            release/GhostFTP-Setup-win-arm64.exe `
+            release/GhostFTP-Portable-win-arm64.exe `
+            release/SHA256SUMS.txt `
+            --title "GhostFTP ${{ github.ref_name }}" `
+            --generate-notes `
+            --verify-tag
