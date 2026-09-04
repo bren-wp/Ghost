@@ -42,9 +42,9 @@ public sealed class GhostComboBox : ComboBox
         var root = new FrameworkElementFactory(typeof(Grid));
 
         var border = new FrameworkElementFactory(typeof(Border));
-        border.SetBinding(Border.BackgroundProperty, Parent("Background"));
-        border.SetBinding(Border.BorderBrushProperty, Parent("BorderBrush"));
-        border.SetBinding(Border.BorderThicknessProperty, Parent("BorderThickness"));
+        border.SetBinding(Border.BackgroundProperty, TemplatedParentBinding("Background"));
+        border.SetBinding(Border.BorderBrushProperty, TemplatedParentBinding("BorderBrush"));
+        border.SetBinding(Border.BorderThicknessProperty, TemplatedParentBinding("BorderThickness"));
         border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
         border.SetValue(Border.SnapsToDevicePixelsProperty, true);
         root.AppendChild(border);
@@ -67,9 +67,9 @@ public sealed class GhostComboBox : ComboBox
         presenter.SetValue(FrameworkElement.MarginProperty, new Thickness(10, 0, 36, 0));
         presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
         presenter.SetValue(UIElement.IsHitTestVisibleProperty, false);
-        presenter.SetBinding(ContentPresenter.ContentProperty, Parent("SelectionBoxItem"));
-        presenter.SetBinding(ContentPresenter.ContentTemplateProperty, Parent("SelectionBoxItemTemplate"));
-        presenter.SetBinding(ContentPresenter.ContentStringFormatProperty, Parent("SelectionBoxItemStringFormat"));
+        presenter.SetBinding(ContentPresenter.ContentProperty, TemplatedParentBinding("SelectionBoxItem"));
+        presenter.SetBinding(ContentPresenter.ContentTemplateProperty, TemplatedParentBinding("SelectionBoxItemTemplate"));
+        presenter.SetBinding(ContentPresenter.ContentStringFormatProperty, TemplatedParentBinding("SelectionBoxItemStringFormat"));
         root.AppendChild(presenter);
 
         var arrow = new FrameworkElementFactory(typeof(Path));
@@ -135,7 +135,7 @@ public sealed class GhostComboBox : ComboBox
 #pragma warning restore CS0618
     }
 
-    private static Binding Parent(string path) => new(path)
+    private static Binding TemplatedParentBinding(string path) => new(path)
     {
         RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
     };
