@@ -1,10 +1,4 @@
 using System.Globalization;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Security.Authentication;
-using System.Text;
-using System.Text.RegularExpressions;
-using GhostFTP.Core.Models;
 
 namespace GhostFTP.Core.Protocol;
 
@@ -16,21 +10,28 @@ public sealed partial class FtpSession
         InputGuard.RejectControl(command, nameof(command));
         if (command.Length > 8192)
             throw new ArgumentException("FTP command is too long.", nameof(command));
-        _ = redactArgument; // Intentionally no command logging exists; parameter documents secret handling.
-        await _writer!.WriteLineAsync(command.AsMemory(), cancellationToken).WaitAsync(_options.CommandTimeout, cancellationToken).ConfigureAwait(false);
+
+        _ = redactArgument; // No command logging exists; this parameter documents secret-bearing calls.
+        await _writer!.WriteLineAsync(command.AsMemory(), cancellationToken)
+            .WaitAsync(_options.CommandTimeout, cancellationToken)
+            .ConfigureAwait(false);
         return await ReadReplyAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<FtpReply?> TryCommandAsync(string command, CancellationToken cancellationToken)
     {
-        try { return await SendCommandAsync(command, cancellationToken).ConfigureAwait(false); }
-        catch (FtpException) { return null; }
+        // FTP negative replies are returned as FtpReply and do not throw. Any exception here
+        // therefore represents a real transport/protocol failure and must propagate.
+        return await SendCommandAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<FtpReply> ReadReplyAsync(CancellationToken cancellationToken)
     {
         EnsureConnectedTransport();
-        var first = await _reader!.ReadLineAsync(cancellationToken).AsTask().WaitAsync(_options.CommandTimeout, cancellationToken).ConfigureAwait(false);
+        var first = await _reader!.ReadLineAsync(cancellationToken)
+            .AsTask()
+            .WaitAsync(_options.CommandTimeout, cancellationToken)
+            .ConfigureAwait(false);
         if (first is null)
             throw new FtpException("FTP server closed the control connection unexpectedly.");
         if (first.Length > MaxReplyLineChars)
@@ -47,11 +48,16 @@ public sealed partial class FtpSession
             {
                 if (lines.Count >= MaxReplyLines || charCount >= MaxReplyChars)
                     throw new FtpException("FTP response exceeded safe parsing limits.", code);
-                var line = await _reader.ReadLineAsync(cancellationToken).AsTask().WaitAsync(_options.CommandTimeout, cancellationToken).ConfigureAwait(false);
+
+                var line = await _reader.ReadLineAsync(cancellationToken)
+                    .AsTask()
+                    .WaitAsync(_options.CommandTimeout, cancellationToken)
+                    .ConfigureAwait(false);
                 if (line is null)
                     throw new FtpException("FTP server closed a multiline response unexpectedly.", code);
                 if (line.Length > MaxReplyLineChars)
                     throw new FtpException("FTP response line exceeded safe parsing limits.", code);
+
                 lines.Add(line);
                 charCount += line.Length;
                 if (line.StartsWith(terminator, StringComparison.Ordinal))
@@ -70,6 +76,7 @@ public sealed partial class FtpSession
         _dataProtection = false;
         _features.Clear();
         WorkingDirectory = "/";
+
         try { _writer?.Dispose(); } catch { }
         try { _reader?.Dispose(); } catch { }
         if (_controlStream is not null)
@@ -77,6 +84,7 @@ public sealed partial class FtpSession
             try { await _controlStream.DisposeAsync().ConfigureAwait(false); } catch { }
         }
         try { _controlClient?.Dispose(); } catch { }
+
         _writer = null;
         _reader = null;
         _controlStream = null;
@@ -86,15 +94,31 @@ public sealed partial class FtpSession
     private async Task LockedAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { ThrowIfDisposed(); EnsureConnected(); await action(cancellationToken).ConfigureAwait(false); }
-        finally { _gate.Release(); }
+        try
+        {
+            ThrowIfDisposed();
+            EnsureConnected();
+            await action(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task<T> LockedAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { ThrowIfDisposed(); EnsureConnected(); return await action(cancellationToken).ConfigureAwait(false); }
-        finally { _gate.Release(); }
+        try
+        {
+            ThrowIfDisposed();
+            EnsureConnected();
+            return await action(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private void EnsureConnected()
@@ -121,7 +145,18 @@ public sealed partial class FtpSession
         new($"{message} Server response: {reply.Code} {reply.Message}", reply.Code);
 
     private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max) => value < min ? min : value > max ? max : value;
-    private static void TryDeleteLocal(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
+
+    private static void TryDeleteLocal(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch
+        {
+            // Best-effort cleanup only.
+        }
+    }
 
     private void ThrowIfDisposed()
     {
@@ -132,6 +167,7 @@ public sealed partial class FtpSession
     {
         if (_disposed)
             return;
+
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -151,5 +187,4 @@ public sealed partial class FtpSession
     {
         public int Entries;
     }
-
 }
