@@ -388,9 +388,8 @@ public sealed partial class FtpSession
         {
             InputGuard.CommandArgument(segment, nameof(remotePath));
             current += "/" + segment;
-            var reply = await TryCommandAsync("MKD " + current, cancellationToken).ConfigureAwait(false);
-            if (reply is not null && !reply.IsPositiveCompletion && reply.Code != 550)
-                throw CreateReplyException(reply, "Unable to create a remote folder required for upload.");
+            var reply = await SendCommandAsync("MKD " + current, cancellationToken).ConfigureAwait(false);
+            await EnsureDirectoryCreatedOrExistingAsync(current, reply, cancellationToken).ConfigureAwait(false);
         }
     }
 
