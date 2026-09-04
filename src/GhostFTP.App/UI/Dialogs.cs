@@ -1,7 +1,7 @@
 using GhostFTP.Core.Models;
+using GhostFTP.Design;
 using GhostFTP.Services;
 using System.Diagnostics;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,30 +10,36 @@ namespace GhostFTP.UI;
 
 internal abstract class GhostDialog : Window
 {
-    protected GhostDialog(Window owner, string title, double width = 520, double height = 420)
+    protected GhostDialog(Window owner, string title, double width = 540, double height = 440)
     {
         Owner = owner;
         Title = title;
         Width = width;
         Height = height;
-        MinWidth = 420;
-        MinHeight = 260;
+        MinWidth = Math.Min(width, 460);
+        MinHeight = Math.Min(height, 300);
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        ResizeMode = ResizeMode.NoResize;
-        Background = Theme.R("Bg");
-        Foreground = Theme.R("Text");
-        FontFamily = Theme.UiFont;
+        Background = GhostTheme.R("Bg");
+        Foreground = GhostTheme.R("Text");
+        FontFamily = GhostTheme.UiFont;
         ShowInTaskbar = false;
-        SourceInitialized += (_, _) => Win11.Apply(this, ThemeState.IsDark);
+        UseLayoutRounding = true;
+        SnapsToDevicePixels = true;
+        SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
     }
 
-    protected static StackPanel Field(string label, UIElement input)
+    protected static CheckBox Check(string text, bool selected)
     {
-        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-        stack.Children.Add(Theme.Text(label, 12, muted: true, weight: FontWeights.SemiBold));
-        if (input is FrameworkElement element) element.Margin = new Thickness(0, 6, 0, 0);
-        stack.Children.Add(input);
-        return stack;
+        return new CheckBox
+        {
+            Content = text,
+            IsChecked = selected,
+            Foreground = GhostTheme.R("Text"),
+            FontFamily = GhostTheme.UiFont,
+            FontSize = 12.5,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
     }
 
     protected static Grid Footer(Button primary, Button? secondary = null)
@@ -49,15 +55,18 @@ internal abstract class GhostDialog : Window
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             Grid.SetColumn(primary, 2);
         }
-        else Grid.SetColumn(primary, 1);
+        else
+        {
+            Grid.SetColumn(primary, 1);
+        }
         grid.Children.Add(primary);
         return grid;
     }
-}
 
-internal static class ThemeState
-{
-    public static bool IsDark { get; set; } = true;
+    protected static Border Shell(UIElement content)
+    {
+        return GhostTheme.Card(content, new Thickness(24), 16);
+    }
 }
 
 internal sealed class ProfileDialog : GhostDialog
@@ -75,59 +84,79 @@ internal sealed class ProfileDialog : GhostDialog
     public string Password => _password.Password;
     public ServerProfile Result => _profile;
 
-    public ProfileDialog(Window owner, ServerProfile profile, string existingPassword, bool isNew = false) : base(owner, isNew ? "Add server" : "Edit server", 540, 650)
+    public ProfileDialog(Window owner, ServerProfile profile, string existingPassword, bool isNew = false)
+        : base(owner, isNew ? "Add server" : "Edit server", 590, 720)
     {
+        ResizeMode = ResizeMode.CanResizeWithGrip;
         _profile = profile.Clone();
-        _name = Theme.TextBox(_profile.Name);
-        _host = Theme.TextBox(_profile.Host);
-        _port = Theme.TextBox(_profile.Port.ToString());
-        _username = Theme.TextBox(_profile.Username);
-        _password = Theme.PasswordBox();
+        _name = GhostTheme.TextBox(_profile.Name);
+        _host = GhostTheme.TextBox(_profile.Host);
+        _port = GhostTheme.TextBox(_profile.Port.ToString());
+        _username = GhostTheme.TextBox(_profile.Username);
+        _password = GhostTheme.PasswordBox();
         _password.Password = existingPassword;
-        _security = Theme.ComboBox();
+        _security = GhostTheme.ComboBox();
         _security.ItemsSource = new[] { "FTP (plain)", "FTPS explicit TLS", "FTPS implicit TLS" };
         _security.SelectedIndex = (int)_profile.Security;
-        _initialPath = Theme.TextBox(_profile.InitialPath);
-        _remember = new CheckBox
-        {
-            Content = "Remember password on this Windows account (DPAPI encrypted)",
-            IsChecked = _profile.RememberPassword,
-            Foreground = Theme.R("Text"),
-            FontFamily = Theme.UiFont,
-            Margin = new Thickness(0, 2, 0, 4)
-        };
+        _initialPath = GhostTheme.TextBox(_profile.InitialPath);
+        _remember = Check("Remember password for this Windows user (DPAPI encrypted)", _profile.RememberPassword);
 
         var body = new StackPanel();
-        body.Children.Add(Theme.Text("Server profile", 24, weight: FontWeights.SemiBold));
-        body.Children.Add(Theme.Text("Credentials stay on this device. GhostFTP never transmits them anywhere except to the FTP server you choose.", 12, muted: true));
-        body.Children.Add(new Border { Height = 16 });
-        body.Children.Add(Field("Profile name", _name));
-        body.Children.Add(Field("Host", _host));
+        body.Children.Add(GhostTheme.Text("Server profile", 24, weight: FontWeights.SemiBold));
+        body.Children.Add(GhostTheme.Text(
+            "Save connection details locally. Password storage is optional and protected by Windows DPAPI.",
+            11.5,
+            muted: true));
+        body.Children.Add(new Border { Height = 18 });
+
+        body.Children.Add(GhostTheme.Field("Profile name", _name));
+        body.Children.Add(Spacer(12));
+        body.Children.Add(GhostTheme.Field("Host", _host, "Hostname or IP address only; do not include ftp://."));
+        body.Children.Add(Spacer(12));
 
         var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var portField = Field("Port", _port);
-        var securityField = Field("Security", _security);
+        var portField = GhostTheme.Field("Port", _port);
+        var securityField = GhostTheme.Field("Security", _security);
         Grid.SetColumn(portField, 0);
         Grid.SetColumn(securityField, 2);
         row.Children.Add(portField);
         row.Children.Add(securityField);
         body.Children.Add(row);
-        body.Children.Add(Field("Username", _username));
-        body.Children.Add(Field("Password", _password));
-        body.Children.Add(_remember);
-        body.Children.Add(Field("Initial remote path", _initialPath));
+        body.Children.Add(Spacer(12));
 
-        var save = Theme.Button("Save server", primary: true);
+        body.Children.Add(GhostTheme.Field("Username", _username));
+        body.Children.Add(Spacer(12));
+        body.Children.Add(GhostTheme.Field("Password", _password));
+        body.Children.Add(_remember);
+        body.Children.Add(Spacer(8));
+        body.Children.Add(GhostTheme.Field("Initial remote path", _initialPath, "Use / for the server root."));
+
+        var securityNote = GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text("Security", 12, weight: FontWeights.SemiBold),
+                GhostTheme.Text("FTPS Explicit is recommended. GhostFTP does not provide an option to bypass invalid TLS certificates.", 11, muted: true)
+            }
+        }, new Thickness(12), 10);
+        securityNote.Margin = new Thickness(0, 14, 0, 0);
+        body.Children.Add(securityNote);
+
+        var save = GhostTheme.Button("Save server", primary: true);
         save.Click += (_, _) => Save();
-        var cancel = Theme.Button("Cancel");
+        var cancel = GhostTheme.Button("Cancel");
         cancel.Click += (_, _) => Close();
         body.Children.Add(Footer(save, cancel));
 
-        Content = Theme.Card(body, new Thickness(24));
-        Padding = new Thickness(16);
+        Content = new ScrollViewer
+        {
+            Content = Shell(body),
+            Margin = new Thickness(16),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private void Save()
@@ -136,7 +165,9 @@ internal sealed class ProfileDialog : GhostDialog
         {
             if (string.IsNullOrWhiteSpace(_name.Text)) throw new InvalidOperationException("Profile name is required.");
             if (string.IsNullOrWhiteSpace(_host.Text)) throw new InvalidOperationException("Host is required.");
-            if (!int.TryParse(_port.Text, out var port) || port is < 1 or > 65535) throw new InvalidOperationException("Port must be between 1 and 65535.");
+            if (!int.TryParse(_port.Text, out var port) || port is < 1 or > 65535)
+                throw new InvalidOperationException("Port must be between 1 and 65535.");
+
             _profile.Name = _name.Text.Trim();
             _profile.Host = _host.Text.Trim();
             _profile.Port = port;
@@ -152,6 +183,8 @@ internal sealed class ProfileDialog : GhostDialog
             MessageBox.Show(this, ex.Message, "GhostFTP", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
+
+    private static Border Spacer(double height) => new() { Height = height };
 }
 
 internal sealed class TextPromptDialog : GhostDialog
@@ -159,21 +192,30 @@ internal sealed class TextPromptDialog : GhostDialog
     private readonly TextBox _input;
     public string Value => _input.Text.Trim();
 
-    public TextPromptDialog(Window owner, string title, string label, string value = "") : base(owner, title, 470, 260)
+    public TextPromptDialog(Window owner, string title, string label, string value = "")
+        : base(owner, title, 480, 270)
     {
-        _input = Theme.TextBox(value);
+        ResizeMode = ResizeMode.NoResize;
+        _input = GhostTheme.TextBox(value);
         var body = new StackPanel();
-        body.Children.Add(Theme.Text(title, 22, weight: FontWeights.SemiBold));
-        body.Children.Add(new Border { Height = 14 });
-        body.Children.Add(Field(label, _input));
-        var ok = Theme.Button("Continue", primary: true);
-        ok.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(_input.Text)) DialogResult = true; };
-        var cancel = Theme.Button("Cancel");
+        body.Children.Add(GhostTheme.Text(title, 22, weight: FontWeights.SemiBold));
+        body.Children.Add(new Border { Height = 16 });
+        body.Children.Add(GhostTheme.Field(label, _input));
+        var ok = GhostTheme.Button("Continue", primary: true);
+        ok.Click += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(_input.Text)) DialogResult = true;
+        };
+        var cancel = GhostTheme.Button("Cancel");
         cancel.Click += (_, _) => Close();
         body.Children.Add(Footer(ok, cancel));
-        Content = Theme.Card(body, new Thickness(24));
+        Content = Shell(body);
         Padding = new Thickness(16);
-        Loaded += (_, _) => { _input.Focus(); _input.SelectAll(); };
+        Loaded += (_, _) =>
+        {
+            _input.Focus();
+            _input.SelectAll();
+        };
     }
 }
 
@@ -181,81 +223,101 @@ internal sealed class SettingsDialog : GhostDialog
 {
     private readonly ComboBox _theme;
     private readonly CheckBox _confirmDeletes;
+    private readonly CheckBox _showHidden;
+
     public AppTheme SelectedTheme => (AppTheme)Math.Max(0, _theme.SelectedIndex);
     public bool ConfirmDeletes => _confirmDeletes.IsChecked == true;
+    public bool ShowHiddenFiles => _showHidden.IsChecked == true;
 
-    public SettingsDialog(Window owner, AppSettings settings) : base(owner, "Settings", 500, 360)
+    public SettingsDialog(Window owner, AppSettings settings) : base(owner, "Settings", 540, 470)
     {
-        _theme = Theme.ComboBox();
+        ResizeMode = ResizeMode.NoResize;
+        _theme = GhostTheme.ComboBox();
         _theme.ItemsSource = new[] { "Use Windows setting", "Dark", "Light" };
         _theme.SelectedIndex = (int)settings.Theme;
-        _confirmDeletes = new CheckBox
-        {
-            Content = "Ask for confirmation before deleting local or remote files and folders",
-            IsChecked = settings.ConfirmDeletes,
-            Foreground = Theme.R("Text"),
-            FontFamily = Theme.UiFont,
-            Margin = new Thickness(0, 6, 0, 8)
-        };
+        _confirmDeletes = Check("Ask before deleting local or remote files and folders", settings.ConfirmDeletes);
+        _showHidden = Check("Show hidden and system items in the local file pane", settings.ShowHiddenFiles);
 
         var body = new StackPanel();
-        body.Children.Add(Theme.Text("Settings", 24, weight: FontWeights.SemiBold));
-        body.Children.Add(Theme.Text("Privacy-first defaults. No telemetry, analytics, automatic update checks or background network traffic.", 12, muted: true));
+        body.Children.Add(GhostTheme.Text("Settings", 24, weight: FontWeights.SemiBold));
+        body.Children.Add(GhostTheme.Text("Workspace preferences are stored locally and never synchronized.", 11.5, muted: true));
         body.Children.Add(new Border { Height = 18 });
-        body.Children.Add(Field("Appearance", _theme));
+        body.Children.Add(GhostTheme.Field("Appearance", _theme));
+        body.Children.Add(new Border { Height = 16 });
+        body.Children.Add(GhostTheme.Text("File workspace", 12, weight: FontWeights.SemiBold));
         body.Children.Add(_confirmDeletes);
-        var save = Theme.Button("Save", primary: true);
+        body.Children.Add(_showHidden);
+
+        var shortcuts = GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text("Keyboard shortcuts", 12, weight: FontWeights.SemiBold),
+                GhostTheme.Text("F5 Refresh · F2 Rename · Delete Remove · Ctrl+F Filter · Ctrl+L Path", 11, muted: true)
+            }
+        }, new Thickness(12), 10);
+        shortcuts.Margin = new Thickness(0, 14, 0, 0);
+        body.Children.Add(shortcuts);
+
+        var save = GhostTheme.Button("Save settings", primary: true);
         save.Click += (_, _) => DialogResult = true;
-        var cancel = Theme.Button("Cancel");
+        var cancel = GhostTheme.Button("Cancel");
         cancel.Click += (_, _) => Close();
         body.Children.Add(Footer(save, cancel));
-        Content = Theme.Card(body, new Thickness(24));
+        Content = Shell(body);
         Padding = new Thickness(16);
     }
 }
 
 internal sealed class AboutDialog : GhostDialog
 {
-    public AboutDialog(Window owner) : base(owner, "About GhostFTP", 540, 430)
+    public AboutDialog(Window owner) : base(owner, "About GhostFTP", 560, 500)
     {
+        ResizeMode = ResizeMode.NoResize;
         var body = new StackPanel();
-        var logo = new Border
-        {
-            Width = 56,
-            Height = 56,
-            CornerRadius = new CornerRadius(16),
-            Background = new LinearGradientBrush((Color)ColorConverter.ConvertFromString("#7C5CFF"), (Color)ColorConverter.ConvertFromString("#35C6F4"), 45),
-            Child = new TextBlock { Text = "G", FontSize = 28, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontFamily = Theme.DisplayFont }
-        };
-        body.Children.Add(logo);
+        body.Children.Add(GhostTheme.Logo(58));
         body.Children.Add(new Border { Height = 14 });
-        body.Children.Add(Theme.Text("GhostFTP", 28, weight: FontWeights.SemiBold));
-        var version = typeof(AboutDialog).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
-        body.Children.Add(Theme.Text($"Version {version} · Premium Windows FTP/FTPS client", 12, muted: true));
+        body.Children.Add(GhostTheme.Text("GhostFTP", 28, weight: FontWeights.SemiBold));
+        var version = typeof(AboutDialog).Assembly.GetName().Version?.ToString(3) ?? "1.2.0";
+        body.Children.Add(GhostTheme.Text($"Version {version} · Windows FTP / FTPS client", 11.5, muted: true));
         body.Children.Add(new Border { Height = 18 });
-        body.Children.Add(Theme.Text("Author: Brendigo", 13, weight: FontWeights.SemiBold));
-        body.Children.Add(Theme.Text("ghostftp.com", 13));
-        body.Children.Add(Theme.Text("brendigo.com", 13));
-        body.Children.Add(new Border { Height = 16 });
-        body.Children.Add(Theme.Text("Privacy", 13, weight: FontWeights.SemiBold));
-        body.Children.Add(Theme.Text("GhostFTP contains no telemetry, analytics, tracking SDK, ads or automatic update checker. Network traffic is created only by FTP/FTPS actions you initiate or when you manually open a website link.", 12, muted: true));
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 20, 0, 0) };
-        var web = Theme.Button("ghostftp.com", primary: true);
+        body.Children.Add(GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text("Privacy by design", 12.5, weight: FontWeights.SemiBold),
+                GhostTheme.Text("No telemetry, analytics, tracking SDK, ads or automatic update checker. Network traffic is created only by FTP/FTPS actions you initiate or website links you open yourself.", 11, muted: true)
+            }
+        }, new Thickness(12), 10));
+
+        body.Children.Add(new Border { Height = 16 });
+        body.Children.Add(GhostTheme.Text("Brendigo", 12.5, weight: FontWeights.SemiBold));
+        body.Children.Add(GhostTheme.Text("ghostftp.com · brendigo.com", 11.5, muted: true));
+
+        var buttons = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) };
+        var web = GhostTheme.Button("Open ghostftp.com", primary: true);
         web.Click += (_, _) => OpenUrl("https://ghostftp.com");
-        var author = Theme.Button("Brendigo");
+        var author = GhostTheme.Button("Open Brendigo");
         author.Margin = new Thickness(8, 0, 0, 0);
         author.Click += (_, _) => OpenUrl("https://brendigo.com");
         buttons.Children.Add(web);
         buttons.Children.Add(author);
         body.Children.Add(buttons);
 
-        Content = Theme.Card(body, new Thickness(24));
+        Content = Shell(body);
         Padding = new Thickness(16);
     }
 
     private static void OpenUrl(string url)
     {
-        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Opening an external website is optional and must not affect the app session.
+        }
     }
 }
