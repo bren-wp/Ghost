@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -56,7 +57,7 @@ internal sealed class InstallerService
         }
 
         var current = Environment.ProcessPath;
-        if (!string.IsNullOrWhiteSpace(current) && File.Exists(current))
+        if (current is not null && current.Length > 0 && File.Exists(current))
             _ = MoveFileEx(current, null, 0x4);
         return Task.CompletedTask;
     }
