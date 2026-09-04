@@ -5,6 +5,9 @@ namespace GhostFTP.Core.Services;
 
 public sealed class ProfileStore
 {
+    private const long MaxProfileFileBytes = 8L * 1024 * 1024;
+    private const int MaxProfiles = 2048;
+
     private readonly string _filePath;
     private readonly ISecretProtector _secretProtector;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -30,22 +33,14 @@ public sealed class ProfileStore
 
             try
             {
-                await using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 32 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                var profiles = await JsonSerializer.DeserializeAsync<List<ServerProfile>>(stream, JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
-                Normalize(profiles);
-                EnsureDemo(profiles);
-                return profiles;
+                return await ReadProfilesAsync(_filePath, cancellationToken).ConfigureAwait(false);
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
             {
                 var backup = _filePath + ".bak";
                 if (!File.Exists(backup))
                     throw;
-                await using var stream = new FileStream(backup, FileMode.Open, FileAccess.Read, FileShare.Read, 32 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                var profiles = await JsonSerializer.DeserializeAsync<List<ServerProfile>>(stream, JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
-                Normalize(profiles);
-                EnsureDemo(profiles);
-                return profiles;
+                return await ReadProfilesAsync(backup, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -61,17 +56,29 @@ public sealed class ProfileStore
         try
         {
             var list = profiles.Select(x => x.Clone()).ToList();
+            if (list.Count > MaxProfiles)
+                throw new InvalidOperationException($"Too many saved server profiles. Maximum: {MaxProfiles:N0}.");
+
             Normalize(list);
             EnsureDemo(list);
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
             var temp = _filePath + ".tmp-" + Guid.NewGuid().ToString("N");
             try
             {
-                await using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 32 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough))
+                await using (var stream = new FileStream(
+                    temp,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    32 * 1024,
+                    FileOptions.Asynchronous | FileOptions.WriteThrough))
                 {
                     await JsonSerializer.SerializeAsync(stream, list, JsonOptions, cancellationToken).ConfigureAwait(false);
                     await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 }
+
+                if (new FileInfo(temp).Length > MaxProfileFileBytes)
+                    throw new InvalidDataException("Saved profile data exceeds the supported size limit.");
 
                 if (File.Exists(_filePath))
                 {
@@ -112,6 +119,30 @@ public sealed class ProfileStore
             return string.Empty;
         try { return _secretProtector.Unprotect(profile.ProtectedPassword); }
         catch { return string.Empty; }
+    }
+
+    private static async Task<IReadOnlyList<ServerProfile>> ReadProfilesAsync(string path, CancellationToken cancellationToken)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists)
+            throw new FileNotFoundException("Profile data file was not found.", path);
+        if (info.Length > MaxProfileFileBytes)
+            throw new InvalidDataException("Profile data exceeds the supported size limit.");
+
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            32 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var profiles = await JsonSerializer.DeserializeAsync<List<ServerProfile>>(stream, JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
+        if (profiles.Count > MaxProfiles)
+            throw new InvalidDataException($"Profile data contains more than {MaxProfiles:N0} entries.");
+
+        Normalize(profiles);
+        EnsureDemo(profiles);
+        return profiles;
     }
 
     private static void Normalize(List<ServerProfile> profiles)
