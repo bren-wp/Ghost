@@ -1,3 +1,4 @@
+using GhostFTP.Design;
 using GhostFTP.Services;
 using GhostFTP.UI;
 using System.Windows;
@@ -31,10 +32,9 @@ public static class Program
         {
             AppTheme.Dark => true,
             AppTheme.Light => false,
-            _ => Theme.IsSystemDark()
+            _ => GhostTheme.IsSystemDark()
         };
-        ThemeState.IsDark = dark;
-        Theme.Apply(dark);
+        GhostTheme.Apply(dark);
 
         app.DispatcherUnhandledException += OnDispatcherUnhandledException;
         var window = new MainWindow();
