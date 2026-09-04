@@ -82,30 +82,6 @@ public static class GhostTheme
         };
     }
 
-    public static Border Logo(double size = 44)
-    {
-        return new Border
-        {
-            Width = size,
-            Height = size,
-            CornerRadius = new CornerRadius(size * 0.3),
-            Background = new LinearGradientBrush(
-                (Color)ColorConverter.ConvertFromString("#6F5BFF"),
-                (Color)ColorConverter.ConvertFromString("#35C6F4"),
-                45),
-            Child = new TextBlock
-            {
-                Text = "G",
-                Foreground = Brushes.White,
-                FontSize = size * 0.5,
-                FontWeight = FontWeights.Bold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                FontFamily = DisplayFont
-            }
-        };
-    }
-
     public static TextBlock Text(string text, double size = 13, bool muted = false, FontWeight? weight = null)
     {
         return new TextBlock
@@ -194,26 +170,6 @@ public static class GhostTheme
             VerticalContentAlignment = VerticalAlignment.Center,
             Template = RoundedPasswordBoxTemplate()
         };
-    }
-
-    public static ComboBox ComboBox()
-    {
-        var combo = new ComboBox
-        {
-            FontFamily = UiFont,
-            FontSize = 12.5,
-            Foreground = R("Text"),
-            Background = R("Surface2"),
-            BorderBrush = R("Border"),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 5, 8, 5),
-            MinHeight = 34,
-            VerticalContentAlignment = VerticalAlignment.Center
-        };
-        combo.Resources[SystemColors.WindowBrushKey] = R("Surface2");
-        combo.Resources[SystemColors.HighlightBrushKey] = R("AccentSoft");
-        combo.Resources[SystemColors.HighlightTextBrushKey] = R("Text");
-        return combo;
     }
 
     public static Border Badge(string text, string backgroundKey = "Surface2", string foregroundKey = "Muted")
