@@ -1,18 +1,32 @@
-# GhostFTP UI / UX guidelines
+# Ghost FTP UI / UX guidelines
 
-This document defines the Windows desktop visual and interaction rules introduced with GhostFTP 1.2. The goal is consistency across the main application and setup/uninstall experience.
+This document defines the Windows desktop visual, interaction and branding rules for Ghost FTP 1.3. The desktop app and setup/uninstall experience must behave as one product, not as separate visual systems.
+
+## One brand only
+
+Every user-visible product surface uses **Ghost FTP** or the compact identifier **GhostFTP**. Do not add secondary product, agency, author or vendor branding to:
+
+- application chrome;
+- navigation;
+- About/settings/profile dialogs;
+- setup/uninstall UI;
+- Windows uninstall metadata;
+- icons, screenshots or README artwork;
+- shipping documentation.
+
+Shared identity values and the programmatic icon live in `GhostBrand`. Repository artwork lives under `assets/brand` and `assets/readme`. CI rejects the previous alternate brand identity if it returns.
 
 ## Single design source
 
 All shared presentation primitives live in `src/GhostFTP.Design`.
 
-Do not create a second app-specific or setup-specific theme class for colors, typography, generic buttons, cards, form fields or Windows 11 window chrome. If a visual primitive is reusable, add it to `GhostTheme` or `GhostWindowChrome` and consume it from both applications.
+Do not create a second app-specific or setup-specific theme class for colors, typography, generic buttons, cards, form fields, product identity or Windows window chrome. If a visual primitive is reusable, add it to `GhostTheme`, `GhostBrand` or `GhostWindowChrome` and consume it from both applications.
 
 ## Visual hierarchy
 
 The main application uses this hierarchy:
 
-1. Saved-server navigation.
+1. Ghost FTP identity and saved-server navigation.
 2. Page header and global connection status.
 3. Quick Connect card.
 4. Local / Remote file workspace.
@@ -27,8 +41,9 @@ Primary actions must be visually stronger than maintenance/destructive actions. 
 - Path fields receive the remaining horizontal space; navigation buttons use intrinsic width.
 - Local and Remote panes have equal visual weight.
 - Long lists scroll internally instead of growing the whole window.
-- Avoid fixed column widths that force horizontal scrolling at the minimum supported window size.
-- Avoid default WPF white surfaces inside a dark GhostFTP window.
+- Grid columns scale with panel width and must not force unnecessary horizontal scrolling at the supported minimum window size.
+- Dark mode must never expose default white WPF input/list/header surfaces.
+- Spacing should use a small consistent rhythm rather than ad-hoc per-control gaps.
 
 ## Forms
 
@@ -37,7 +52,8 @@ Every connection field requires a visible label. Placeholder-only forms are not 
 - Quick Connect is optimized for repeated use.
 - Saved-profile editing may include explanatory hints.
 - FTPS Explicit remains the recommended/default security choice.
-- Password persistence must remain opt-in.
+- Password persistence remains opt-in.
+- Controls must use the shared Ghost FTP dark/light treatment instead of platform-default white chrome.
 
 ## File panes
 
@@ -71,34 +87,37 @@ Destructive shortcuts must continue to honor the user's delete-confirmation sett
 
 Connection state is shown globally as a compact badge. Transfer state is summarized next to the Transfers heading. Long operations must never make success/failure dependent on hidden telemetry or network reporting.
 
-Setup/uninstall uses inline status and progress. Successful setup should offer `Launch GhostFTP`; successful uninstall should offer `Close`. Avoid chaining modal success prompts when the same state can be communicated in the current window.
+Setup/uninstall uses inline status and progress. Successful setup offers `Launch Ghost FTP`; successful uninstall offers `Close`. A failed required file operation must never be translated into a success state.
 
 ## Dark/light behavior
 
-`GhostTheme.Apply` owns the application resource palette. Controls must reference palette resources instead of hardcoded local colors except for intentional brand gradients.
+`GhostTheme.Apply` owns the application resource palette. Controls must reference palette resources instead of hardcoded local colors except for intentional Ghost FTP brand gradients.
 
-The design system must cover at least:
+The design system covers at least:
 
 - cards/surfaces;
 - text and muted text;
 - buttons;
 - text/password fields;
-- combo-box items;
+- combo boxes and combo-box items;
 - GridView headers;
 - ListView/ListBox rows and selection;
 - context menus;
 - tooltips;
 - status badges.
 
-## Windows 11 integration
+## Windows integration
 
-`GhostWindowChrome` is the only DWM integration helper. Mica and rounded corners are enhancements, not hard dependencies. The applications must continue to run when those calls are unavailable or fail.
+`GhostWindowChrome` is the only DWM integration helper. Mica and rounded corners are enhancements, not hard dependencies. The applications continue to run when those calls are unavailable or fail.
+
+The shared `GhostBrand.IconSource` is applied to app, setup and dialogs so titlebar/taskbar identity remains consistent without an external icon package.
 
 ## Accessibility and maintainability
 
-- Text must remain readable without relying on color alone for meaning.
-- Interactive elements require reasonable minimum hit targets.
+- Text remains readable without relying on color alone for meaning.
+- Interactive elements use reasonable minimum hit targets.
 - Avoid tiny unlabeled icon-only controls for primary workflows.
-- Selection and disabled states must remain visually distinct.
-- Keep shared UI code centralized; duplicated theme/chrome implementations are considered technical debt.
-- New UI work must pass normal CI compilation, privacy/dependency audit and self-tests before release packaging.
+- Selection and disabled states remain visually distinct.
+- Buttons retain text labels even when an icon/glyph is present.
+- Shared UI code stays centralized; duplicated theme/chrome/identity implementations are technical debt and rejected by audit where possible.
+- New UI work must pass CI compilation, brand/privacy/dependency audit and self-tests before release packaging.
