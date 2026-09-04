@@ -34,7 +34,7 @@ jobs:
         run: dotnet restore GhostFTP.sln
       - name: Build
         run: dotnet build GhostFTP.sln -c Release --no-restore
-      - name: Dependency, version and telemetry audit
+      - name: Dependency, version, privacy and brand audit
         shell: pwsh
         run: ./audit-source.ps1
       - name: Self-test
@@ -56,7 +56,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-1.2.0-Windows
+          name: GhostFTP-1.3.0-Windows
           path: release/*
           if-no-files-found: error
           retention-days: 30
