@@ -3,11 +3,19 @@ name: Release
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+    paths:
+      - '.github/release-trigger-*'
 
 permissions:
   contents: write
+
+concurrency:
+  group: ghostftp-release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
@@ -73,21 +81,31 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" `
-            release/setup.exe `
-            release/portable.exe `
-            release/setup-arm64.exe `
-            release/portable-arm64.exe `
-            release/GhostFTP-Setup-win-x64.exe `
-            release/GhostFTP-Portable-win-x64.exe `
-            release/GhostFTP-Setup-win-arm64.exe `
-            release/GhostFTP-Portable-win-arm64.exe `
-            release/SHA256SUMS.txt `
-            --title "GhostFTP ${{ github.ref_name }}" `
-            --generate-notes `
-            --verify-tag
+          $version = (Get-Content VERSION -Raw).Trim()
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF_NAME } else { "v$version" }
+          $assets = @(
+            'release/setup.exe',
+            'release/portable.exe',
+            'release/setup-arm64.exe',
+            'release/portable-arm64.exe',
+            'release/GhostFTP-Setup-win-x64.exe',
+            'release/GhostFTP-Portable-win-x64.exe',
+            'release/GhostFTP-Setup-win-arm64.exe',
+            'release/GhostFTP-Portable-win-arm64.exe',
+            'release/SHA256SUMS.txt'
+          )
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists; refreshing verified assets."
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Failed to refresh GitHub Release assets for $tag." }
+          }
+          else {
+            gh release create $tag @assets --target $env:GITHUB_SHA --title "GhostFTP $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $tag." }
+          }
