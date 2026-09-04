@@ -8,7 +8,6 @@ using GhostFTP.Core.Models;
 
 namespace GhostFTP.Core.Protocol;
 
-
 public sealed partial class FtpSession : IFtpSession
 {
     private const int MaxReplyLines = 256;
@@ -146,8 +145,7 @@ public sealed partial class FtpSession : IFtpSession
         {
             remotePath = InputGuard.RemotePath(remotePath);
             var reply = await SendCommandAsync("MKD " + remotePath, ct).ConfigureAwait(false);
-            if (!reply.IsPositiveCompletion && reply.Code != 550)
-                throw CreateReplyException(reply, "Unable to create the remote directory.");
+            await EnsureDirectoryCreatedOrExistingAsync(remotePath, reply, ct).ConfigureAwait(false);
         }, cancellationToken);
 
     public Task RenameAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default) =>
@@ -180,5 +178,4 @@ public sealed partial class FtpSession : IFtpSession
 
     public Task UploadDirectoryAsync(string localDirectory, string remotePath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default) =>
         LockedAsync(ct => UploadDirectoryCoreAsync(Path.GetFullPath(localDirectory), InputGuard.RemotePath(remotePath), progress, ct), cancellationToken);
-
 }
