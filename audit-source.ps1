@@ -43,4 +43,4 @@ foreach ($pattern in $forbiddenSourceExtensions) {
     if ($matches) { throw "Non-C# source exists under src/: $($matches.FullName -join ', ')" }
 }
 
-Write-Host "Source audit passed for GhostFTP $version: C# only, zero PackageReference entries, no known telemetry/tracking SDK references, version metadata synchronized."
+Write-Host "Source audit passed for GhostFTP ${version}: C# only, zero PackageReference entries, no known telemetry/tracking SDK references, version metadata synchronized."
