@@ -19,6 +19,8 @@ public sealed class AppSettings
 
 public sealed class AppSettingsStore
 {
+    private const long MaxSettingsFileBytes = 1024 * 1024;
+
     private readonly string _path;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -37,16 +39,14 @@ public sealed class AppSettingsStore
             if (!File.Exists(_path)) return new AppSettings();
             try
             {
-                await using var stream = File.OpenRead(_path);
-                var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken).ConfigureAwait(false)
-                    ?? new AppSettings();
-                if (!Directory.Exists(settings.LastLocalDirectory))
-                    settings.LastLocalDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                return settings;
+                return await ReadAsync(_path, cancellationToken).ConfigureAwait(false);
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
             {
-                return new AppSettings();
+                var backup = _path + ".bak";
+                return File.Exists(backup)
+                    ? await ReadAsync(backup, cancellationToken).ConfigureAwait(false)
+                    : new AppSettings();
             }
         }
         finally
@@ -76,7 +76,14 @@ public sealed class AppSettingsStore
                     await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken).ConfigureAwait(false);
                     await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 }
-                File.Move(temp, _path, true);
+
+                if (new FileInfo(temp).Length > MaxSettingsFileBytes)
+                    throw new InvalidDataException("Settings data exceeds the supported size limit.");
+
+                if (File.Exists(_path))
+                    File.Replace(temp, _path, _path + ".bak", ignoreMetadataErrors: true);
+                else
+                    File.Move(temp, _path);
             }
             finally
             {
@@ -94,5 +101,30 @@ public sealed class AppSettingsStore
         {
             _gate.Release();
         }
+    }
+
+    private static async Task<AppSettings> ReadAsync(string path, CancellationToken cancellationToken)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists)
+            return new AppSettings();
+        if (info.Length > MaxSettingsFileBytes)
+            throw new InvalidDataException("Settings data exceeds the supported size limit.");
+
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            16 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken).ConfigureAwait(false)
+            ?? new AppSettings();
+
+        if (!Enum.IsDefined(settings.Theme))
+            settings.Theme = AppTheme.System;
+        if (!Directory.Exists(settings.LastLocalDirectory))
+            settings.LastLocalDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return settings;
     }
 }
