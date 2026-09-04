@@ -66,15 +66,26 @@ public sealed class TransferQueueService : IAsyncDisposable
 
     private void Enqueue(TransferJob job)
     {
+        if (_shutdown.IsCancellationRequested)
+        {
+            job.Error = "Transfer queue is shutting down.";
+            job.State = TransferState.Failed;
+            Jobs.Add(job);
+            JobUpdated?.Invoke(this, job);
+            return;
+        }
+
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
         lock (_sync) _cancellations[job.Id] = cts;
         Jobs.Add(job);
         if (!_channel.Writer.TryWrite(new Queued(job, cts)))
         {
-            Jobs.Remove(job);
             lock (_sync) _cancellations.Remove(job.Id);
             cts.Dispose();
-            throw new InvalidOperationException($"Transfer queue is full. Maximum queued transfers: {MaxQueuedTransfers:N0}.");
+            job.Error = $"Transfer queue is full. Maximum queued transfers: {MaxQueuedTransfers:N0}.";
+            job.State = TransferState.Failed;
+            JobUpdated?.Invoke(this, job);
+            return;
         }
         JobUpdated?.Invoke(this, job);
     }
