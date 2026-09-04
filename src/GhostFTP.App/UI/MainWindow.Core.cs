@@ -96,10 +96,14 @@ public sealed partial class MainWindow : Window
 
         _security.ItemsSource = new[] { "FTP", "FTPS Explicit", "FTPS Implicit" };
         _security.SelectedIndex = 1;
+        _port.MaxLength = 5;
+        _host.MaxLength = 253;
+        _username.MaxLength = 512;
 
         Content = BuildLayout();
         ConfigureLists();
         ConfigureEvents();
+        ConfigureQueueUx();
 
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Loaded += OnLoadedAsync;
