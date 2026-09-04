@@ -137,7 +137,7 @@ public static class GhostTheme
 
     public static TextBox TextBox(string? text = null)
     {
-        return new TextBox
+        var box = new TextBox
         {
             Text = text ?? string.Empty,
             FontFamily = UiFont,
@@ -146,17 +146,25 @@ public static class GhostTheme
             Background = R("Surface2"),
             BorderBrush = R("Border"),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 7, 10, 7),
+            Padding = new Thickness(10, 6, 10, 6),
             MinHeight = 34,
             CaretBrush = R("Text"),
             VerticalContentAlignment = VerticalAlignment.Center,
-            Template = RoundedTextBoxTemplate()
+            Focusable = true,
+            IsTabStop = true,
+            IsReadOnly = false,
+            AcceptsReturn = false,
+            AcceptsTab = false,
+            TextWrapping = TextWrapping.NoWrap,
+            SpellCheck = new SpellCheck { IsEnabled = false }
         };
+        ConfigureEditableControl(box);
+        return box;
     }
 
     public static PasswordBox PasswordBox()
     {
-        return new PasswordBox
+        var box = new PasswordBox
         {
             FontFamily = UiFont,
             FontSize = 12.5,
@@ -164,12 +172,15 @@ public static class GhostTheme
             Background = R("Surface2"),
             BorderBrush = R("Border"),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 7, 10, 7),
+            Padding = new Thickness(10, 6, 10, 6),
             MinHeight = 34,
             CaretBrush = R("Text"),
             VerticalContentAlignment = VerticalAlignment.Center,
-            Template = RoundedPasswordBoxTemplate()
+            Focusable = true,
+            IsTabStop = true
         };
+        ConfigureEditableControl(box);
+        return box;
     }
 
     public static Border Badge(string text, string backgroundKey = "Surface2", string foregroundKey = "Muted")
@@ -187,6 +198,21 @@ public static class GhostTheme
                 FontSize = 11,
                 FontWeight = FontWeights.SemiBold
             }
+        };
+    }
+
+    private static void ConfigureEditableControl(Control control)
+    {
+        control.Resources[SystemColors.WindowBrushKey] = R("Surface2");
+        control.Resources[SystemColors.WindowTextBrushKey] = R("Text");
+        control.Resources[SystemColors.ControlBrushKey] = R("Surface2");
+        control.Resources[SystemColors.ControlTextBrushKey] = R("Text");
+        control.Resources[SystemColors.HighlightBrushKey] = R("Accent");
+        control.Resources[SystemColors.HighlightTextBrushKey] = Brushes.White;
+        control.PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            if (!control.IsKeyboardFocusWithin)
+                _ = control.Focus();
         };
     }
 
@@ -301,38 +327,6 @@ public static class GhostTheme
         disabled.Setters.Add(new Setter(Control.OpacityProperty, 0.42));
         template.Triggers.Add(disabled);
         return template;
-#pragma warning restore CS0618
-    }
-
-    private static ControlTemplate RoundedTextBoxTemplate()
-    {
-#pragma warning disable CS0618
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetBinding(Border.BackgroundProperty, new Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetBinding(Border.BorderBrushProperty, new Binding("BorderBrush") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetBinding(Border.BorderThicknessProperty, new Binding("BorderThickness") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
-        var host = new FrameworkElementFactory(typeof(ScrollViewer));
-        host.SetValue(FrameworkElement.NameProperty, "PART_ContentHost");
-        host.SetBinding(FrameworkElement.MarginProperty, new Binding("Padding") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.AppendChild(host);
-        return new ControlTemplate(typeof(TextBox)) { VisualTree = border };
-#pragma warning restore CS0618
-    }
-
-    private static ControlTemplate RoundedPasswordBoxTemplate()
-    {
-#pragma warning disable CS0618
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetBinding(Border.BackgroundProperty, new Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetBinding(Border.BorderBrushProperty, new Binding("BorderBrush") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetBinding(Border.BorderThicknessProperty, new Binding("BorderThickness") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
-        var host = new FrameworkElementFactory(typeof(ScrollViewer));
-        host.SetValue(FrameworkElement.NameProperty, "PART_ContentHost");
-        host.SetBinding(FrameworkElement.MarginProperty, new Binding("Padding") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.AppendChild(host);
-        return new ControlTemplate(typeof(PasswordBox)) { VisualTree = border };
 #pragma warning restore CS0618
     }
 }
