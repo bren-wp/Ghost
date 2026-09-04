@@ -39,6 +39,7 @@ internal static class Theme
     }
 
     public static Brush R(string key) => (Brush)Application.Current.Resources[key];
+
     private static SolidColorBrush Brush(string hex)
     {
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
@@ -151,18 +152,22 @@ internal static class Theme
         border.SetBinding(Border.BorderThicknessProperty, new System.Windows.Data.Binding("BorderThickness") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
         border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
         border.SetValue(Border.SnapsToDevicePixelsProperty, true);
+
         var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
         presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
         presenter.SetBinding(ContentPresenter.MarginProperty, new System.Windows.Data.Binding("Padding") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
         border.AppendChild(presenter);
-        var template = new ControlTemplate(typeof(Button)) { VisualTree = border };
+
+        var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = border };
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
         hover.Setters.Add(new Setter(Control.OpacityProperty, 0.88));
         template.Triggers.Add(hover);
-        var pressed = new Trigger { Property = Button.IsPressedProperty, Value = true };
+
+        var pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
         pressed.Setters.Add(new Setter(Control.OpacityProperty, 0.72));
         template.Triggers.Add(pressed);
+
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
         disabled.Setters.Add(new Setter(Control.OpacityProperty, 0.45));
         template.Triggers.Add(disabled);
@@ -178,6 +183,7 @@ internal static class Theme
         border.SetBinding(Border.BorderBrushProperty, new System.Windows.Data.Binding("BorderBrush") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
         border.SetBinding(Border.BorderThicknessProperty, new System.Windows.Data.Binding("BorderThickness") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
         border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
+
         var host = new FrameworkElementFactory(typeof(ScrollViewer));
         host.SetValue(FrameworkElement.NameProperty, "PART_ContentHost");
         host.SetBinding(FrameworkElement.MarginProperty, new System.Windows.Data.Binding("Padding") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
