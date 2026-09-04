@@ -21,9 +21,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - name: Restore
@@ -39,9 +39,18 @@ jobs:
         if: github.event_name == 'push'
         shell: pwsh
         run: ./build-release.ps1
+      - name: Verify canonical release executables
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          foreach ($name in @('release/portable.exe', 'release/setup.exe')) {
+            if (!(Test-Path $name -PathType Leaf) -or (Get-Item $name).Length -le 0) {
+              throw "Required release executable is missing or empty: $name"
+            }
+          }
       - name: Upload verified Windows packages
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: GhostFTP-1.1.0-Windows
           path: release/*
