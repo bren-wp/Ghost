@@ -96,7 +96,7 @@ internal sealed class ProfileDialog : GhostDialog
         _username = GhostTheme.TextBox(_profile.Username);
         _password = GhostTheme.PasswordBox();
         _password.Password = existingPassword;
-        _security = GhostTheme.ComboBox();
+        _security = new GhostComboBox();
         _security.ItemsSource = new[] { "FTP (plain)", "FTPS explicit TLS", "FTPS implicit TLS" };
         _security.SelectedIndex = (int)_profile.Security;
         _initialPath = GhostTheme.TextBox(_profile.InitialPath);
@@ -233,7 +233,7 @@ internal sealed class SettingsDialog : GhostDialog
     public SettingsDialog(Window owner, AppSettings settings) : base(owner, "Settings", 540, 470)
     {
         ResizeMode = ResizeMode.NoResize;
-        _theme = GhostTheme.ComboBox();
+        _theme = new GhostComboBox();
         _theme.ItemsSource = new[] { "Use Windows setting", "Dark", "Light" };
         _theme.SelectedIndex = (int)settings.Theme;
         _confirmDeletes = Check("Ask before deleting local or remote files and folders", settings.ConfirmDeletes);
