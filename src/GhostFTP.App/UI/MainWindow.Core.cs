@@ -60,7 +60,7 @@ public sealed partial class MainWindow : Window
     private readonly TextBox _port = GhostTheme.TextBox("21");
     private readonly TextBox _username = GhostTheme.TextBox();
     private readonly PasswordBox _password = GhostTheme.PasswordBox();
-    private readonly ComboBox _security = GhostTheme.ComboBox();
+    private readonly ComboBox _security = new GhostComboBox();
     private readonly Button _connectButton = GhostTheme.Button("Connect", primary: true);
     private readonly Button _disconnectButton = GhostTheme.Button("Disconnect", danger: true);
     private readonly TextBox _localPathBox = GhostTheme.TextBox();
