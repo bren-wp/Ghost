@@ -20,7 +20,8 @@ public sealed class SetupWindow : Window
     public SetupWindow(bool uninstallMode)
     {
         _uninstallMode = uninstallMode;
-        Title = uninstallMode ? "Uninstall GhostFTP" : "GhostFTP Setup";
+        Title = uninstallMode ? $"Uninstall {GhostBrand.DisplayName}" : $"{GhostBrand.DisplayName} Setup";
+        Icon = GhostBrand.IconSource;
         Width = 760;
         Height = 570;
         MinWidth = 720;
@@ -59,7 +60,7 @@ public sealed class SetupWindow : Window
         _secondary = GhostTheme.Button("Cancel");
         _secondary.Click += (_, _) => Close();
         _primary = GhostTheme.Button(
-            uninstallMode ? "Uninstall" : _installer.IsInstalled ? "Update GhostFTP" : "Install GhostFTP",
+            uninstallMode ? "Uninstall" : _installer.IsInstalled ? $"Update {GhostBrand.DisplayName}" : $"Install {GhostBrand.DisplayName}",
             primary: !uninstallMode,
             danger: uninstallMode);
         _primary.Click += async (_, _) => await ExecuteAsync();
@@ -87,10 +88,10 @@ public sealed class SetupWindow : Window
     private Border BuildBrandPanel()
     {
         var stack = new StackPanel();
-        stack.Children.Add(GhostTheme.Logo(56));
+        stack.Children.Add(GhostBrand.IconControl(64));
         stack.Children.Add(new Border { Height = 14 });
-        stack.Children.Add(GhostTheme.Text("GhostFTP", 24, weight: FontWeights.SemiBold));
-        stack.Children.Add(GhostTheme.Text("Private FTP / FTPS for Windows", 11, muted: true));
+        stack.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 24, weight: FontWeights.SemiBold));
+        stack.Children.Add(GhostTheme.Text(GhostBrand.PrivacyTagline, 11, muted: true));
         stack.Children.Add(new Border { Height = 24 });
 
         stack.Children.Add(Feature("TLS certificate validation"));
@@ -98,9 +99,9 @@ public sealed class SetupWindow : Window
         stack.Children.Add(Feature("Per-user installation"));
         stack.Children.Add(Feature("Self-contained runtime"));
 
-        var author = GhostTheme.Text("Built by Brendigo", 10.5, muted: true);
-        author.Margin = new Thickness(0, 24, 0, 0);
-        stack.Children.Add(author);
+        var identity = GhostTheme.Text("ghostftp.com", 10.5, muted: true);
+        identity.Margin = new Thickness(0, 24, 0, 0);
+        stack.Children.Add(identity);
         return GhostTheme.Card(stack, new Thickness(20), 16);
     }
 
@@ -121,9 +122,9 @@ public sealed class SetupWindow : Window
         root.Children.Add(footer);
 
         var body = new StackPanel();
-        var version = typeof(SetupWindow).Assembly.GetName().Version?.ToString(3) ?? "1.2.0";
+        var version = typeof(SetupWindow).Assembly.GetName().Version?.ToString(3) ?? "Unknown";
         body.Children.Add(GhostTheme.Text(
-            _uninstallMode ? "Uninstall GhostFTP" : _installer.IsInstalled ? "Update GhostFTP" : "Install GhostFTP",
+            _uninstallMode ? $"Uninstall {GhostBrand.DisplayName}" : _installer.IsInstalled ? $"Update {GhostBrand.DisplayName}" : $"Install {GhostBrand.DisplayName}",
             26,
             weight: FontWeights.SemiBold));
         body.Children.Add(GhostTheme.Text(
@@ -147,7 +148,7 @@ public sealed class SetupWindow : Window
                 Children =
                 {
                     GhostTheme.Text("Privacy by design", 12, weight: FontWeights.SemiBold),
-                    GhostTheme.Text("GhostFTP contains no telemetry, analytics, ads, tracking SDK or background update checker. Network access happens only when you explicitly connect to a server or open a website link.", 11, muted: true)
+                    GhostTheme.Text("Ghost FTP contains no telemetry, analytics, ads, tracking SDK or background update checker. Network access happens only when you explicitly connect to a server or open the Ghost FTP website.", 11, muted: true)
                 }
             }, new Thickness(12), 10);
             privacy.Margin = new Thickness(0, 18, 0, 0);
@@ -198,18 +199,18 @@ public sealed class SetupWindow : Window
         {
             if (_uninstallMode)
             {
-                _status.Text = "Removing GhostFTP…";
+                _status.Text = $"Removing {GhostBrand.DisplayName}…";
                 await _installer.UninstallAsync(_removeData.IsChecked == true, CancellationToken.None);
-                _status.Text = "GhostFTP has been removed successfully.";
+                _status.Text = $"{GhostBrand.DisplayName} has been removed successfully.";
                 _primary.Content = "Close";
                 _secondary.Visibility = Visibility.Collapsed;
             }
             else
             {
-                _status.Text = _installer.IsInstalled ? "Updating GhostFTP…" : "Installing GhostFTP…";
+                _status.Text = _installer.IsInstalled ? $"Updating {GhostBrand.DisplayName}…" : $"Installing {GhostBrand.DisplayName}…";
                 await _installer.InstallAsync(_desktopShortcut.IsChecked == true, CancellationToken.None);
-                _status.Text = "GhostFTP is installed and ready to use.";
-                _primary.Content = "Launch GhostFTP";
+                _status.Text = $"{GhostBrand.DisplayName} is installed and ready to use.";
+                _primary.Content = $"Launch {GhostBrand.DisplayName}";
                 _secondary.Content = "Close";
             }
             _completed = true;
