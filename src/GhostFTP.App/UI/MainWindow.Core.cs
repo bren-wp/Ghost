@@ -4,8 +4,10 @@ using GhostFTP.Core.Services;
 using GhostFTP.Design;
 using GhostFTP.Services;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace GhostFTP.UI;
 
@@ -79,7 +81,8 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
-        Title = "GhostFTP";
+        Title = GhostBrand.DisplayName;
+        Icon = GhostBrand.IconSource;
         Width = 1520;
         Height = 920;
         MinWidth = 1180;
@@ -97,7 +100,6 @@ public sealed partial class MainWindow : Window
         Content = BuildLayout();
         ConfigureLists();
         ConfigureEvents();
-        ConfigureResponsiveColumns();
 
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Loaded += OnLoadedAsync;
