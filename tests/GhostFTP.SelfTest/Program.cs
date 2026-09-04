@@ -128,8 +128,9 @@ public static class Program
         try
         {
             var profilePath = Path.Combine(root, "profiles.json");
-            var forged = new List<ServerProfile>
+            var forged = new List<ServerProfile?>
             {
+                null,
                 new()
                 {
                     IsDemo = true,
@@ -165,7 +166,7 @@ public static class Program
             var store = new ProfileStore(profilePath, new TestSecretProtector());
             var profiles = store.LoadAsync().GetAwaiter().GetResult();
 
-            Assert(profiles.Count == 2, "Duplicate Demo profile was not removed.");
+            Assert(profiles.Count == 2, "Null or duplicate Demo profile records were not removed.");
             var demo = profiles.Single(x => x.IsDemo);
             Assert(demo.Name == "GhostFTP Demo", "Demo name was not canonicalized.");
             Assert(demo.Host == "demo.ghostftp.local" && demo.Port == 21 && demo.Username == "demo", "Demo connection details were not canonicalized.");
