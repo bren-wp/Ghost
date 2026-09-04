@@ -5,6 +5,7 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>GhostFTP</RootNamespace>
     <AssemblyName>GhostFTP</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
