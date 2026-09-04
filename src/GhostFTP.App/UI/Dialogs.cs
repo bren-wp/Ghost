@@ -14,6 +14,7 @@ internal abstract class GhostDialog : Window
     {
         Owner = owner;
         Title = title;
+        Icon = GhostBrand.IconSource;
         Width = width;
         Height = height;
         MinWidth = Math.Min(width, 460);
@@ -99,7 +100,7 @@ internal sealed class ProfileDialog : GhostDialog
         _security.ItemsSource = new[] { "FTP (plain)", "FTPS explicit TLS", "FTPS implicit TLS" };
         _security.SelectedIndex = (int)_profile.Security;
         _initialPath = GhostTheme.TextBox(_profile.InitialPath);
-        _remember = Check("Remember password for this Windows user (DPAPI encrypted)", _profile.RememberPassword);
+        _remember = Check("Remember password for this Windows user (DPAPI protected)", _profile.RememberPassword);
 
         var body = new StackPanel();
         body.Children.Add(GhostTheme.Text("Server profile", 24, weight: FontWeights.SemiBold));
@@ -139,7 +140,7 @@ internal sealed class ProfileDialog : GhostDialog
             Children =
             {
                 GhostTheme.Text("Security", 12, weight: FontWeights.SemiBold),
-                GhostTheme.Text("FTPS Explicit is recommended. GhostFTP does not provide an option to bypass invalid TLS certificates.", 11, muted: true)
+                GhostTheme.Text("FTPS Explicit is recommended. Ghost FTP does not provide an option to bypass invalid TLS certificates.", 11, muted: true)
             }
         }, new Thickness(12), 10);
         securityNote.Margin = new Thickness(0, 14, 0, 0);
@@ -180,7 +181,7 @@ internal sealed class ProfileDialog : GhostDialog
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "GhostFTP", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, ex.Message, GhostBrand.DisplayName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -271,14 +272,14 @@ internal sealed class SettingsDialog : GhostDialog
 
 internal sealed class AboutDialog : GhostDialog
 {
-    public AboutDialog(Window owner) : base(owner, "About GhostFTP", 560, 500)
+    public AboutDialog(Window owner) : base(owner, $"About {GhostBrand.DisplayName}", 560, 500)
     {
         ResizeMode = ResizeMode.NoResize;
         var body = new StackPanel();
-        body.Children.Add(GhostTheme.Logo(58));
+        body.Children.Add(GhostBrand.IconControl(64));
         body.Children.Add(new Border { Height = 14 });
-        body.Children.Add(GhostTheme.Text("GhostFTP", 28, weight: FontWeights.SemiBold));
-        var version = typeof(AboutDialog).Assembly.GetName().Version?.ToString(3) ?? "1.2.0";
+        body.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 28, weight: FontWeights.SemiBold));
+        var version = typeof(AboutDialog).Assembly.GetName().Version?.ToString(3) ?? "Unknown";
         body.Children.Add(GhostTheme.Text($"Version {version} · Windows FTP / FTPS client", 11.5, muted: true));
         body.Children.Add(new Border { Height = 18 });
 
@@ -287,22 +288,18 @@ internal sealed class AboutDialog : GhostDialog
             Children =
             {
                 GhostTheme.Text("Privacy by design", 12.5, weight: FontWeights.SemiBold),
-                GhostTheme.Text("No telemetry, analytics, tracking SDK, ads or automatic update checker. Network traffic is created only by FTP/FTPS actions you initiate or website links you open yourself.", 11, muted: true)
+                GhostTheme.Text("No telemetry, analytics, tracking SDK, ads or automatic update checker. Network traffic is created only by FTP/FTPS actions you initiate or the Ghost FTP website link you open yourself.", 11, muted: true)
             }
         }, new Thickness(12), 10));
 
         body.Children.Add(new Border { Height = 16 });
-        body.Children.Add(GhostTheme.Text("Brendigo", 12.5, weight: FontWeights.SemiBold));
-        body.Children.Add(GhostTheme.Text("ghostftp.com · brendigo.com", 11.5, muted: true));
+        body.Children.Add(GhostTheme.Text(GhostBrand.ProductName, 12.5, weight: FontWeights.SemiBold));
+        body.Children.Add(GhostTheme.Text("ghostftp.com", 11.5, muted: true));
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) };
         var web = GhostTheme.Button("Open ghostftp.com", primary: true);
-        web.Click += (_, _) => OpenUrl("https://ghostftp.com");
-        var author = GhostTheme.Button("Open Brendigo");
-        author.Margin = new Thickness(8, 0, 0, 0);
-        author.Click += (_, _) => OpenUrl("https://brendigo.com");
+        web.Click += (_, _) => OpenUrl(GhostBrand.Website);
         buttons.Children.Add(web);
-        buttons.Children.Add(author);
         body.Children.Add(buttons);
 
         Content = Shell(body);
@@ -317,7 +314,7 @@ internal sealed class AboutDialog : GhostDialog
         }
         catch
         {
-            // Opening an external website is optional and must not affect the app session.
+            // Opening the Ghost FTP website is optional and must not affect the app session.
         }
     }
 }
