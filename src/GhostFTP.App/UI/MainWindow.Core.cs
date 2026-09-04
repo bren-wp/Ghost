@@ -1,14 +1,13 @@
 using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
 using GhostFTP.Core.Services;
+using GhostFTP.Design;
 using GhostFTP.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
-
 
 namespace GhostFTP.UI;
 
@@ -22,7 +21,7 @@ public sealed partial class MainWindow : Window
         public required long Size { get; init; }
         public required DateTimeOffset Modified { get; init; }
         public string Type => IsDirectory ? "Folder" : "File";
-        public string SizeText => IsDirectory ? "" : FormatBytes(Size);
+        public string SizeText => IsDirectory ? string.Empty : FormatBytes(Size);
         public string ModifiedText => Modified.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
     }
 
@@ -33,9 +32,9 @@ public sealed partial class MainWindow : Window
         public string FullPath => Entry.FullPath;
         public bool IsDirectory => Entry.IsDirectory;
         public string Type => Entry.Type;
-        public string SizeText => Entry.IsDirectory ? "" : FormatBytes(Entry.Size);
-        public string ModifiedText => Entry.ModifiedUtc?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "";
-        public string Permissions => Entry.Permissions ?? "";
+        public string SizeText => Entry.IsDirectory ? string.Empty : FormatBytes(Entry.Size);
+        public string ModifiedText => Entry.ModifiedUtc?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
+        public string Permissions => Entry.Permissions ?? string.Empty;
     }
 
     private readonly AppPaths _paths = new();
@@ -44,6 +43,7 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<LocalItem> _localItems = [];
     private readonly ObservableCollection<RemoteItem> _remoteItems = [];
     private readonly HashSet<Guid> _completedHandled = [];
+
     private ProfileStore? _profileStore;
     private AppSettingsStore? _settingsStore;
     private AppSettings _settings = new();
@@ -57,23 +57,25 @@ public sealed partial class MainWindow : Window
     private bool _allowClose;
 
     private readonly ListBox _profilesList = new();
-    private readonly TextBox _host = Theme.TextBox();
-    private readonly TextBox _port = Theme.TextBox("21");
-    private readonly TextBox _username = Theme.TextBox();
-    private readonly PasswordBox _password = Theme.PasswordBox();
-    private readonly ComboBox _security = Theme.ComboBox();
-    private readonly Button _connectButton = Theme.Button("Connect", primary: true);
-    private readonly Button _disconnectButton = Theme.Button("Disconnect");
-    private readonly TextBox _localPathBox = Theme.TextBox();
-    private readonly TextBox _remotePathBox = Theme.TextBox("/");
-    private readonly TextBox _localFilter = Theme.TextBox();
-    private readonly TextBox _remoteFilter = Theme.TextBox();
+    private readonly TextBox _host = GhostTheme.TextBox();
+    private readonly TextBox _port = GhostTheme.TextBox("21");
+    private readonly TextBox _username = GhostTheme.TextBox();
+    private readonly PasswordBox _password = GhostTheme.PasswordBox();
+    private readonly ComboBox _security = GhostTheme.ComboBox();
+    private readonly Button _connectButton = GhostTheme.Button("Connect", primary: true);
+    private readonly Button _disconnectButton = GhostTheme.Button("Disconnect", danger: true);
+    private readonly TextBox _localPathBox = GhostTheme.TextBox();
+    private readonly TextBox _remotePathBox = GhostTheme.TextBox("/");
+    private readonly TextBox _localFilter = GhostTheme.TextBox();
+    private readonly TextBox _remoteFilter = GhostTheme.TextBox();
     private readonly ListView _localList = new();
     private readonly ListView _remoteList = new();
     private readonly ListView _queueList = new();
     private readonly Border _statusBadge = new();
-    private readonly TextBlock _statusText = Theme.Text("Offline", 12, muted: true, weight: FontWeights.SemiBold);
-    private readonly TextBlock _queueSummary = Theme.Text("No transfers", 12, muted: true);
+    private readonly TextBlock _statusText = GhostTheme.Text("Offline", 11, muted: true, weight: FontWeights.SemiBold);
+    private readonly TextBlock _queueSummary = GhostTheme.Text("No transfers", 11.5, muted: true);
+    private readonly TextBlock _localSummary = GhostTheme.Text("0 items", 11, muted: true);
+    private readonly TextBlock _remoteSummary = GhostTheme.Text("0 items", 11, muted: true);
 
     private List<LocalItem> _localAll = [];
     private List<RemoteItem> _remoteAll = [];
@@ -81,14 +83,14 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         Title = "GhostFTP";
-        Width = 1480;
-        Height = 900;
-        MinWidth = 1080;
-        MinHeight = 700;
+        Width = 1520;
+        Height = 920;
+        MinWidth = 1180;
+        MinHeight = 720;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = Theme.R("Bg");
-        Foreground = Theme.R("Text");
-        FontFamily = Theme.UiFont;
+        Background = GhostTheme.R("Bg");
+        Foreground = GhostTheme.R("Text");
+        FontFamily = GhostTheme.UiFont;
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
 
@@ -99,9 +101,8 @@ public sealed partial class MainWindow : Window
         ConfigureLists();
         ConfigureEvents();
 
-        SourceInitialized += (_, _) => Win11.Apply(this, ThemeState.IsDark);
+        SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Loaded += OnLoadedAsync;
         Closing += OnClosingAsync;
     }
-
 }
