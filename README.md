@@ -1,32 +1,52 @@
 # GhostFTP
 
-**GhostFTP** is a premium, privacy-first FTP/FTPS client for Windows, authored by **Brendigo**.
+**GhostFTP** is a privacy-first FTP/FTPS client for Windows, authored by **Brendigo**.
 
 - Project: https://ghostftp.com
 - Author: https://brendigo.com
 - Repository: https://github.com/bren-wp/Ghost
-- Version: **1.1.0**
+- Version: **1.2.0**
 - Runtime baseline: **.NET 10 LTS / C# 14**
 
-## Why GhostFTP
+## What GhostFTP is
 
-GhostFTP is built for people who want a modern Windows 11 file-transfer experience without analytics, cloud accounts or background services. The desktop app uses a Fluent-inspired dual-pane workflow with a Windows 11 Mica backdrop where supported.
+GhostFTP is a Windows-first file-transfer workspace for people who want a modern desktop FTP/FTPS client without analytics, cloud accounts, advertisements or background services. The application and installer share the same Windows 11 design system, use a Fluent-inspired visual language and enable Mica/rounded-window integration where Windows supports it.
 
-### Core features
+## Workspace UX
+
+Version 1.2 introduces a complete workspace redesign:
+
+- Clear page hierarchy instead of one oversized toolbar row.
+- Labeled Quick Connect fields for host, port, security, username and password.
+- FTPS Explicit remains the recommended/default security mode.
+- Wider saved-server navigation with dedicated Connect, Edit, Remove and Add actions.
+- Responsive `WrapPanel` file toolbars so actions wrap instead of being clipped.
+- Consistent dark/light GridView headers, list selection, menus, tooltips and surfaces.
+- Local and Remote panes with explicit path navigation, Up and Home/root actions.
+- Desktop, Documents and Downloads shortcuts in the local pane.
+- Item and selection counts for both panes.
+- Context actions for Copy path and Open in File Explorer.
+- Local hidden/system item visibility setting.
+- Keyboard shortcuts: `F5` refresh, `F2` rename, `Delete` remove, `Ctrl+F` filter and `Ctrl+L` focus path.
+- Drag-and-drop uploads from Windows into the remote pane.
+- Cleaner transfer queue with running, queued, failed and completed summaries.
+- Installer/uninstaller uses the same GhostFTP design system and shows progress/success inline instead of chaining legacy message boxes.
+
+## Core features
 
 - Local / Remote dual-pane file manager.
 - Saved FTP/FTPS server profiles.
 - Quick Connect.
 - FTP, explicit FTPS and implicit FTPS.
 - TLS 1.2 / TLS 1.3 with normal certificate validation.
-- Upload/download files and complete folders.
+- Upload/download individual files and complete folders.
 - Sequential transfer queue with progress, speed and cancellation.
+- Separate transfer connections so long transfers do not corrupt the browser control connection.
 - Download resume through `.ghostftp.part` where the server supports `REST`.
-- Atomic-style uploads through a remote temporary file followed by rename.
+- Atomic-style uploads through a temporary remote file followed by rename.
 - Create, rename and recursively delete remote directories.
 - Local filename sanitization and remote-path boundary protection.
-- Windows 11 Mica/rounded-corner integration with safe fallback.
-- Dark, light and system appearance modes.
+- Dark, light and Windows-system appearance modes.
 - Fully local Demo server with realistic `public_html`, `assets`, `backups` and `logs` data.
 - Per-user setup and standalone portable builds.
 - x64 and ARM64 Windows releases.
@@ -38,34 +58,40 @@ GhostFTP has **no telemetry, no analytics, no ads, no tracking SDK, no crash-rep
 The application creates network traffic only when you explicitly:
 
 1. connect to an FTP/FTPS server; or
-2. click a website link in the About dialog.
+2. open a website link from the About dialog.
 
-Demo mode never opens a network connection. See [PRIVACY.md](PRIVACY.md).
+Demo mode never opens a network connection. Settings, UI preferences and saved profiles remain local. See [PRIVACY.md](PRIVACY.md).
 
 ## No third-party runtime dependencies
 
-The application source has **zero NuGet `PackageReference` dependencies**. GhostFTP uses only:
+The source tree has **zero NuGet `PackageReference` dependencies**. GhostFTP uses only:
 
 - C# and the Microsoft .NET 10 base class libraries;
 - Microsoft WPF included with the .NET Desktop runtime;
 - Windows APIs already present in Windows for Mica, DPAPI, shortcuts and installer registration.
 
-The release is self-contained so users do not need to install .NET separately.
+The release is self-contained, so users do not need to install .NET separately.
 
 ## Security
 
-- Traversal and resource limits protect recursive operations from malicious or cyclic server listings.
-- Local recursive uploads skip NTFS reparse points/junctions so a selected folder cannot silently expand outside its tree.
-- Plain FTP always requires an explicit warning confirmation; FTPS Explicit remains the default.
+- Explicit FTPS is the default for new server profiles.
+- Standard Windows/.NET certificate-chain and hostname validation is used.
+- GhostFTP deliberately provides no “accept invalid certificate” switch.
+- Plain FTP requires an explicit warning confirmation.
+- FTP command arguments reject CR/LF/NUL command-injection characters.
+- Remote paths and local extraction destinations are boundary checked.
+- Recursive operations use traversal/resource limits.
+- Local recursive operations protect against NTFS reparse-point expansion.
+- Password persistence is opt-in and protected with Windows DPAPI for the current user.
 
-New profiles default to **explicit FTPS**. GhostFTP deliberately does not provide an “accept invalid certificate” switch. See [SECURITY.md](SECURITY.md) for the full security model.
+See [SECURITY.md](SECURITY.md) for the full security model.
 
 ## Build
 
-Requirements for building:
+Requirements:
 
 - Windows 11 recommended;
-- .NET SDK **10.0.x** (latest stable feature band recommended).
+- .NET SDK **10.0.x**.
 
 Build and run self-tests:
 
@@ -81,13 +107,13 @@ Create all release packages:
 ./build-release.ps1
 ```
 
-or double-click/run:
+or run:
 
 ```text
 build-release.bat
 ```
 
-The `release` directory and every official tagged GitHub Release contain the simple direct-download names:
+The `release` directory and every official tagged GitHub Release contain these simple direct-download names:
 
 ```text
 setup.exe                 standard Windows x64 installer
@@ -106,32 +132,37 @@ GhostFTP-Portable-win-arm64.exe
 SHA256SUMS.txt
 ```
 
-CI and the Release workflow fail if `setup.exe` or `portable.exe` are missing or empty.
+CI and Release fail if required executable assets are missing or empty.
 
 ## GitHub Actions
 
-- `CI` builds the solution, audits privacy/dependencies, runs self-tests, builds x64 + ARM64 packages and verifies `setup.exe` + `portable.exe` on every push to `main`.
-- `Release` repeats those checks and publishes the verified executables plus SHA-256 checksums for version tags.
+- `CI` restores, compiles, performs dependency/privacy/version audits, runs self-tests, publishes x64 + ARM64 packages and verifies canonical `setup.exe` + `portable.exe` on pushes to `main`.
+- `Release` repeats those checks before publishing versioned GitHub Release assets.
+- Stale CI runs on the same ref are automatically cancelled so only the newest source state consumes release validation time.
 
 ## Portable vs installed data
 
-`portable.exe` and `GhostFTP-Portable-*.exe` store profiles/settings in a `Data` folder next to the executable. Installed GhostFTP stores them under the current user's local application-data directory.
+`portable.exe` and `GhostFTP-Portable-*.exe` store profiles/settings in a `Data` directory next to the executable when writable. Installed GhostFTP stores them under the current user's local application-data directory.
 
-Passwords are not saved unless **Remember password** is enabled. Saved passwords are protected with Windows DPAPI for the current Windows user.
+Passwords are not saved unless **Remember password** is enabled. Saved passwords are protected by Windows DPAPI for the current Windows user.
 
 ## Project structure
 
 ```text
 src/
-  GhostFTP.Core/       FTP/FTPS engine, demo session, transfer queue
-  GhostFTP.App/        premium Windows desktop app, C# UI, no XAML
-  GhostFTP.Setup/      self-contained per-user C# installer
+  GhostFTP.Core/       FTP/FTPS engine, parsers, demo session, transfer queue
+  GhostFTP.Design/     shared Windows 11 visual system and window chrome
+  GhostFTP.App/        desktop application, C# programmatic UI, no XAML
+  GhostFTP.Setup/      self-contained per-user installer/uninstaller
 
 tests/
   GhostFTP.SelfTest/   zero-dependency CI self-tests
 
 docs/
   ARCHITECTURE.md
+  UI-UX.md
 ```
+
+The application and setup both depend on `GhostFTP.Design`; duplicated app/setup theme and Mica helpers were intentionally removed in 1.2.0.
 
 Copyright © 2026 Brendigo. See [NOTICE.md](NOTICE.md).
