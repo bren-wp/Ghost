@@ -8,7 +8,7 @@
 
 - Website: https://ghostftp.com
 - Repository: https://github.com/bren-wp/Ghost
-- Current source version: **1.3.0**
+- Current source version: **1.3.1**
 - Runtime baseline: **.NET 10 LTS / C# 14**
 - License: proprietary/source-available; see [LICENSE](LICENSE)
 
@@ -23,31 +23,33 @@ Official Windows releases publish canonical direct-download assets:
 
 Architecture-explicit copies and `SHA256SUMS.txt` are published alongside the canonical names.
 
-## Ghost FTP-only identity
+## Ghost FTP identity
 
-The application, installer, About dialog, Windows uninstall metadata, documentation and visual assets use **Ghost FTP / GhostFTP** as the product identity. The current source audit rejects known legacy brand strings so another product or author brand cannot silently reappear in shipping source or documentation.
+The application, installer, About dialog, Windows uninstall metadata, documentation, icons and repository artwork use **Ghost FTP / GhostFTP** as the only product identity.
 
-The official vector icon lives at [`assets/brand/ghostftp-icon.svg`](assets/brand/ghostftp-icon.svg). The app and installer share the same programmatic vector icon source from `GhostFTP.Design`, so the visible window/taskbar identity does not depend on a third-party icon library.
+The source audit checks both text content and repository paths for disallowed legacy identity tokens. This prevents another product, author or vendor brand from silently returning to shipping source or documentation.
+
+The official vector icon lives at [`assets/brand/ghostftp-icon.svg`](assets/brand/ghostftp-icon.svg). The app and installer share the same programmatic vector identity from `GhostFTP.Design`; build-time icon generation also embeds the Ghost FTP icon into the actual Windows executables.
 
 ## Workspace UX
 
-Ghost FTP 1.3 keeps the 1.2 workspace redesign and tightens consistency:
+Ghost FTP 1.3.1 keeps the premium Windows 11 workspace and fixes the editable-input path so forms remain fully usable:
 
-- clear page hierarchy instead of one oversized toolbar row;
-- labeled Quick Connect fields for host, port, security, username and password;
-- FTPS Explicit remains the recommended/default security mode;
-- saved-server navigation with dedicated Connect, Edit, Remove and Add actions;
+- clearly labeled Host, Port, Security, Username and Password fields;
+- native WPF TextBox/PasswordBox editing for reliable caret, focus, selection, keyboard layout, IME and clipboard behavior;
+- dedicated WPF editable-input smoke tests in CI;
+- saved-server navigation with Add, Connect, Edit and Remove actions;
 - responsive file toolbars and dynamically sized GridView columns;
-- consistent dark/light surfaces, selections, menus and tooltips;
+- consistent dark/light surfaces, selections, menus, dropdowns and tooltips;
 - Local and Remote panes with explicit path navigation and Up/Home/root actions;
 - Desktop, Documents and Downloads shortcuts in the local pane;
-- item and selection counts for both panes;
+- item and selection summaries;
 - Copy path and Open in File Explorer actions;
 - optional hidden/system item visibility;
 - drag-and-drop upload into the remote pane;
-- transfer queue with running, queued, failed, cancelled and completed states;
+- transfer queue with retry, cancel selected, cancel all, clear finished and path-copy actions;
 - keyboard shortcuts: `F5`, `F2`, `Delete`, `Ctrl+F`, `Ctrl+L`;
-- installer and desktop app use one shared Ghost FTP visual system and icon source.
+- installer and desktop app use one shared Ghost FTP design system.
 
 See [docs/UI-UX.md](docs/UI-UX.md).
 
@@ -59,10 +61,10 @@ See [docs/UI-UX.md](docs/UI-UX.md).
 - FTP, explicit FTPS and implicit FTPS.
 - TLS 1.2 / TLS 1.3 with normal Windows/.NET certificate validation.
 - Upload/download individual files and complete folders.
-- Sequential transfer queue with progress, speed and cancellation.
+- Sequential transfer queue with progress, speed, cancellation and retry.
 - Separate transfer connections so long transfers do not desynchronize the browser control connection.
 - Download resume through `.ghostftp.part` when the server supports `REST`.
-- Atomic-style uploads through a temporary remote file followed by rename.
+- Safe upload replacement through temporary remote files, rollback backup and final rename.
 - Create, rename and recursively delete remote directories.
 - Local filename sanitization and remote-path boundary protection.
 - Dark, light and Windows-system appearance modes.
@@ -93,21 +95,26 @@ Releases are self-contained, so end users do not need to install .NET separately
 
 ## Security and stability
 
-Security is based on explicit boundaries rather than certificate-bypass or trust-all switches:
+Security is based on explicit boundaries rather than trust-all or silent-failure switches:
 
 - Explicit FTPS is the default for new server profiles.
 - Standard Windows/.NET certificate-chain and hostname validation.
 - No “accept invalid certificate” option.
 - Plain FTP requires an explicit warning confirmation.
 - FTP command arguments reject CR/LF/NUL command-injection characters.
+- Control replies and directory-listing payloads are size-bounded.
 - Remote paths and local extraction destinations are canonicalized and boundary checked.
 - Passive data connections reuse the authenticated control host instead of trusting PASV host redirection.
-- Recursive operations use depth and entry budgets.
+- Recursive operations use depth and total-entry budgets.
 - Local recursive operations protect against NTFS reparse-point expansion.
+- Ambiguous FTP `550` results from `MKD` are verified before they can be treated as “already exists”.
+- Existing remote files use rollback-safe replacement during upload.
+- FTP control-channel protocol/transport failures are not swallowed as optional-command failures.
 - Password persistence is opt-in and protected with Windows DPAPI.
-- Settings/profile JSON reads are size-bounded; profile count is bounded.
-- Profile storage uses atomic replacement plus backup recovery.
-- Settings storage uses atomic replacement plus backup recovery.
+- Settings/profile JSON reads are size-bounded; profile count and important string/blob sizes are bounded.
+- Saved profile data is normalized before entering application state; the Demo profile is canonicalized and duplicate Demo entries are removed.
+- Profile and settings storage use atomic replacement plus backup recovery.
+- Transfer queue saturation becomes a visible failed job instead of an unhandled UI exception.
 - Installer payloads are checked for minimum size and Windows `MZ` signature before installation.
 - Installer updates use atomic `File.Replace` when replacing an existing app.
 - Uninstall no longer reports success when the installed executable could not actually be removed.
@@ -121,12 +128,13 @@ Requirements:
 - Windows 11 recommended;
 - .NET SDK **10.0.x**.
 
-Build and run self-tests:
+Build and run all validation tests:
 
 ```powershell
 dotnet restore GhostFTP.sln
 dotnet build GhostFTP.sln -c Release
-dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release
+dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
+dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
 ```
 
 Create all release packages:
@@ -159,16 +167,17 @@ CI and Release fail if required executables are missing or empty.
 
 ## GitHub Actions quality gates
 
-`CI` validates every relevant `main` update by performing:
+`CI` validates every `main` update by performing:
 
 1. restore and Release build;
 2. dependency/version/privacy/brand source audit;
-3. zero-dependency self-tests;
-4. x64 + ARM64 portable/setup packaging;
-5. canonical `setup.exe` + `portable.exe` verification;
-6. artifact upload.
+3. Core security/correctness self-tests;
+4. WPF editable-input smoke tests;
+5. x64 + ARM64 portable/setup packaging;
+6. canonical `setup.exe` + `portable.exe` verification;
+7. artifact upload.
 
-The `Release` workflow repeats those checks before publishing versioned release assets.
+The `Release` workflow repeats the same validation before publishing versioned release assets.
 
 ## Portable vs installed data
 
@@ -188,7 +197,8 @@ src/
   GhostFTP.App/        desktop application, C# programmatic UI, no XAML
   GhostFTP.Setup/      self-contained per-user installer/uninstaller
 tests/
-  GhostFTP.SelfTest/   zero-dependency CI self-tests
+  GhostFTP.SelfTest/   Core security and correctness self-tests
+  GhostFTP.UiSmoke/    real WPF editable-input regression smoke tests
 docs/
   ARCHITECTURE.md
   UI-UX.md
