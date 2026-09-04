@@ -13,8 +13,8 @@ public sealed partial class MainWindow
     private UIElement BuildLayout()
     {
         var root = new Grid { Background = Brushes.Transparent, Margin = new Thickness(16) };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var sidebar = BuildSidebar();
@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
-        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(190) });
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(200) });
 
         var pageHeader = BuildPageHeader();
         Grid.SetRow(pageHeader, 0);
@@ -55,16 +55,16 @@ public sealed partial class MainWindow
     {
         var root = new DockPanel();
 
-        var brand = new StackPanel { Margin = new Thickness(2, 2, 2, 18) };
+        var brand = new StackPanel { Margin = new Thickness(2, 2, 2, 20) };
         var logoRow = new StackPanel { Orientation = Orientation.Horizontal };
-        logoRow.Children.Add(GhostTheme.Logo(44));
-        var brandText = new StackPanel { Margin = new Thickness(11, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        brandText.Children.Add(GhostTheme.Text("GhostFTP", 19, weight: FontWeights.SemiBold));
-        brandText.Children.Add(GhostTheme.Text("by Brendigo", 10.5, muted: true));
+        logoRow.Children.Add(GhostBrand.IconControl(50));
+        var brandText = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        brandText.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 20, weight: FontWeights.SemiBold));
+        brandText.Children.Add(GhostTheme.Text("Private file transfer", 10.5, muted: true));
         logoRow.Children.Add(brandText);
         brand.Children.Add(logoRow);
-        var privacy = GhostTheme.Text("Private FTP / FTPS workspace", 10.5, muted: true);
-        privacy.Margin = new Thickness(0, 10, 0, 0);
+        var privacy = GhostTheme.Text(GhostBrand.PrivacyTagline, 10.5, muted: true);
+        privacy.Margin = new Thickness(0, 11, 0, 0);
         brand.Children.Add(privacy);
         DockPanel.SetDock(brand, Dock.Top);
         root.Children.Add(brand);
@@ -73,7 +73,7 @@ public sealed partial class MainWindow
         var settings = GhostTheme.Button("⚙  Settings", subtle: true);
         settings.HorizontalContentAlignment = HorizontalAlignment.Left;
         settings.Click += async (_, _) => await OpenSettingsAsync();
-        var about = GhostTheme.Button("ⓘ  About GhostFTP", subtle: true);
+        var about = GhostTheme.Button($"ⓘ  About {GhostBrand.DisplayName}", subtle: true);
         about.HorizontalContentAlignment = HorizontalAlignment.Left;
         about.Margin = new Thickness(0, 4, 0, 0);
         about.Click += (_, _) => new AboutDialog(this).ShowDialog();
@@ -131,7 +131,7 @@ public sealed partial class MainWindow
         servers.Children.Add(_profilesList);
 
         root.Children.Add(servers);
-        return GhostTheme.Card(root, new Thickness(14), 16);
+        return GhostTheme.Card(root, new Thickness(16), 18);
     }
 
     private Border BuildPageHeader()
