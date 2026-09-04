@@ -7,9 +7,17 @@
 - Standardized every shipping surface on the **Ghost FTP / GhostFTP** identity.
 - Added `GhostBrand` as the central product-name, website, repository and vector-icon source used by the desktop app and setup.
 - Added the official vector icon at `assets/brand/ghostftp-icon.svg`.
+- Added deterministic build-time generation of the Windows `.ico` resource and connected it as the real `ApplicationIcon` for both Ghost FTP and Setup.
 - Added a Ghost FTP-only repository hero at `assets/readme/ghostftp-hero.svg` and integrated it into README.
 - Removed legacy alternate brand/author references from UI, installer metadata, privacy/legal documentation and current project metadata.
 - Added CI enforcement that rejects a return of the previous alternate brand identity.
+
+### UI / UX
+
+- Replaced the remaining Windows-default Security/Appearance ComboBox chrome with the shared `GhostComboBox` C# template.
+- Applied the premium dropdown consistently to Quick Connect, server-profile editing and Settings.
+- Removed obsolete `GhostTheme.Logo()` and `GhostTheme.ComboBox()` helpers after migrating all callers to the canonical brand/dropdown paths.
+- Polished the sidebar brand block, spacing, Ghost FTP naming and About navigation.
 
 ### Security and stability
 
@@ -26,7 +34,8 @@
 
 - Removed stale hardcoded version fallbacks from About/setup/Windows uninstall metadata.
 - Updated version, assembly metadata and application manifests to 1.3.0.
-- Expanded source audit checks for Ghost FTP identity, required visual assets and shared design-system ownership.
+- Removed obsolete release-trigger files from earlier releases.
+- Expanded source audit checks for Ghost FTP identity, required visual assets, executable-icon generation, premium dropdown ownership and shared design-system ownership.
 - Refreshed README, SECURITY, architecture and UI/UX documentation for the new brand and persistence/installer boundaries.
 - Retained dependency-free C# source and mandatory x64/ARM64 `setup.exe` / `portable.exe` release verification.
 
