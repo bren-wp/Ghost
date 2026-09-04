@@ -15,7 +15,17 @@ public sealed partial class MainWindow
         button.Padding = new Thickness(10, 5, 10, 5);
         button.MinHeight = 30;
         button.Margin = new Thickness(0, 0, 6, 5);
-        button.Click += (_, _) => action();
+        button.Click += (_, _) =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                ShowOperationError("The operation failed.", ex);
+            }
+        };
         return button;
     }
 
@@ -121,7 +131,7 @@ public sealed partial class MainWindow
 
     private void ShowOperationError(string message, Exception ex)
     {
-        MessageBox.Show(this, message + "\n\n" + ex.Message, "GhostFTP", MessageBoxButton.OK, MessageBoxImage.Error);
+        GhostMessageDialog.Error(this, message, ex.Message);
     }
 
     private void UpdatePaneSummaries()
