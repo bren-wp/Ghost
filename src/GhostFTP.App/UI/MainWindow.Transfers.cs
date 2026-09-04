@@ -11,25 +11,43 @@ public sealed partial class MainWindow
     private void QueueUploadSelected()
     {
         if (!IsConnected || _queue is null || _localList.SelectedItems.Count == 0) return;
-        foreach (var item in _localList.SelectedItems.OfType<LocalItem>())
-            _queue.EnqueueUpload(item.FullPath, FtpListingParser.CombineRemote(_remotePath, item.Name), item.IsDirectory);
-        UpdateQueueSummary();
+        try
+        {
+            foreach (var item in _localList.SelectedItems.OfType<LocalItem>())
+                _queue.EnqueueUpload(item.FullPath, FtpListingParser.CombineRemote(_remotePath, item.Name), item.IsDirectory);
+            UpdateQueueSummary();
+        }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not queue all selected uploads. Items queued before the error remain in the transfer list.", ex);
+        }
     }
 
     private void QueueDownloadSelected()
     {
         if (!IsConnected || _queue is null || _remoteList.SelectedItems.Count == 0) return;
-        foreach (var item in _remoteList.SelectedItems.OfType<RemoteItem>())
+        try
         {
-            var destination = LocalPathSafety.CombineUnderRoot(_localPath, item.Name);
-            _queue.EnqueueDownload(item.FullPath, destination, item.IsDirectory, item.IsDirectory ? null : item.Entry.Size);
+            foreach (var item in _remoteList.SelectedItems.OfType<RemoteItem>())
+            {
+                var destination = LocalPathSafety.CombineUnderRoot(_localPath, item.Name);
+                _queue.EnqueueDownload(item.FullPath, destination, item.IsDirectory, item.IsDirectory ? null : item.Entry.Size);
+            }
+            UpdateQueueSummary();
         }
-        UpdateQueueSummary();
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not queue all selected downloads. Items queued before the error remain in the transfer list.", ex);
+        }
     }
 
     private void CancelSelectedTransfer()
     {
-        if (_queueList.SelectedItem is TransferJob job) _queue?.Cancel(job.Id);
+        if (_queue is null) return;
+        var selected = _queueList.SelectedItems.OfType<TransferJob>().ToArray();
+        foreach (var job in selected.Where(x => x.State is TransferState.Queued or TransferState.Running))
+            _queue.Cancel(job.Id);
+        UpdateQueueSummary();
     }
 
     private void CancelAllTransfers()
@@ -37,6 +55,43 @@ public sealed partial class MainWindow
         if (_queue is null) return;
         foreach (var job in _queue.Jobs.Where(x => x.State is TransferState.Queued or TransferState.Running).ToArray())
             _queue.Cancel(job.Id);
+        UpdateQueueSummary();
+    }
+
+    private void RetrySelectedTransfers()
+    {
+        if (_queue is null) return;
+        var retryable = _queueList.SelectedItems
+            .OfType<TransferJob>()
+            .Where(x => x.State is TransferState.Failed or TransferState.Cancelled)
+            .ToArray();
+        if (retryable.Length == 0) return;
+
+        try
+        {
+            foreach (var job in retryable)
+            {
+                if (job.Direction == TransferDirection.Upload)
+                    _queue.EnqueueUpload(job.Source, job.Destination, job.IsDirectory);
+                else
+                    _queue.EnqueueDownload(job.Source, job.Destination, job.IsDirectory, job.TotalBytes);
+            }
+            UpdateQueueSummary();
+        }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not retry all selected transfers.", ex);
+        }
+    }
+
+    private void CopySelectedTransferSource()
+    {
+        if (_queueList.SelectedItem is TransferJob job) CopyText(job.Source);
+    }
+
+    private void CopySelectedTransferDestination()
+    {
+        if (_queueList.SelectedItem is TransferJob job) CopyText(job.Destination);
     }
 
     private async void QueueJobUpdated(object? sender, TransferJob job)
@@ -67,12 +122,14 @@ public sealed partial class MainWindow
         var running = _queue.Jobs.Count(x => x.State == TransferState.Running);
         var queued = _queue.Jobs.Count(x => x.State == TransferState.Queued);
         var failed = _queue.Jobs.Count(x => x.State == TransferState.Failed);
+        var cancelled = _queue.Jobs.Count(x => x.State == TransferState.Cancelled);
         var completed = _queue.Jobs.Count(x => x.State == TransferState.Completed);
 
         var parts = new List<string>();
         if (running > 0) parts.Add($"{running} running");
         if (queued > 0) parts.Add($"{queued} queued");
         if (failed > 0) parts.Add($"{failed} failed");
+        if (cancelled > 0) parts.Add($"{cancelled} cancelled");
         if (completed > 0) parts.Add($"{completed} completed");
         _queueSummary.Text = string.Join(" · ", parts);
     }
@@ -115,13 +172,12 @@ public sealed partial class MainWindow
     private async Task RemoveSelectedProfileAsync()
     {
         if (_profilesList.SelectedItem is not ServerProfile selected || selected.IsDemo) return;
-        if (MessageBox.Show(
+        if (!GhostMessageDialog.Confirm(
                 this,
-                $"Remove saved server '{selected.Name}'?",
-                "GhostFTP",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question,
-                MessageBoxResult.No) != MessageBoxResult.Yes)
+                "Remove saved server?",
+                $"Remove saved server '{selected.Name}' from this device?",
+                "Remove",
+                danger: true))
             return;
 
         _profiles.Remove(selected);
@@ -153,12 +209,10 @@ public sealed partial class MainWindow
         if (_settingsStore is not null) await _settingsStore.SaveAsync(_settings);
         if (showHiddenChanged) RefreshLocal();
 
-        MessageBox.Show(
+        GhostMessageDialog.Information(
             this,
-            "Settings saved. File-view changes apply immediately. Appearance changes apply the next time GhostFTP starts.",
-            "GhostFTP",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            "Settings saved",
+            "File-view changes apply immediately. Appearance changes apply the next time Ghost FTP starts.");
     }
 
     private void SetStatus(string text, string brushKey)
