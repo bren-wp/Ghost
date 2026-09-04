@@ -148,8 +148,14 @@ if ($targets -notmatch 'ApplicationIcon' -or $targets -notmatch 'generate-ghostf
     throw 'Ghost FTP executable icon generation must remain connected to the build.'
 }
 
-$legacyBrand = 'Bren' + 'digo'
-$legacyDomain = 'bren' + 'digo.com'
+# Keep every user-visible and repository-visible identity on the Ghost FTP brand only.
+# Tokens are assembled here so the legacy names themselves never become repository text matches.
+$legacyBrandTokens = @(
+    ('Bren' + 'digo'),
+    ('bren' + 'digo.com'),
+    ('My' + 'FTP'),
+    ('My' + ' FTP')
+)
 $textExtensions = @('.cs','.csproj','.props','.targets','.md','.txt','.yml','.yaml','.json','.xml','.ps1','.bat','.svg')
 $scanFiles = Get-ChildItem $root -Recurse -File | Where-Object {
     $relative = $_.FullName.Substring($root.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
@@ -158,10 +164,16 @@ $scanFiles = Get-ChildItem $root -Recurse -File | Where-Object {
 }
 foreach ($file in $scanFiles) {
     if ($file.FullName -eq $MyInvocation.MyCommand.Path) { continue }
-    $matches = Select-String -Path $file.FullName -SimpleMatch -Pattern $legacyBrand,$legacyDomain
-    if ($matches) {
-        $matches | ForEach-Object { Write-Error "Non-Ghost FTP brand reference found: $($_.Path):$($_.LineNumber)" }
-        exit 1
+    $relative = $file.FullName.Substring($root.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
+    foreach ($token in $legacyBrandTokens) {
+        if ($relative.IndexOf($token, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "Non-Ghost FTP brand found in repository path: $relative"
+        }
+        $matches = Select-String -Path $file.FullName -SimpleMatch -Pattern $token
+        if ($matches) {
+            $matches | ForEach-Object { Write-Error "Non-Ghost FTP brand reference found: $($_.Path):$($_.LineNumber)" }
+            exit 1
+        }
     }
 }
 
