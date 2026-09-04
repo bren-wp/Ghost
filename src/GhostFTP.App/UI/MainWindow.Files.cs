@@ -170,17 +170,13 @@ public sealed partial class MainWindow
     {
         if (_localList.SelectedItems.Count == 0) return;
         var items = _localList.SelectedItems.OfType<LocalItem>().ToArray();
-        if (_settings.ConfirmDeletes)
-        {
-            var result = MessageBox.Show(
+        if (_settings.ConfirmDeletes && !GhostMessageDialog.Confirm(
                 this,
+                "Delete local items permanently?",
                 $"Permanently delete {items.Length} selected local item(s)?\n\nLocal deletion does not use the Recycle Bin.",
-                "GhostFTP",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
-            if (result != MessageBoxResult.Yes) return;
-        }
+                "Delete permanently",
+                danger: true))
+            return;
 
         try
         {
@@ -244,17 +240,13 @@ public sealed partial class MainWindow
     private async Task DeleteRemoteSelectedAsync()
     {
         if (!IsConnected || _remoteList.SelectedItems.Count == 0) return;
-        if (_settings.ConfirmDeletes)
-        {
-            var result = MessageBox.Show(
+        if (_settings.ConfirmDeletes && !GhostMessageDialog.Confirm(
                 this,
-                $"Delete {_remoteList.SelectedItems.Count} selected remote item(s)?\n\nFolders are deleted recursively.",
-                "GhostFTP",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
-            if (result != MessageBoxResult.Yes) return;
-        }
+                "Delete remote items?",
+                $"Delete {_remoteList.SelectedItems.Count} selected remote item(s)?\n\nFolders are deleted recursively on the server.",
+                "Delete",
+                danger: true))
+            return;
 
         try
         {
