@@ -155,9 +155,9 @@ public static class GhostTheme
             IsReadOnly = false,
             AcceptsReturn = false,
             AcceptsTab = false,
-            TextWrapping = TextWrapping.NoWrap,
-            SpellCheck = new SpellCheck { IsEnabled = false }
+            TextWrapping = TextWrapping.NoWrap
         };
+        SpellCheck.SetIsEnabled(box, false);
         ConfigureEditableControl(box);
         return box;
     }
