@@ -3,21 +3,38 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text;
-using System.Text.RegularExpressions;
-using GhostFTP.Core.Models;
 
 namespace GhostFTP.Core.Protocol;
 
 public sealed partial class FtpSession
 {
+    private const int MaxListingPayloadBytes = 16 * 1024 * 1024;
+
     private async Task<string> ReceiveTextDataAsync(string command, CancellationToken cancellationToken)
     {
-        await using var memory = new MemoryStream();
-        await ReceiveDataToStreamAsync(command, memory, 0, null, null, cancellationToken).ConfigureAwait(false);
-        return ControlEncoding.GetString(memory.ToArray());
+        await using var memory = new MemoryStream(capacity: 64 * 1024);
+        await ReceiveDataToStreamAsync(
+            command,
+            memory,
+            0,
+            null,
+            null,
+            cancellationToken,
+            maxBytes: MaxListingPayloadBytes).ConfigureAwait(false);
+
+        if (!memory.TryGetBuffer(out var buffer) || buffer.Array is null)
+            return ControlEncoding.GetString(memory.ToArray());
+        return ControlEncoding.GetString(buffer.Array, buffer.Offset, checked((int)memory.Length));
     }
 
-    private async Task ReceiveDataToStreamAsync(string command, Stream destination, long initialBytes, long? total, IProgress<(long transferred, long? total)>? progress, CancellationToken cancellationToken)
+    private async Task ReceiveDataToStreamAsync(
+        string command,
+        Stream destination,
+        long initialBytes,
+        long? total,
+        IProgress<(long transferred, long? total)>? progress,
+        CancellationToken cancellationToken,
+        long? maxBytes = null)
     {
         EnsureConnected();
         _ = await TryCommandAsync("TYPE I", cancellationToken).ConfigureAwait(false);
@@ -29,24 +46,38 @@ public sealed partial class FtpSession
         if (preliminary.IsPositiveCompletion)
             return;
 
-        await using var dataStream = await CreateDataStreamAsync(data, cancellationToken).ConfigureAwait(false);
-        var buffer = new byte[1024 * 128];
-        long transferred = initialBytes;
-        while (true)
+        await using (var dataStream = await CreateDataStreamAsync(data, cancellationToken).ConfigureAwait(false))
         {
-            var read = await dataStream.ReadAsync(buffer, cancellationToken).AsTask().WaitAsync(_options.TransferTimeout, cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                break;
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            transferred += read;
-            progress?.Report((transferred, total));
+            var buffer = new byte[1024 * 128];
+            long transferred = initialBytes;
+            while (true)
+            {
+                var read = await dataStream.ReadAsync(buffer, cancellationToken)
+                    .AsTask()
+                    .WaitAsync(_options.TransferTimeout, cancellationToken)
+                    .ConfigureAwait(false);
+                if (read == 0)
+                    break;
+
+                if (maxBytes is > 0 && transferred + read > maxBytes.Value)
+                    throw new FtpException($"FTP directory listing exceeded the safety limit of {maxBytes.Value / (1024 * 1024)} MiB.");
+
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                transferred += read;
+                progress?.Report((transferred, total));
+            }
         }
-        await dataStream.DisposeAsync().ConfigureAwait(false);
+
         var final = await ReadReplyAsync(cancellationToken).ConfigureAwait(false);
         Ensure(final, 200, 299, "FTP transfer did not complete successfully.");
     }
 
-    private async Task SendStreamAsDataAsync(string command, Stream source, long total, IProgress<(long transferred, long? total)>? progress, CancellationToken cancellationToken)
+    private async Task SendStreamAsDataAsync(
+        string command,
+        Stream source,
+        long total,
+        IProgress<(long transferred, long? total)>? progress,
+        CancellationToken cancellationToken)
     {
         EnsureConnected();
         _ = await TryCommandAsync("TYPE I", cancellationToken).ConfigureAwait(false);
@@ -57,20 +88,25 @@ public sealed partial class FtpSession
         if (preliminary.IsPositiveCompletion)
             return;
 
-        await using var dataStream = await CreateDataStreamAsync(data, cancellationToken).ConfigureAwait(false);
-        var buffer = new byte[1024 * 128];
-        long transferred = 0;
-        while (true)
+        await using (var dataStream = await CreateDataStreamAsync(data, cancellationToken).ConfigureAwait(false))
         {
-            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                break;
-            await dataStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).AsTask().WaitAsync(_options.TransferTimeout, cancellationToken).ConfigureAwait(false);
-            transferred += read;
-            progress?.Report((transferred, total));
+            var buffer = new byte[1024 * 128];
+            long transferred = 0;
+            while (true)
+            {
+                var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                    break;
+                await dataStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                    .AsTask()
+                    .WaitAsync(_options.TransferTimeout, cancellationToken)
+                    .ConfigureAwait(false);
+                transferred += read;
+                progress?.Report((transferred, total));
+            }
+            await dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
-        await dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
-        await dataStream.DisposeAsync().ConfigureAwait(false);
+
         var final = await ReadReplyAsync(cancellationToken).ConfigureAwait(false);
         Ensure(final, 200, 299, "FTP upload did not complete successfully.");
     }
@@ -104,8 +140,11 @@ public sealed partial class FtpSession
         client.Client.DualMode = true;
         try
         {
-            // Deliberately connect data channels to the authenticated control host rather than trusting PASV host data.
-            await client.ConnectAsync(_options.Host, port, cancellationToken).AsTask().WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
+            // Data channels intentionally use the authenticated control host, not PASV host data.
+            await client.ConnectAsync(_options.Host, port, cancellationToken)
+                .AsTask()
+                .WaitAsync(_options.ConnectTimeout, cancellationToken)
+                .ConfigureAwait(false);
             return client;
         }
         catch
@@ -120,31 +159,49 @@ public sealed partial class FtpSession
         var stream = client.GetStream();
         if (!_dataProtection)
             return stream;
+
         var ssl = new SslStream(stream, leaveInnerStreamOpen: false);
-        await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+        try
         {
-            TargetHost = _options.Host,
-            EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-            CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.Offline
-        }, cancellationToken).WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
-        return ssl;
+            await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+            {
+                TargetHost = _options.Host,
+                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.Offline
+            }, cancellationToken).WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
+            return ssl;
+        }
+        catch
+        {
+            await ssl.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     private async Task UpgradeControlToTlsAsync(CancellationToken cancellationToken)
     {
         if (_controlStream is null)
             throw new InvalidOperationException("Control stream is unavailable.");
+
         _reader?.Dispose();
         _writer?.Dispose();
         var ssl = new SslStream(_controlStream, leaveInnerStreamOpen: false);
-        await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+        try
         {
-            TargetHost = _options.Host,
-            EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-            CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.Offline
-        }, cancellationToken).WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
-        _controlStream = ssl;
-        IsEncrypted = true;
+            await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+            {
+                TargetHost = _options.Host,
+                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.Offline
+            }, cancellationToken).WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
+            _controlStream = ssl;
+            IsEncrypted = true;
+        }
+        catch
+        {
+            await ssl.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     private void BuildControlTextStreams()
@@ -158,5 +215,4 @@ public sealed partial class FtpSession
             AutoFlush = true
         };
     }
-
 }
