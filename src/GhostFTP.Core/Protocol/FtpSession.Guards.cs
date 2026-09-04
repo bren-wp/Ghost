@@ -1,21 +1,25 @@
-using System.Globalization;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Security.Authentication;
-using System.Text;
 using System.Text.RegularExpressions;
-using GhostFTP.Core.Models;
 
 namespace GhostFTP.Core.Protocol;
 
 public sealed partial class FtpSession
 {
-    private static void GuardTraversal(int depth, TraversalBudget budget)
+    private static void GuardTraversalDepth(int depth)
     {
         if (depth > MaxTraversalDepth)
             throw new IOException($"Remote directory depth exceeds the safety limit of {MaxTraversalDepth} levels.");
-        if (++budget.Entries > MaxTraversalEntries)
+    }
+
+    private static void ConsumeTraversalEntries(TraversalBudget budget, int count)
+    {
+        ArgumentNullException.ThrowIfNull(budget);
+        if (count < 0)
+            throw new ArgumentOutOfRangeException(nameof(count));
+
+        if ((long)budget.Entries + count > MaxTraversalEntries)
             throw new IOException($"Remote traversal exceeds the safety limit of {MaxTraversalEntries:N0} entries.");
+
+        budget.Entries += count;
     }
 
     [GeneratedRegex("\\\"(?<path>(?:[^\\\"]|\\\"\\\")*)\\\"")]
