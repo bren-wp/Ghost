@@ -1,5 +1,52 @@
 # Ghost FTP changelog
 
+## 1.3.1 — 2026-09-05
+
+### Critical input fix
+
+- Removed custom TextBox and PasswordBox templates from the shared design layer after they were identified as a risk to native WPF focus/caret/editing behavior.
+- Restored native WPF editable-control behavior while retaining Ghost FTP colors, typography, spacing and dark/light resources.
+- Explicitly keeps Host, Port, Username, Password, path and filter controls focusable, tab-accessible and writable.
+- Added a real WPF editable-input smoke-test project to CI and Release validation.
+- The UI smoke test instantiates Ghost FTP TextBox, PasswordBox and ComboBox controls on a Windows STA thread and verifies editable state and value mutation.
+- Source audit now rejects reintroduction of fragile TextBox/PasswordBox replacement templates.
+
+### Transfer queue and UI stability
+
+- Added local exception boundaries to synchronous toolbar/context-menu actions so a single failed operation cannot escape directly to the global application handler.
+- Replaced normal workflow error/confirmation paths with Ghost FTP-styled dialogs.
+- Added transfer queue Retry selected, Cancel selected, Cancel all, Copy source, Copy destination and Clear finished actions.
+- Queue saturation now leaves a visible failed transfer instead of throwing an unhandled queue-full exception into the UI.
+- CI artifact naming no longer hardcodes a product version and therefore cannot drift from `VERSION`.
+
+### FTP/FTPS hardening
+
+- Added a strict memory limit for directory-listing payloads before LIST/MLSD parsing.
+- Removed redundant data-stream disposal paths and kept deterministic socket closure before final FTP replies.
+- FTP control-channel failures are no longer swallowed as optional-command failures.
+- Ambiguous `550` responses from `MKD` are verified with directory access before they can be treated as an existing directory.
+- Both manual remote-folder creation and recursive upload tree creation use the same verified directory-creation path.
+- Recursive traversal budgets now count returned entries instead of only recursion depth.
+- Aggregate transfer progress uses saturating arithmetic so malicious or nonsensical listing sizes cannot overflow counters.
+- Upload replacement now uses a temporary remote file plus rollback backup; the previous destination is restored when finalization fails where the server permits it.
+
+### Profile and persistence hardening
+
+- Saved profile data is normalized before entering application state.
+- Duplicate Demo profiles are removed and the surviving Demo record is forced back to canonical Ghost FTP Demo values.
+- Invalid security enum values fall back to FTPS Explicit.
+- Invalid stored hosts are neutralized, remote paths are canonicalized and oversized profile names/usernames are bounded.
+- Oversized or invalid protected-password data is discarded.
+- Decrypted saved passwords pass the same FTP command-argument safety guard before use.
+- Added Core self-tests for forged/duplicate Demo data, invalid host/security/path state, oversized protected-password data and saved-password CR/LF injection.
+
+### Branding and release discipline
+
+- Product identity remains exclusively **Ghost FTP / GhostFTP** across application, setup, documentation, metadata and repository artwork.
+- Source audit now scans both file contents and repository paths for disallowed legacy identity tokens.
+- Version, assembly/file metadata and both Windows manifests are synchronized to 1.3.1.
+- Release remains gated on Build, source/privacy/brand audit, Core self-tests, WPF input smoke tests, x64/ARM64 packaging and required executable verification.
+
 ## 1.3.0 — 2026-09-05
 
 ### Brand and product identity
