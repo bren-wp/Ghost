@@ -20,5 +20,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GhostFTP.Core\GhostFTP.Core.csproj" />
+    <ProjectReference Include="..\GhostFTP.Design\GhostFTP.Design.csproj" />
   </ItemGroup>
 </Project>
