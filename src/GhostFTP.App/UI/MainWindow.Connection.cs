@@ -2,13 +2,8 @@ using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
 using GhostFTP.Core.Services;
 using GhostFTP.Services;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-
 
 namespace GhostFTP.UI;
 
@@ -23,6 +18,7 @@ public sealed partial class MainWindow
             _settings = await _settingsStore.LoadAsync();
             _localPath = _settings.LastLocalDirectory;
             _localPathBox.Text = _localPath;
+
             _queue = new TransferQueueService(CreateTransferSessionAsync, SynchronizationContext.Current);
             _queueList.ItemsSource = _queue.Jobs;
             _queue.JobUpdated += QueueJobUpdated;
@@ -30,7 +26,9 @@ public sealed partial class MainWindow
             var profiles = await _profileStore.LoadAsync();
             foreach (var profile in profiles) _profiles.Add(profile);
             if (_profiles.Count > 0) _profilesList.SelectedIndex = 0;
+
             RefreshLocal();
+            UpdatePaneSummaries();
             UpdateConnectionUi();
         }
         catch (Exception ex)
@@ -50,11 +48,13 @@ public sealed partial class MainWindow
             CancelAllTransfers();
             if (_queue is not null) await _queue.DisposeAsync();
             if (_session is not null) await _session.DisposeAsync();
+
             if (_settingsStore is not null)
             {
                 _settings.LastLocalDirectory = _localPath;
                 await _settingsStore.SaveAsync(_settings);
             }
+
             if (_profileStore is not null)
                 await _profileStore.SaveAsync(_profiles);
         }
@@ -76,7 +76,7 @@ public sealed partial class MainWindow
         _port.Text = profile.Port.ToString();
         _username.Text = profile.Username;
         _security.SelectedIndex = (int)profile.Security;
-        _password.Password = profile.IsDemo ? "" : _profileStore.GetPassword(profile);
+        _password.Password = profile.IsDemo ? string.Empty : _profileStore.GetPassword(profile);
         _remotePathBox.Text = profile.InitialPath;
     }
 
@@ -88,12 +88,15 @@ public sealed partial class MainWindow
         _connectionCts?.Dispose();
         _connectionCts = new CancellationTokenSource();
         var ct = _connectionCts.Token;
+
         try
         {
             CancelAllTransfers();
             await DisconnectCoreAsync();
             SetStatus("Connecting…", "Warning");
-            var selected = _profilesList.SelectedItem as ServerProfile;
+            UpdateConnectionUi();
+
+            var selected = MatchingSelectedProfile();
             FtpConnectionOptions? newOptions = null;
             if (selected?.IsDemo == true)
             {
@@ -101,22 +104,30 @@ public sealed partial class MainWindow
             }
             else
             {
-                if (!int.TryParse(_port.Text, out var port)) throw new InvalidOperationException("Port must be a number.");
+                var host = _host.Text.Trim();
+                if (string.IsNullOrWhiteSpace(host)) throw new InvalidOperationException("Host is required.");
+                if (!int.TryParse(_port.Text.Trim(), out var port) || port is < 1 or > 65535)
+                    throw new InvalidOperationException("Port must be between 1 and 65535.");
+
                 var securityMode = (FtpSecurityMode)Math.Max(0, _security.SelectedIndex);
                 if (securityMode == FtpSecurityMode.Plain)
                 {
-                    var unsafeChoice = MessageBox.Show(this,
+                    var unsafeChoice = MessageBox.Show(
+                        this,
                         "Plain FTP sends usernames, passwords and file data without TLS encryption. Continue only if this is an intentionally trusted network/server.",
-                        "GhostFTP security warning", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                        "GhostFTP security warning",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning,
+                        MessageBoxResult.No);
                     if (unsafeChoice != MessageBoxResult.Yes)
                         throw new OperationCanceledException(ct);
                 }
 
                 newOptions = new FtpConnectionOptions
                 {
-                    Host = _host.Text,
+                    Host = host,
                     Port = port,
-                    Username = _username.Text,
+                    Username = _username.Text.Trim(),
                     Password = _password.Password,
                     Security = securityMode
                 };
@@ -125,15 +136,26 @@ public sealed partial class MainWindow
 
             await _session.ConnectAsync(ct);
             _activeOptions = newOptions;
+
             var initial = selected?.InitialPath;
             if (!string.IsNullOrWhiteSpace(initial) && initial != "/")
             {
-                try { await _session.ChangeDirectoryAsync(initial, ct); } catch { }
+                try
+                {
+                    await _session.ChangeDirectoryAsync(initial, ct);
+                }
+                catch
+                {
+                    // A stale initial path must not make the whole connection fail.
+                }
             }
+
             _remotePath = await _session.GetWorkingDirectoryAsync(ct);
             _remotePathBox.Text = _remotePath;
             await RefreshRemoteAsync();
-            SetStatus(_session.IsEncrypted ? "Connected · TLS" : selected?.IsDemo == true ? "Demo · local" : "Connected · FTP", _session.IsEncrypted ? "Success" : "AccentSoft");
+            SetStatus(
+                _session.IsEncrypted ? "Connected · TLS" : selected?.IsDemo == true ? "Demo · local" : "Connected · FTP",
+                _session.IsEncrypted ? "Success" : "AccentSoft");
         }
         catch (OperationCanceledException)
         {
@@ -150,7 +172,19 @@ public sealed partial class MainWindow
         {
             _busy = false;
             UpdateConnectionUi();
+            UpdatePaneSummaries();
         }
+    }
+
+    private ServerProfile? MatchingSelectedProfile()
+    {
+        if (_profilesList.SelectedItem is not ServerProfile selected) return null;
+        return string.Equals(_host.Text.Trim(), selected.Host, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_port.Text.Trim(), selected.Port.ToString(), StringComparison.Ordinal)
+            && string.Equals(_username.Text.Trim(), selected.Username, StringComparison.Ordinal)
+            && _security.SelectedIndex == (int)selected.Security
+            ? selected
+            : null;
     }
 
     private async Task DisconnectAsync()
@@ -172,13 +206,21 @@ public sealed partial class MainWindow
         {
             _busy = false;
             UpdateConnectionUi();
+            UpdatePaneSummaries();
         }
     }
 
     private async Task DisconnectCoreAsync()
     {
         if (_session is null) return;
-        try { await _session.DisconnectAsync(); } catch { }
+        try
+        {
+            await _session.DisconnectAsync();
+        }
+        catch
+        {
+            // Best effort. Disposing the session is the important cleanup step.
+        }
         await _session.DisposeAsync();
         _session = null;
         _activeOptions = null;
@@ -210,7 +252,11 @@ public sealed partial class MainWindow
         try
         {
             var entries = await _session!.ListAsync(_remotePath);
-            _remoteAll = entries.Select(x => new RemoteItem { Entry = x }).ToList();
+            _remoteAll = entries
+                .Select(x => new RemoteItem { Entry = x })
+                .OrderByDescending(x => x.IsDirectory)
+                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             ApplyRemoteFilter();
             _remotePathBox.Text = _remotePath;
         }
@@ -219,5 +265,4 @@ public sealed partial class MainWindow
             ShowOperationError("Could not refresh the remote folder.", ex);
         }
     }
-
 }
