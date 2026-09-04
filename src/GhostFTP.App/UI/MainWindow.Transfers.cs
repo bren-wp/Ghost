@@ -1,14 +1,8 @@
 using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
-using GhostFTP.Core.Services;
-using GhostFTP.Services;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
+using GhostFTP.Design;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
-
 
 namespace GhostFTP.UI;
 
@@ -41,7 +35,8 @@ public sealed partial class MainWindow
     private void CancelAllTransfers()
     {
         if (_queue is null) return;
-        foreach (var job in _queue.Jobs.Where(x => x.State is TransferState.Queued or TransferState.Running).ToArray()) _queue.Cancel(job.Id);
+        foreach (var job in _queue.Jobs.Where(x => x.State is TransferState.Queued or TransferState.Running).ToArray())
+            _queue.Cancel(job.Id);
     }
 
     private async void QueueJobUpdated(object? sender, TransferJob job)
@@ -54,7 +49,10 @@ public sealed partial class MainWindow
                 RefreshLocal();
                 await RefreshRemoteAsync();
             }
-            catch { }
+            catch
+            {
+                // Transfer completion is already recorded; a follow-up refresh is best effort.
+            }
         }
     }
 
@@ -65,18 +63,34 @@ public sealed partial class MainWindow
             _queueSummary.Text = "No transfers";
             return;
         }
+
         var running = _queue.Jobs.Count(x => x.State == TransferState.Running);
         var queued = _queue.Jobs.Count(x => x.State == TransferState.Queued);
         var failed = _queue.Jobs.Count(x => x.State == TransferState.Failed);
-        _queueSummary.Text = $"{running} running · {queued} queued" + (failed > 0 ? $" · {failed} failed" : "");
+        var completed = _queue.Jobs.Count(x => x.State == TransferState.Completed);
+
+        var parts = new List<string>();
+        if (running > 0) parts.Add($"{running} running");
+        if (queued > 0) parts.Add($"{queued} queued");
+        if (failed > 0) parts.Add($"{failed} failed");
+        if (completed > 0) parts.Add($"{completed} completed");
+        _queueSummary.Text = string.Join(" · ", parts);
     }
 
     private async Task AddProfileAsync()
     {
         if (_profileStore is null) return;
-        var profile = new ServerProfile { Id = Guid.NewGuid(), Name = "New server", Port = 21, Security = FtpSecurityMode.ExplicitTls, InitialPath = "/" };
-        var dialog = new ProfileDialog(this, profile, "", isNew: true);
+        var profile = new ServerProfile
+        {
+            Id = Guid.NewGuid(),
+            Name = "New server",
+            Port = 21,
+            Security = FtpSecurityMode.ExplicitTls,
+            InitialPath = "/"
+        };
+        var dialog = new ProfileDialog(this, profile, string.Empty, isNew: true);
         if (dialog.ShowDialog() != true) return;
+
         var result = dialog.Result;
         _profileStore.SetPassword(result, dialog.Password);
         _profiles.Add(result);
@@ -89,6 +103,7 @@ public sealed partial class MainWindow
         if (_profileStore is null || _profilesList.SelectedItem is not ServerProfile selected || selected.IsDemo) return;
         var dialog = new ProfileDialog(this, selected, _profileStore.GetPassword(selected));
         if (dialog.ShowDialog() != true) return;
+
         var updated = dialog.Result;
         _profileStore.SetPassword(updated, dialog.Password);
         var index = _profiles.IndexOf(selected);
@@ -100,32 +115,59 @@ public sealed partial class MainWindow
     private async Task RemoveSelectedProfileAsync()
     {
         if (_profilesList.SelectedItem is not ServerProfile selected || selected.IsDemo) return;
-        if (MessageBox.Show(this, $"Remove saved server '{selected.Name}'?", "GhostFTP", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(
+                this,
+                $"Remove saved server '{selected.Name}'?",
+                "GhostFTP",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+
         _profiles.Remove(selected);
         await SaveProfilesSafeAsync();
     }
 
     private async Task SaveProfilesSafeAsync()
     {
-        try { if (_profileStore is not null) await _profileStore.SaveAsync(_profiles); }
-        catch (Exception ex) { ShowOperationError("Could not save server profiles.", ex); }
+        try
+        {
+            if (_profileStore is not null) await _profileStore.SaveAsync(_profiles);
+        }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not save server profiles.", ex);
+        }
     }
 
     private async Task OpenSettingsAsync()
     {
         var dialog = new SettingsDialog(this, _settings);
         if (dialog.ShowDialog() != true) return;
+
+        var showHiddenChanged = _settings.ShowHiddenFiles != dialog.ShowHiddenFiles;
         _settings.Theme = dialog.SelectedTheme;
         _settings.ConfirmDeletes = dialog.ConfirmDeletes;
+        _settings.ShowHiddenFiles = dialog.ShowHiddenFiles;
+
         if (_settingsStore is not null) await _settingsStore.SaveAsync(_settings);
-        MessageBox.Show(this, "Settings saved. Appearance changes apply the next time GhostFTP starts.", "GhostFTP", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (showHiddenChanged) RefreshLocal();
+
+        MessageBox.Show(
+            this,
+            "Settings saved. File-view changes apply immediately. Appearance changes apply the next time GhostFTP starts.",
+            "GhostFTP",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private void SetStatus(string text, string brushKey)
     {
         _statusText.Text = text;
-        _statusText.Foreground = brushKey is "Success" or "Danger" or "Warning" ? Brushes.White : Theme.R("Text");
-        _statusBadge.Background = Theme.R(brushKey);
+        _statusText.Foreground = brushKey is "Success" or "Danger" or "Warning"
+            ? Brushes.White
+            : GhostTheme.R("Text");
+        _statusBadge.Background = GhostTheme.R(brushKey);
     }
 
     private void UpdateConnectionUi()
@@ -133,6 +175,9 @@ public sealed partial class MainWindow
         var connected = IsConnected;
         _connectButton.IsEnabled = !connected && !_busy;
         _disconnectButton.IsEnabled = connected && !_busy;
+        _connectButton.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
+        _disconnectButton.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
+
         _host.IsEnabled = !connected && !_busy;
         _port.IsEnabled = !connected && !_busy;
         _username.IsEnabled = !connected && !_busy;
@@ -142,5 +187,4 @@ public sealed partial class MainWindow
     }
 
     private bool IsConnected => _session?.IsConnected == true;
-
 }
