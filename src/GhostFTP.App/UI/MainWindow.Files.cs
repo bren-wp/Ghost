@@ -1,14 +1,5 @@
-using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
-using GhostFTP.Core.Services;
-using GhostFTP.Services;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-
 
 namespace GhostFTP.UI;
 
@@ -20,8 +11,16 @@ public sealed partial class MainWindow
         {
             var directory = new DirectoryInfo(_localPath);
             if (!directory.Exists) throw new DirectoryNotFoundException(_localPath);
-            var options = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false, ReturnSpecialDirectories = false };
+
+            var options = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = false,
+                ReturnSpecialDirectories = false
+            };
+
             _localAll = directory.EnumerateFileSystemInfos("*", options)
+                .Where(info => _settings.ShowHiddenFiles || (info.Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0)
                 .Select(info => new LocalItem
                 {
                     Name = info.Name,
@@ -33,6 +32,7 @@ public sealed partial class MainWindow
                 .OrderByDescending(x => x.IsDirectory)
                 .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
             ApplyLocalFilter();
             _localPathBox.Text = _localPath;
         }
@@ -46,24 +46,25 @@ public sealed partial class MainWindow
     {
         var filter = _localFilter.Text.Trim();
         _localItems.Clear();
-        foreach (var item in _localAll.Where(x => filter.Length == 0 || x.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))) _localItems.Add(item);
+        foreach (var item in _localAll.Where(x => filter.Length == 0 || x.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+            _localItems.Add(item);
+        UpdatePaneSummaries();
     }
 
     private void ApplyRemoteFilter()
     {
         var filter = _remoteFilter.Text.Trim();
         _remoteItems.Clear();
-        foreach (var item in _remoteAll.Where(x => filter.Length == 0 || x.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))) _remoteItems.Add(item);
+        foreach (var item in _remoteAll.Where(x => filter.Length == 0 || x.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+            _remoteItems.Add(item);
+        UpdatePaneSummaries();
     }
 
     private void OpenLocalSelected()
     {
-        if (_localList.SelectedItem is not LocalItem item) return;
-        if (item.IsDirectory)
-        {
-            _localPath = item.FullPath;
-            RefreshLocal();
-        }
+        if (_localList.SelectedItem is not LocalItem item || !item.IsDirectory) return;
+        _localPath = item.FullPath;
+        RefreshLocal();
     }
 
     private async Task OpenRemoteSelectedAsync()
@@ -104,7 +105,10 @@ public sealed partial class MainWindow
             _localPath = path;
             RefreshLocal();
         }
-        catch (Exception ex) { ShowOperationError("Invalid local path.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Invalid local path.", ex);
+        }
     }
 
     private async Task NavigateRemotePathBoxAsync()
@@ -117,7 +121,10 @@ public sealed partial class MainWindow
             _remotePath = await _session.GetWorkingDirectoryAsync();
             await RefreshRemoteAsync();
         }
-        catch (Exception ex) { ShowOperationError("Invalid remote path.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Invalid remote path.", ex);
+        }
     }
 
     private void NewLocalFolder()
@@ -130,7 +137,10 @@ public sealed partial class MainWindow
             Directory.CreateDirectory(Path.Combine(_localPath, name));
             RefreshLocal();
         }
-        catch (Exception ex) { ShowOperationError("Could not create the local folder.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not create the local folder.", ex);
+        }
     }
 
     private void RenameLocalSelected()
@@ -145,11 +155,15 @@ public sealed partial class MainWindow
             if (string.Equals(destination, item.FullPath, StringComparison.OrdinalIgnoreCase)) return;
             if (File.Exists(destination) || Directory.Exists(destination))
                 throw new IOException("An item with that name already exists.");
+
             if (item.IsDirectory) Directory.Move(item.FullPath, destination);
             else File.Move(item.FullPath, destination);
             RefreshLocal();
         }
-        catch (Exception ex) { ShowOperationError("Could not rename the local item.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not rename the local item.", ex);
+        }
     }
 
     private void DeleteLocalSelected()
@@ -158,9 +172,13 @@ public sealed partial class MainWindow
         var items = _localList.SelectedItems.OfType<LocalItem>().ToArray();
         if (_settings.ConfirmDeletes)
         {
-            var result = MessageBox.Show(this,
+            var result = MessageBox.Show(
+                this,
                 $"Permanently delete {items.Length} selected local item(s)?\n\nLocal deletion does not use the Recycle Bin.",
-                "GhostFTP", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                "GhostFTP",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
             if (result != MessageBoxResult.Yes) return;
         }
 
@@ -174,11 +192,17 @@ public sealed partial class MainWindow
                     if ((attributes & FileAttributes.ReparsePoint) != 0) Directory.Delete(item.FullPath);
                     else Directory.Delete(item.FullPath, recursive: true);
                 }
-                else File.Delete(item.FullPath);
+                else
+                {
+                    File.Delete(item.FullPath);
+                }
             }
             RefreshLocal();
         }
-        catch (Exception ex) { ShowOperationError("Could not delete the selected local item.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not delete the selected local item.", ex);
+        }
     }
 
     private async Task NewRemoteFolderAsync()
@@ -192,21 +216,29 @@ public sealed partial class MainWindow
             await _session!.CreateDirectoryAsync(destination);
             await RefreshRemoteAsync();
         }
-        catch (Exception ex) { ShowOperationError("Could not create the remote folder.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not create the remote folder.", ex);
+        }
     }
 
     private async Task RenameRemoteSelectedAsync()
     {
-        if (!IsConnected || _remoteList.SelectedItem is not RemoteItem item) return;
+        if (!IsConnected || _remoteList.SelectedItems.Count != 1 || _remoteList.SelectedItem is not RemoteItem item) return;
         var dialog = new TextPromptDialog(this, "Rename remote item", "New name", item.Name);
         if (dialog.ShowDialog() != true) return;
         try
         {
-            var destination = FtpListingParser.CombineRemote(FtpListingParser.ParentRemote(item.FullPath), InputGuard.RemoteName(dialog.Value));
+            var destination = FtpListingParser.CombineRemote(
+                FtpListingParser.ParentRemote(item.FullPath),
+                InputGuard.RemoteName(dialog.Value));
             await _session!.RenameAsync(item.FullPath, destination);
             await RefreshRemoteAsync();
         }
-        catch (Exception ex) { ShowOperationError("Could not rename the remote item.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not rename the remote item.", ex);
+        }
     }
 
     private async Task DeleteRemoteSelectedAsync()
@@ -214,9 +246,16 @@ public sealed partial class MainWindow
         if (!IsConnected || _remoteList.SelectedItems.Count == 0) return;
         if (_settings.ConfirmDeletes)
         {
-            var result = MessageBox.Show(this, $"Delete {_remoteList.SelectedItems.Count} selected remote item(s)?\n\nFolders are deleted recursively.", "GhostFTP", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            var result = MessageBox.Show(
+                this,
+                $"Delete {_remoteList.SelectedItems.Count} selected remote item(s)?\n\nFolders are deleted recursively.",
+                "GhostFTP",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
             if (result != MessageBoxResult.Yes) return;
         }
+
         try
         {
             foreach (var item in _remoteList.SelectedItems.OfType<RemoteItem>().ToArray())
@@ -226,7 +265,9 @@ public sealed partial class MainWindow
             }
             await RefreshRemoteAsync();
         }
-        catch (Exception ex) { ShowOperationError("Could not delete the selected remote item.", ex); }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not delete the selected remote item.", ex);
+        }
     }
-
 }
