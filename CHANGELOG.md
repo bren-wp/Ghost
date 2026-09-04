@@ -1,5 +1,33 @@
 # GhostFTP changelog
 
+## 1.2.0 — 2026-09-05
+
+### UI / UX
+
+- Rebuilt the main file workspace around a clearer Windows 11 hierarchy with separate page header, Quick Connect, file panes and transfer queue.
+- Added a shared `GhostFTP.Design` project so the desktop application and installer use one palette, typography system, control treatment and Mica/rounded-window integration.
+- Removed duplicated legacy app/setup theme and Windows 11 backdrop helpers.
+- Replaced anonymous Quick Connect fields with labeled Host, Port, Security, Username and Password fields.
+- Added responsive wrapping file toolbars so actions no longer clip at narrower window sizes.
+- Replaced default white GridView headers with consistent dark/light themed headers and improved list selection/menu/tooltip styling.
+- Widened and reorganized Saved Servers navigation; added a dedicated Connect selected action.
+- Added Local/Remote item counts and selected-item summaries.
+- Added Local Home, Desktop, Documents and Downloads navigation shortcuts and Remote root navigation.
+- Added Copy local/remote path actions and Open in File Explorer for local items.
+- Added keyboard shortcuts: F5 Refresh, F2 Rename, Delete, Ctrl+F Filter and Ctrl+L Path.
+- Added Enter-to-connect from the Quick Connect password field.
+- Added a setting to show or hide hidden/system items in the local pane.
+- Improved transfer queue summary states for running, queued, failed and completed jobs.
+- Redesigned setup/uninstall into the same GhostFTP visual language with inline progress and completion actions.
+
+### Correctness / maintainability
+
+- Fixed Quick Connect profile matching so manually changing connection fields cannot accidentally reuse the selected Demo/saved-profile connection mode.
+- Consolidated reusable visual primitives, resource colors, control styles and DWM integration into `GhostFTP.Design`.
+- Reduced duplicated UI helper code and removed stale theme/backdrop implementations.
+- Kept the source C#-only and dependency-free with zero NuGet PackageReference entries.
+- Preserved x64/ARM64 self-contained setup/portable packaging and mandatory canonical `setup.exe` / `portable.exe` release assets.
+
 ## 1.1.0 — 2026-09-04
 
 - Rebuilt the Windows client as a C#-only, dependency-free desktop application.
