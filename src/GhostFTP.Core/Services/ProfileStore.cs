@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GhostFTP.Core.Models;
+using GhostFTP.Core.Protocol;
 
 namespace GhostFTP.Core.Services;
 
@@ -7,6 +8,9 @@ public sealed class ProfileStore
 {
     private const long MaxProfileFileBytes = 8L * 1024 * 1024;
     private const int MaxProfiles = 2048;
+    private const int MaxProfileNameChars = 128;
+    private const int MaxUsernameChars = 512;
+    private const int MaxProtectedPasswordChars = 65_536;
 
     private readonly string _filePath;
     private readonly ISecretProtector _secretProtector;
@@ -109,7 +113,14 @@ public sealed class ProfileStore
             profile.ProtectedPassword = null;
             return;
         }
+
+        password = InputGuard.CommandArgument(password, nameof(password));
         profile.ProtectedPassword = _secretProtector.Protect(password);
+        if (profile.ProtectedPassword.Length > MaxProtectedPasswordChars)
+        {
+            profile.ProtectedPassword = null;
+            throw new InvalidDataException("Protected password data exceeds the supported size limit.");
+        }
     }
 
     public string GetPassword(ServerProfile profile)
@@ -117,8 +128,18 @@ public sealed class ProfileStore
         ArgumentNullException.ThrowIfNull(profile);
         if (!profile.RememberPassword || string.IsNullOrWhiteSpace(profile.ProtectedPassword))
             return string.Empty;
-        try { return _secretProtector.Unprotect(profile.ProtectedPassword); }
-        catch { return string.Empty; }
+        if (profile.ProtectedPassword.Length > MaxProtectedPasswordChars)
+            return string.Empty;
+
+        try
+        {
+            var plaintext = _secretProtector.Unprotect(profile.ProtectedPassword);
+            return InputGuard.CommandArgument(plaintext, "saved password");
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static async Task<IReadOnlyList<ServerProfile>> ReadProfilesAsync(string path, CancellationToken cancellationToken)
@@ -147,22 +168,87 @@ public sealed class ProfileStore
 
     private static void Normalize(List<ServerProfile> profiles)
     {
-        var seen = new HashSet<Guid>();
-        foreach (var profile in profiles)
+        var seenIds = new HashSet<Guid>();
+        var seenDemo = false;
+
+        for (var i = 0; i < profiles.Count; i++)
         {
-            if (profile.Id == Guid.Empty || !seen.Add(profile.Id))
-                profile.Id = Guid.NewGuid();
-            profile.Name = string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed server" : profile.Name.Trim();
-            profile.InitialPath = string.IsNullOrWhiteSpace(profile.InitialPath) ? "/" : profile.InitialPath.Trim();
-            if (!profile.IsDemo)
+            var profile = profiles[i];
+            if (profile.Id == Guid.Empty || !seenIds.Add(profile.Id))
             {
-                profile.Host = profile.Host.Trim();
-                profile.Port = profile.Port is >= 1 and <= 65535 ? profile.Port : (profile.Security == FtpSecurityMode.ImplicitTls ? 990 : 21);
-                profile.Username = profile.Username.Trim();
-                if (!profile.RememberPassword)
-                    profile.ProtectedPassword = null;
+                profile.Id = Guid.NewGuid();
+                seenIds.Add(profile.Id);
             }
+
+            if (!Enum.IsDefined(profile.Security))
+                profile.Security = FtpSecurityMode.ExplicitTls;
+
+            if (profile.IsDemo)
+            {
+                if (seenDemo)
+                {
+                    profiles.RemoveAt(i--);
+                    continue;
+                }
+
+                seenDemo = true;
+                ApplyCanonicalDemo(profile);
+                continue;
+            }
+
+            profile.Name = NormalizeDisplayName(profile.Name);
+            profile.Host = NormalizeHost(profile.Host);
+            profile.Port = profile.Port is >= 1 and <= 65535
+                ? profile.Port
+                : profile.Security == FtpSecurityMode.ImplicitTls ? 990 : 21;
+            profile.Username = NormalizeUsername(profile.Username);
+            profile.InitialPath = NormalizeRemotePath(profile.InitialPath);
+
+            if (!profile.RememberPassword || string.IsNullOrWhiteSpace(profile.ProtectedPassword) || profile.ProtectedPassword.Length > MaxProtectedPasswordChars)
+                profile.ProtectedPassword = null;
         }
+    }
+
+    private static string NormalizeDisplayName(string? value)
+    {
+        value = string.IsNullOrWhiteSpace(value) ? "Unnamed server" : value.Trim();
+        try { InputGuard.RejectControl(value, nameof(value)); }
+        catch (ArgumentException) { return "Unnamed server"; }
+        return value.Length <= MaxProfileNameChars ? value : value[..MaxProfileNameChars];
+    }
+
+    private static string NormalizeHost(string? value)
+    {
+        try { return InputGuard.Host(value ?? string.Empty); }
+        catch (ArgumentException) { return string.Empty; }
+    }
+
+    private static string NormalizeUsername(string? value)
+    {
+        value = (value ?? string.Empty).Trim();
+        if (value.Length > MaxUsernameChars)
+            value = value[..MaxUsernameChars];
+        try { return InputGuard.CommandArgument(value, nameof(value)); }
+        catch (ArgumentException) { return string.Empty; }
+    }
+
+    private static string NormalizeRemotePath(string? value)
+    {
+        try { return InputGuard.RemotePath(value ?? "/"); }
+        catch (ArgumentException) { return "/"; }
+    }
+
+    private static void ApplyCanonicalDemo(ServerProfile profile)
+    {
+        profile.Name = "GhostFTP Demo";
+        profile.Host = "demo.ghostftp.local";
+        profile.Port = 21;
+        profile.Username = "demo";
+        profile.Security = FtpSecurityMode.Plain;
+        profile.InitialPath = "/";
+        profile.IsDemo = true;
+        profile.RememberPassword = false;
+        profile.ProtectedPassword = null;
     }
 
     private static void EnsureDemo(List<ServerProfile> profiles)
