@@ -257,12 +257,24 @@ public sealed partial class MainWindow
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var up = ToolButton("↑ Up", isRemote ? async () => await RemoteUpAsync() : LocalUp);
+
+        Button up;
+        Button home;
+        if (isRemote)
+        {
+            up = ToolButton("↑ Up", RemoteUpAsync);
+            home = ToolButton("⌂ /", NavigateRemoteHomeAsync);
+        }
+        else
+        {
+            up = ToolButton("↑ Up", LocalUp);
+            home = ToolButton("⌂ Home", NavigateLocalHome);
+        }
+
         Grid.SetColumn(up, 0);
         pathRow.Children.Add(up);
         Grid.SetColumn(pathBox, 2);
         pathRow.Children.Add(pathBox);
-        var home = ToolButton(isRemote ? "⌂ /" : "⌂ Home", isRemote ? async () => await NavigateRemoteHomeAsync() : NavigateLocalHome);
         Grid.SetColumn(home, 4);
         pathRow.Children.Add(home);
         header.Children.Add(pathRow);
@@ -280,10 +292,10 @@ public sealed partial class MainWindow
         if (isRemote)
         {
             toolbar.Children.Add(ToolButton("↓ Download", QueueDownloadSelected, primary: true));
-            toolbar.Children.Add(ToolButton("↻ Refresh", async () => await RefreshRemoteAsync()));
-            toolbar.Children.Add(ToolButton("＋ New folder", async () => await NewRemoteFolderAsync()));
-            toolbar.Children.Add(ToolButton("Rename", async () => await RenameRemoteSelectedAsync()));
-            toolbar.Children.Add(ToolButton("Delete", async () => await DeleteRemoteSelectedAsync(), danger: true));
+            toolbar.Children.Add(ToolButton("↻ Refresh", RefreshRemoteAsync));
+            toolbar.Children.Add(ToolButton("＋ New folder", NewRemoteFolderAsync));
+            toolbar.Children.Add(ToolButton("Rename", RenameRemoteSelectedAsync));
+            toolbar.Children.Add(ToolButton("Delete", DeleteRemoteSelectedAsync, danger: true));
         }
         else
         {
@@ -420,6 +432,10 @@ public sealed partial class MainWindow
         _remotePathBox.KeyDown += async (_, e) =>
         {
             if (e.Key == Key.Enter) await NavigateRemotePathBoxAsync();
+        };
+        _password.KeyDown += async (_, e) =>
+        {
+            if (e.Key == Key.Enter) await ConnectAsync();
         };
         _localFilter.TextChanged += (_, _) => ApplyLocalFilter();
         _remoteFilter.TextChanged += (_, _) => ApplyRemoteFilter();
