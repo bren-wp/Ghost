@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GhostFTP.Setup", "src\Ghost
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GhostFTP.SelfTest", "tests\GhostFTP.SelfTest\GhostFTP.SelfTest.csproj", "{7E1C44E1-1BED-4D96-B50F-3BE5C0A64AE1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GhostFTP.UiSmoke", "tests\GhostFTP.UiSmoke\GhostFTP.UiSmoke.csproj", "{B5EAF0F2-C59A-4AA8-8E88-AF9B70F4D130}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|Any CPU = Debug|Any CPU
@@ -38,5 +40,9 @@ Global
         {7E1C44E1-1BED-4D96-B50F-3BE5C0A64AE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {7E1C44E1-1BED-4D96-B50F-3BE5C0A64AE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
         {7E1C44E1-1BED-4D96-B50F-3BE5C0A64AE1}.Release|Any CPU.Build.0 = Release|Any CPU
+        {B5EAF0F2-C59A-4AA8-8E88-AF9B70F4D130}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {B5EAF0F2-C59A-4AA8-8E88-AF9B70F4D130}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {B5EAF0F2-C59A-4AA8-8E88-AF9B70F4D130}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {B5EAF0F2-C59A-4AA8-8E88-AF9B70F4D130}.Release|Any CPU.Build.0 = Release|Any CPU
     EndGlobalSection
 EndGlobal
