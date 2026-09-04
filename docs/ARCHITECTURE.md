@@ -5,7 +5,7 @@ Ghost FTP 1.3 is Windows-first, C#-only and intentionally free of third-party ru
 ## Projects
 
 - `GhostFTP.Core` — FTP/FTPS protocol engine, listing parsers, transfer queue, demo session and profile persistence abstractions. It has no WPF dependency.
-- `GhostFTP.Design` — shared Ghost FTP identity and Windows desktop visual system used by both the app and setup. It owns `GhostBrand`, palette resources, typography, reusable controls/surfaces, list/header/menu styling and Windows DWM/Mica integration.
+- `GhostFTP.Design` — shared Ghost FTP identity and Windows desktop visual system used by both the app and setup. It owns `GhostBrand`, `GhostComboBox`, palette resources, typography, reusable controls/surfaces, list/header/menu styling and Windows DWM/Mica integration.
 - `GhostFTP.App` — Windows desktop client written programmatically in C# using WPF. It references Core + Design. No XAML is required.
 - `GhostFTP.Setup` — per-user C# installer/uninstaller. It references Design so setup identity and visual language cannot drift from the application. No MSI, WiX, NSIS or Inno Setup dependency is required.
 - `GhostFTP.SelfTest` — dependency-free executable self-tests used by CI.
@@ -30,9 +30,17 @@ GhostFTP.Core      <- GhostFTP.SelfTest
 - website: `https://ghostftp.com`;
 - source repository URL;
 - privacy tagline;
-- app/setup WPF `ImageSource`.
+- app/setup/dialog WPF `ImageSource`.
 
 Repository visual assets live under `assets/brand` and `assets/readme`. CI requires these assets and rejects the former alternate product/author brand if it reappears in current source, configuration, documentation or artwork metadata.
+
+## Windows executable icon
+
+A WPF window icon alone does not brand the actual `.exe` file. `tools/generate-ghostftp-icon.ps1` therefore renders a deterministic Ghost FTP 256×256 PNG-backed ICO using only Windows/.NET drawing APIs.
+
+`Directory.Build.targets` runs this generator independently in each executable project's intermediate output directory before compilation and assigns the result to `ApplicationIcon`. App and Setup builds can therefore run in parallel without racing on a shared generated file, while `portable.exe`, `setup.exe`, Start Menu shortcuts and Explorer receive the Ghost FTP executable icon.
+
+The generator is build-time only and adds no runtime dependency.
 
 ## Shared design system
 
@@ -41,11 +49,12 @@ Repository visual assets live under `assets/brand` and `assets/readme`. CI requi
 - dark/light/system color resources;
 - Segoe UI Variable typography;
 - rounded buttons, text/password fields and shared surfaces;
+- `GhostComboBox`, which replaces Windows-default white dropdown chrome in Quick Connect, profile editing and Settings;
 - GridView/ListView/ListBox/context-menu visual defaults;
 - Ghost FTP vector identity primitive;
 - Windows dark titlebar, rounded corners and Mica integration with safe fallback.
 
-App- or setup-specific duplicate theme/chrome classes are prohibited by `audit-source.ps1`.
+App- or setup-specific duplicate theme/chrome classes are prohibited by `audit-source.ps1`. Obsolete `GhostTheme.Logo()` and `GhostTheme.ComboBox()` helper paths are also rejected so the canonical identity/dropdown implementations remain singular.
 
 ## Main-window composition
 
@@ -83,7 +92,7 @@ Persistence inputs are bounded:
 - profiles: maximum 8 MiB;
 - profiles: maximum 2,048 entries.
 
-Settings and profiles use temporary files plus atomic replacement/backup recovery when replacing existing files. Corrupted or oversized settings do not crash into unbounded deserialization; profile recovery may use the previous backup.
+Settings and profiles use temporary files plus atomic replacement/backup recovery when replacing existing files. Corrupted or oversized settings do not enter unbounded deserialization; profile recovery may use the previous backup.
 
 ## Installer boundary
 
