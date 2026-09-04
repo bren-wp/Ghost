@@ -59,9 +59,15 @@ public sealed class ProfileStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var list = profiles.Select(x => x.Clone()).ToList();
-            if (list.Count > MaxProfiles)
-                throw new InvalidOperationException($"Too many saved server profiles. Maximum: {MaxProfiles:N0}.");
+            var list = new List<ServerProfile>();
+            foreach (var profile in profiles)
+            {
+                if (profile is null)
+                    throw new InvalidDataException("Saved profile collection contains an invalid null entry.");
+                list.Add(profile.Clone());
+                if (list.Count > MaxProfiles)
+                    throw new InvalidOperationException($"Too many saved server profiles. Maximum: {MaxProfiles:N0}.");
+            }
 
             Normalize(list);
             EnsureDemo(list);
@@ -157,10 +163,12 @@ public sealed class ProfileStore
             FileShare.Read,
             32 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var profiles = await JsonSerializer.DeserializeAsync<List<ServerProfile>>(stream, JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
-        if (profiles.Count > MaxProfiles)
+
+        var rawProfiles = await JsonSerializer.DeserializeAsync<List<ServerProfile?>>(stream, JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
+        if (rawProfiles.Count > MaxProfiles)
             throw new InvalidDataException($"Profile data contains more than {MaxProfiles:N0} entries.");
 
+        var profiles = rawProfiles.Where(static profile => profile is not null).Select(static profile => profile!).ToList();
         Normalize(profiles);
         EnsureDemo(profiles);
         return profiles;
