@@ -18,6 +18,9 @@
     <DebugSymbols>false</DebugSymbols>
     <GhostFtpPayloadPath Condition="'$(GhostFtpPayloadPath)' == ''">..\..\artifacts\portable\GhostFTP.exe</GhostFtpPayloadPath>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GhostFTP.Design\GhostFTP.Design.csproj" />
+  </ItemGroup>
   <ItemGroup Condition="Exists('$(GhostFtpPayloadPath)')">
     <EmbeddedResource Include="$(GhostFtpPayloadPath)" LogicalName="GhostFTP.PortablePayload.exe" />
   </ItemGroup>
