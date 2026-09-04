@@ -43,20 +43,20 @@ public sealed partial class MainWindow
     {
         var grid = new GridView { AllowsColumnReorder = true };
         grid.Columns.Add(Column("Name", "Name", local ? 230 : 205));
-        grid.Columns.Add(Column("Type", "Type", 74));
-        grid.Columns.Add(Column("Size", "SizeText", 84));
-        grid.Columns.Add(Column("Modified", "ModifiedText", 134));
+        grid.Columns.Add(Column("Type", "Type", 70));
+        grid.Columns.Add(Column("Size", "SizeText", 78));
+        grid.Columns.Add(Column("Modified", "ModifiedText", 124));
         return grid;
     }
 
     private static GridView CreateQueueGrid()
     {
         var grid = new GridView { AllowsColumnReorder = true };
-        grid.Columns.Add(Column("Item", "DisplayName", 165));
-        grid.Columns.Add(Column("Direction", "Direction", 78));
-        grid.Columns.Add(Column("State", "State", 76));
-        grid.Columns.Add(Column("Progress", "ProgressText", 72));
-        grid.Columns.Add(Column("Speed", "SpeedText", 86));
+        grid.Columns.Add(Column("Item", "DisplayName", 160));
+        grid.Columns.Add(Column("Direction", "Direction", 76));
+        grid.Columns.Add(Column("State", "State", 72));
+        grid.Columns.Add(Column("Progress", "ProgressText", 70));
+        grid.Columns.Add(Column("Speed", "SpeedText", 82));
         grid.Columns.Add(Column("Source", "Source", 220));
         grid.Columns.Add(Column("Destination", "Destination", 220));
         return grid;
@@ -68,6 +68,44 @@ public sealed partial class MainWindow
         Width = width,
         DisplayMemberBinding = new System.Windows.Data.Binding(binding)
     };
+
+    private void ResizeFileColumns(ListView list)
+    {
+        if (list.View is not GridView grid || grid.Columns.Count != 4 || list.ActualWidth <= 0) return;
+
+        var available = Math.Max(360, list.ActualWidth - 22);
+        var type = 68d;
+        var size = 76d;
+        var modified = 120d;
+        var name = Math.Max(120d, available - type - size - modified);
+
+        grid.Columns[0].Width = name;
+        grid.Columns[1].Width = type;
+        grid.Columns[2].Width = size;
+        grid.Columns[3].Width = modified;
+    }
+
+    private void ResizeQueueColumns()
+    {
+        if (_queueList.View is not GridView grid || grid.Columns.Count != 7 || _queueList.ActualWidth <= 0) return;
+
+        var available = Math.Max(760, _queueList.ActualWidth - 22);
+        var item = Math.Clamp(available * 0.16, 130, 200);
+        var direction = 76d;
+        var state = 72d;
+        var progress = 70d;
+        var speed = 82d;
+        var remaining = Math.Max(260, available - item - direction - state - progress - speed);
+        var source = remaining / 2;
+
+        grid.Columns[0].Width = item;
+        grid.Columns[1].Width = direction;
+        grid.Columns[2].Width = state;
+        grid.Columns[3].Width = progress;
+        grid.Columns[4].Width = speed;
+        grid.Columns[5].Width = source;
+        grid.Columns[6].Width = source;
+    }
 
     private static ContextMenu CreateContextMenu(params (string text, RoutedEventHandler handler)[] items)
     {
