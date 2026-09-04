@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GhostFTP.App' Or '$(MSBuildProjectName)' == 'GhostFTP.Setup'">
+    <_GhostFtpGeneratedIcon>$(IntermediateOutputPath)ghostftp.ico</_GhostFtpGeneratedIcon>
+    <ApplicationIcon>$(_GhostFtpGeneratedIcon)</ApplicationIcon>
+  </PropertyGroup>
+
+  <Target Name="GenerateGhostFtpApplicationIcon"
+          BeforeTargets="CoreCompile"
+          Condition="'$(MSBuildProjectName)' == 'GhostFTP.App' Or '$(MSBuildProjectName)' == 'GhostFTP.Setup'"
+          Inputs="$(MSBuildThisFileDirectory)tools\generate-ghostftp-icon.ps1"
+          Outputs="$(_GhostFtpGeneratedIcon)">
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\generate-ghostftp-icon.ps1&quot; -OutputPath &quot;$(_GhostFtpGeneratedIcon)&quot;" />
+  </Target>
+</Project>
