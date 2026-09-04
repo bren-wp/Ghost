@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Ghost FTP app icon</title>
+  <desc id="desc">Rounded blue violet folder icon with a G and upload download arrows.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#081a43"/>
+      <stop offset="0.52" stop-color="#163491"/>
+      <stop offset="1" stop-color="#4a2aa9"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#31dcff"/>
+      <stop offset="0.55" stop-color="#436aff"/>
+      <stop offset="1" stop-color="#8b4aff"/>
+    </linearGradient>
+    <linearGradient id="letter" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fcff"/>
+      <stop offset="0.55" stop-color="#7beeff"/>
+      <stop offset="1" stop-color="#aa75ff"/>
+    </linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="476" height="476" rx="104" fill="url(#bg)" stroke="#45cbff" stroke-width="10"/>
+  <path d="M91 132c0-23 18-41 41-41h122l42 43h95c23 0 41 18 41 41v52H91z" fill="url(#folder)" opacity=".9"/>
+  <rect x="72" y="184" width="368" height="244" rx="54" fill="url(#folder)" stroke="#b9c8ff" stroke-opacity=".45" stroke-width="5"/>
+  <path d="M265 238c-25-21-51-29-79-29-66 0-111 46-111 103 0 59 46 103 112 103 39 0 73-13 99-36v-87h-102v48h48v22c-12 7-26 10-42 10-34 0-57-25-57-64 0-36 24-62 58-62 20 0 36 6 51 18z" fill="url(#letter)"/>
+  <g filter="url(#glow)">
+    <path d="M357 230l-36 43h22v52h28v-52h22z" fill="#46e2ff"/>
+    <path d="M357 386l36-43h-22v-52h-28v52h-22z" fill="#b868ff"/>
+  </g>
+</svg>
