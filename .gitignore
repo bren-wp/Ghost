@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+artifacts/
+release/
+Data/
+*.user
+*.suo
+*.ghostftp.part
