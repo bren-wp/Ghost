@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace GhostFTP.Design;
@@ -15,6 +16,19 @@ public static class GhostBrand
     private static readonly Lazy<ImageSource> Icon = new(CreateIconSource, LazyThreadSafetyMode.ExecutionAndPublication);
 
     public static ImageSource IconSource => Icon.Value;
+
+    public static Image IconControl(double size)
+    {
+        return new Image
+        {
+            Source = IconSource,
+            Width = size,
+            Height = size,
+            Stretch = Stretch.Uniform,
+            SnapsToDevicePixels = true,
+            UseLayoutRounding = true
+        };
+    }
 
     private static ImageSource CreateIconSource()
     {
