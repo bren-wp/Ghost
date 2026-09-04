@@ -18,7 +18,10 @@ foreach ($arch in $architectures) {
     $portableDir = Join-Path $artifacts ("portable-" + $arch.Suffix)
     $setupDir = Join-Path $artifacts ("setup-" + $arch.Suffix)
 
-    dotnet publish src/GhostFTP.App/GhostFTP.App.csproj -c Release -r $arch.Rid --self-contained true -o $portableDir
+    # ReadyToRun is deliberately disabled for release packaging. Cross-architecture R2R
+    # generation is slower and less predictable on hosted x64 runners, while the app
+    # remains fully self-contained and single-file without it.
+    dotnet publish src/GhostFTP.App/GhostFTP.App.csproj -c Release -r $arch.Rid --self-contained true -p:PublishReadyToRun=false -o $portableDir
     if ($LASTEXITCODE -ne 0) { throw "Portable publish failed for $($arch.Rid)." }
 
     $payload = Join-Path $portableDir 'GhostFTP.exe'
@@ -26,7 +29,7 @@ foreach ($arch in $architectures) {
         throw "Portable payload is missing or empty: $payload"
     }
 
-    dotnet publish src/GhostFTP.Setup/GhostFTP.Setup.csproj -c Release -r $arch.Rid --self-contained true -o $setupDir -p:GhostFtpPayloadPath="$payload"
+    dotnet publish src/GhostFTP.Setup/GhostFTP.Setup.csproj -c Release -r $arch.Rid --self-contained true -p:PublishReadyToRun=false -o $setupDir -p:GhostFtpPayloadPath="$payload"
     if ($LASTEXITCODE -ne 0) { throw "Setup publish failed for $($arch.Rid)." }
 
     $setupPayload = Join-Path $setupDir 'GhostFTP-Setup.exe'
@@ -38,7 +41,7 @@ foreach ($arch in $architectures) {
     Copy-Item $setupPayload (Join-Path $release ("GhostFTP-Setup-" + $arch.Suffix + '.exe'))
 }
 
-# Canonical direct-download names. These intentionally point to the normal Windows x64 build,
+# Canonical direct-download names. These intentionally point to the standard Windows x64 build,
 # while architecture-specific assets remain available alongside them.
 $x64Portable = Join-Path $release 'GhostFTP-Portable-win-x64.exe'
 $x64Setup = Join-Path $release 'GhostFTP-Setup-win-x64.exe'
