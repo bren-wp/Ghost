@@ -93,6 +93,16 @@ foreach ($required in $requiredDesignFiles) {
     }
 }
 
+$requiredUiSmokeFiles = @(
+    'tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj',
+    'tests/GhostFTP.UiSmoke/Program.cs'
+)
+foreach ($required in $requiredUiSmokeFiles) {
+    if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) {
+        throw "Ghost FTP editable-input regression test is missing: $required"
+    }
+}
+
 $legacyUiDuplicates = @(
     'src/GhostFTP.App/UI/Theme.cs',
     'src/GhostFTP.App/UI/Win11.cs',
@@ -109,6 +119,17 @@ foreach ($token in $legacyHelperCalls) {
     $matches = Get-ChildItem $src -Recurse -File -Filter *.cs | Select-String -SimpleMatch $token
     if ($matches) {
         $matches | ForEach-Object { Write-Error "Obsolete shared UI helper reference found: $($_.Path):$($_.LineNumber)" }
+        exit 1
+    }
+}
+
+# Native WPF TextBox/PasswordBox editing is intentionally preserved. A local replacement
+# template previously caused focus/caret/input regressions and must not be reintroduced.
+$fragileInputTemplates = @('RoundedTextBoxTemplate', 'RoundedPasswordBoxTemplate')
+foreach ($token in $fragileInputTemplates) {
+    $matches = Get-ChildItem $src -Recurse -File -Filter *.cs | Select-String -SimpleMatch $token
+    if ($matches) {
+        $matches | ForEach-Object { Write-Error "Fragile editable-input template returned: $($_.Path):$($_.LineNumber)" }
         exit 1
     }
 }
@@ -144,4 +165,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: Ghost FTP-only branding, C#-only source, zero PackageReference entries, shared design/icon/dropdown architecture enforced, no known telemetry/tracking SDK references, version metadata synchronized."
+Write-Host "Source audit passed for Ghost FTP ${version}: Ghost FTP-only branding, C#-only source, zero PackageReference entries, native editable input path, WPF input smoke tests, shared design/icon/dropdown architecture, no known telemetry/tracking SDK references, version metadata synchronized."
