@@ -4,10 +4,8 @@ using GhostFTP.Core.Services;
 using GhostFTP.Design;
 using GhostFTP.Services;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 
 namespace GhostFTP.UI;
 
@@ -34,7 +32,6 @@ public sealed partial class MainWindow : Window
         public string Type => Entry.Type;
         public string SizeText => Entry.IsDirectory ? string.Empty : FormatBytes(Entry.Size);
         public string ModifiedText => Entry.ModifiedUtc?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
-        public string Permissions => Entry.Permissions ?? string.Empty;
     }
 
     private readonly AppPaths _paths = new();
@@ -100,6 +97,7 @@ public sealed partial class MainWindow : Window
         Content = BuildLayout();
         ConfigureLists();
         ConfigureEvents();
+        ConfigureResponsiveColumns();
 
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Loaded += OnLoadedAsync;
