@@ -21,6 +21,15 @@ public sealed class AppSettings
     public int ConnectTimeoutSeconds { get; set; } = 15;
     public int CommandTimeoutSeconds { get; set; } = 30;
     public int TransferIdleTimeoutSeconds { get; set; } = 120;
+
+    // Workspace geometry is local-only UI state. Values are normalized before use so a
+    // corrupted settings file cannot create an unusable off-screen or zero-sized window.
+    public double WindowWidth { get; set; } = 1520;
+    public double WindowHeight { get; set; } = 920;
+    public bool WindowMaximized { get; set; }
+    public double SidebarWidth { get; set; } = 300;
+    public double TransferPanelHeight { get; set; } = 210;
+    public double LocalPaneFraction { get; set; } = 0.5;
 }
 
 public sealed class AppSettingsStore
@@ -146,5 +155,18 @@ public sealed class AppSettingsStore
         settings.ConnectTimeoutSeconds = Math.Clamp(settings.ConnectTimeoutSeconds, 3, 120);
         settings.CommandTimeoutSeconds = Math.Clamp(settings.CommandTimeoutSeconds, 5, 300);
         settings.TransferIdleTimeoutSeconds = Math.Clamp(settings.TransferIdleTimeoutSeconds, 15, 3600);
+
+        settings.WindowWidth = ClampFinite(settings.WindowWidth, 980, 7680, 1520);
+        settings.WindowHeight = ClampFinite(settings.WindowHeight, 640, 4320, 920);
+        settings.SidebarWidth = ClampFinite(settings.SidebarWidth, 220, 460, 300);
+        settings.TransferPanelHeight = ClampFinite(settings.TransferPanelHeight, 130, 460, 210);
+        settings.LocalPaneFraction = ClampFinite(settings.LocalPaneFraction, 0.25, 0.75, 0.5);
+    }
+
+    private static double ClampFinite(double value, double minimum, double maximum, double fallback)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+            return fallback;
+        return Math.Clamp(value, minimum, maximum);
     }
 }
