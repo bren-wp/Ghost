@@ -100,12 +100,17 @@ $requiredFiles = @(
     'src/GhostFTP.Design/GhostComboBox.cs',
     'src/GhostFTP.Design/GhostLocalization.cs',
     'src/GhostFTP.Design/GhostSetupLocalization.cs',
+    'src/GhostFTP.App/UI/MainWindow.KeepAlive.cs',
     'assets/brand/ghostftp-icon.svg',
     'assets/readme/ghostftp-hero.svg',
     'Directory.Build.targets',
     'tools/generate-ghostftp-icon.ps1',
     'LICENSE',
     'docs/PLATFORM-SUPPORT.md',
+    'tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj',
+    'tests/GhostFTP.SelfTest/Program.cs',
+    'tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj',
+    'tests/GhostFTP.QueueSelfTest/Program.cs',
     'tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj',
     'tests/GhostFTP.UiSmoke/Program.cs'
 )
@@ -117,6 +122,10 @@ $releaseNotes = Join-Path $root "docs/releases/v$version.md"
 if (!(Test-Path $releaseNotes -PathType Leaf)) {
     throw "Current version $version must have detailed release notes at docs/releases/v$version.md."
 }
+$releaseText = Get-Content $releaseNotes -Raw
+if ($releaseText -notmatch [regex]::Escape("Ghost FTP $version")) {
+    throw "Current release notes must identify Ghost FTP $version."
+}
 
 $readme = Get-Content (Join-Path $root 'README.md') -Raw
 if ($readme -notmatch [regex]::Escape('assets/readme/ghostftp-hero.svg')) {
@@ -127,6 +136,15 @@ if ($readme -notmatch [regex]::Escape("Current source version: **$version**")) {
 }
 if ($readme -notmatch [regex]::Escape('docs/PLATFORM-SUPPORT.md')) {
     throw 'README.md must link the authoritative platform-support contract.'
+}
+
+$privacy = Get-Content (Join-Path $root 'PRIVACY.md') -Raw
+if ($privacy -notmatch 'keepalive' -or $privacy -notmatch 'NOOP' -or $privacy -notmatch '0.*disable') {
+    throw 'PRIVACY.md must document configurable server-only keepalive behavior and the disable option.'
+}
+$security = Get-Content (Join-Path $root 'SECURITY.md') -Raw
+if ($security -notmatch 'stale' -or $security -notmatch 'Keepalive' -or $security -notmatch '1.?8') {
+    throw 'SECURITY.md must document keepalive stale-state handling and bounded transfer concurrency.'
 }
 
 $legacyUiDuplicates = @(
@@ -193,6 +211,26 @@ if ($targets -notmatch 'ApplicationIcon' -or $targets -notmatch 'generate-ghostf
     throw 'Ghost FTP executable icon generation must remain connected to the build.'
 }
 
+# Reliability architecture introduced in 1.6.0 is intentionally explicit so later UI work
+# cannot silently remove its privacy/safety properties.
+$settingsSource = Get-Content (Join-Path $root 'src/GhostFTP.App/Services/AppSettings.cs') -Raw
+if ($settingsSource -notmatch 'ConcurrentTransfers' -or $settingsSource -notmatch 'KeepAliveSeconds') {
+    throw 'Ghost FTP settings must retain bounded concurrency and configurable keepalive values.'
+}
+$sessionInterface = Get-Content (Join-Path $root 'src/GhostFTP.Core/Protocol/IFtpSession.cs') -Raw
+$diagnosticsSource = Get-Content (Join-Path $root 'src/GhostFTP.Core/Protocol/FtpSession.Diagnostics.cs') -Raw
+if ($sessionInterface -notmatch 'KeepAliveAsync' -or $diagnosticsSource -notmatch 'NOOP' -or $diagnosticsSource -notmatch 'ResetTransportAsync') {
+    throw 'FTP keepalive must remain an explicit server-only NOOP contract with stale-transport reset.'
+}
+$transferModel = Get-Content (Join-Path $root 'src/GhostFTP.Core/Models/TransferJob.cs') -Raw
+if ($transferModel -notmatch 'TransferredText' -or $transferModel -notmatch 'EtaText') {
+    throw 'Transfer observability model must retain byte-summary and ETA state.'
+}
+$helpers = Get-Content (Join-Path $root 'src/GhostFTP.App/UI/MainWindow.Helpers.cs') -Raw
+if ($helpers -notmatch 'queueActive' -or $helpers -notmatch 'CancelSelectedTransfer') {
+    throw 'Keyboard routing must retain queue-focus isolation for destructive actions.'
+}
+
 # Ban actual contiguous legacy product identifiers. Do not ban ordinary language such as
 # "created by FTP/FTPS actions", which is not a product identity.
 $forbiddenProductTokens = @(
@@ -220,4 +258,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata and brendigo.com identity, Ghost FTP-only product identity, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF production target, native editable inputs, embedded license wizard, same-Setup uninstall with bounded self-cleanup, detailed current release notes, shared localization/design/icon architecture and synchronized version metadata."
+Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD identity, Ghost FTP-only product naming, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF production target, configurable server-only keepalive with stale-state reset, bounded parallel transfer settings, focus-safe destructive shortcuts, transfer observability tests, native editable inputs, embedded-license Setup, same-Setup uninstall, detailed current release notes and synchronized version metadata."
