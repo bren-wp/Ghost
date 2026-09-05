@@ -8,6 +8,8 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
+    private const double DocumentationCaptureScale = 1.5;
+
     private async Task RunDocumentationCaptureAsync()
     {
         if (_captureDirectory is null)
@@ -28,6 +30,8 @@ public sealed partial class MainWindow
             await ConnectAsync();
         }
 
+        PrepareDeterministicDocumentationState();
+
         await Dispatcher.InvokeAsync(() =>
         {
             UpdateLayout();
@@ -35,8 +39,7 @@ public sealed partial class MainWindow
         }, DispatcherPriority.ApplicationIdle);
 
         var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
-        CaptureElementToPng(this, clientPath);
-        AppendConnectionLog($"Authentic client screenshot captured to {clientPath}.", "DOCS");
+        CaptureElementToPng(this, clientPath, DocumentationCaptureScale);
 
         if (_profileStore is not null)
         {
@@ -47,7 +50,7 @@ public sealed partial class MainWindow
             manager.Show();
             await Dispatcher.InvokeAsync(manager.UpdateLayout, DispatcherPriority.ApplicationIdle);
             var managerPath = Path.Combine(_captureDirectory, "ghostftp-site-manager.png");
-            CaptureElementToPng(manager, managerPath);
+            CaptureElementToPng(manager, managerPath, DocumentationCaptureScale);
             manager.Close();
         }
 
@@ -65,18 +68,35 @@ public sealed partial class MainWindow
         Application.Current.Shutdown(0);
     }
 
-    private static void CaptureElementToPng(FrameworkElement element, string path)
+    private void PrepareDeterministicDocumentationState()
+    {
+        // Canonical repository screenshots must not change merely because a CI runner started
+        // at a different wall-clock time. These rows describe the real Demo state that was
+        // established above, but use stable documentation timestamps and contain no secrets.
+        _connectionLog.Clear();
+        _connectionLog.Add("09:41:00  [INFO]  Ghost FTP documentation workspace ready.");
+        _connectionLog.Add("09:41:01  [DEMO]  Built-in Ghost FTP Demo session opened locally.");
+        _connectionLog.Add("09:41:01  [INFO]  No network connection is used by Demo mode.");
+        _connectionLog.Add($"09:41:02  [LIST]  Directory listing completed: {_remoteAll.Count} item(s) in {_remotePath}.");
+        _connectionLog.Add("09:41:02  [OK]  Local/Remote workstation ready for documentation capture.");
+        _connectionLogList.SelectedIndex = -1;
+        if (_connectionLog.Count > 0)
+            _connectionLogList.ScrollIntoView(_connectionLog[^1]);
+    }
+
+    private static void CaptureElementToPng(FrameworkElement element, string path, double scale)
     {
         element.UpdateLayout();
         var dpi = VisualTreeHelper.GetDpi(element);
-        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX));
-        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY));
+        scale = Math.Clamp(scale, 1d, 2d);
 
+        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX * scale));
+        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY * scale));
         var bitmap = new RenderTargetBitmap(
             width,
             height,
-            96d * dpi.DpiScaleX,
-            96d * dpi.DpiScaleY,
+            96d * dpi.DpiScaleX * scale,
+            96d * dpi.DpiScaleY * scale,
             PixelFormats.Pbgra32);
         bitmap.Render(element);
 
