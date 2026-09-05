@@ -1,45 +1,35 @@
 # Ghost FTP Release Policy
 
-This document defines the minimum release discipline for official Ghost FTP Windows builds.
+This document defines the minimum release discipline for official **Ghost FTP** Windows and Linux builds published by **BRENDIGO LTD**.
 
-Ghost FTP is developed and published by **BRENDIGO LTD**. Product identity remains **Ghost FTP / GhostFTP**.
+## Public versioning
 
-## Public versioning and release channel
-
-Ghost FTP now uses a clean public pre-1.0 sequence. The active line starts at **0.1.0 Beta** and progresses through `0.x.y` until the first fully stable production release, which must be **1.0.0**.
-
-Two root files are authoritative:
+Authoritative root files:
 
 ```text
 VERSION
 RELEASE_CHANNEL
 ```
 
-`VERSION` contains `MAJOR.MINOR.PATCH`. `RELEASE_CHANNEL` contains either `beta` or `stable`.
+Current line:
+
+```text
+VERSION=0.1.0
+RELEASE_CHANNEL=beta
+```
 
 Rules:
 
 - every `0.x.y` build is **Beta**;
-- Beta builds use `InformationalVersion` `<version>-beta`;
-- Beta GitHub releases are published as prereleases;
-- the first build that may be presented as fully stable is **1.0.0**;
-- when stable 1.0.0 is reached, `portable.exe` and `setup.exe` plus their ARM64/architecture-explicit copies must carry matching 1.0.0 file/product metadata;
-- canonical filenames remain unchanged while the internal version advances;
-- version-number changes must never delete or silently discard completed product work.
+- Beta `InformationalVersion` is `<version>-beta`;
+- Beta GitHub Releases are prereleases;
+- first stable version is **1.0.0**;
+- version changes must keep `Directory.Build.props`, Windows manifests and release notes synchronized;
+- version-number changes must never silently discard completed product/security work.
 
-See `docs/VERSIONING.md` for the full numbering contract.
+See `docs/VERSIONING.md`.
 
-## Semantic version scope
-
-Ghost FTP uses semantic-style `MAJOR.MINOR.PATCH` versions within the active public line.
-
-- **MAJOR** — incompatible product/platform changes after the stable line exists.
-- **MINOR** — meaningful capabilities, architecture or substantial UX/protocol improvements.
-- **PATCH** — targeted correctness, security, stability or regression fixes.
-
-`VERSION`, `RELEASE_CHANNEL`, `Directory.Build.props`, assembly/file/informational metadata and both Windows manifests must remain synchronized.
-
-## Mandatory release notes
+## Required per-version notes
 
 Every official version requires:
 
@@ -47,21 +37,13 @@ Every official version requires:
 docs/releases/vMAJOR.MINOR.PATCH.md
 ```
 
-Release notes must describe meaningful work rather than generic commit summaries. Relevant sections should cover user-visible features, UI/UX, FTP/FTPS behavior, transfer/connection resilience, security, Setup, localization, privacy/dependency impact, platform scope, known limitations, validation and required assets.
+The file is the authoritative detailed GitHub Release body. It must cover user-visible features, FTP/FTPS behavior, transfer reliability, security, privacy, installer changes, Windows/Linux platform scope, localization, dependencies, validation and known limitations.
 
-Beta notes must explicitly identify the release as Beta. `CHANGELOG.md` is cumulative history. The per-version file is the authoritative detailed GitHub Release body.
-
-## Preserved historical development records
-
-The repository contains 1.x release-note files and changelog entries created before the public version-line reset. They are preserved as historical internal-development records.
-
-These records must not be deleted merely to make the new public numbering look clean. They document features and fixes that remain part of the current codebase unless a later change explicitly supersedes them.
-
-Historical documentation may be expanded for clarity but must not silently replace old binaries, move old tags or imply an older binary contains later fixes.
+`CHANGELOG.md` remains cumulative history. Older internal-development 1.x entries are preserved for engineering traceability even though the active public line reset to 0.1.0 Beta.
 
 ## Required Windows release assets
 
-Every Beta or stable release must contain non-empty:
+Every official 0.1.0 Beta Windows release must include non-empty:
 
 ```text
 setup.exe
@@ -73,182 +55,234 @@ GhostFTP-Portable-win-x64.exe
 GhostFTP-Setup-win-arm64.exe
 GhostFTP-Portable-win-arm64.exe
 SHA256SUMS.txt
+SIGNING.txt
 ```
 
-Canonical names remain `setup.exe`, `portable.exe`, `setup-arm64.exe` and `portable-arm64.exe`; architecture-explicit copies remain available for clarity and automation.
+`setup.exe` / `portable.exe` are the canonical x64 names. ARM64 aliases and architecture-explicit copies are provided for clarity and automation.
 
-All executable `FileVersion` values must match the current numeric `VERSION` as a four-part Windows version. For example, `0.1.0` requires `0.1.0.0`; stable `1.0.0` requires `1.0.0.0`.
+All Windows executable `FileVersion` values must match numeric `VERSION` as a four-part value. For 0.1.0 the expected file version is `0.1.0.0`.
 
-## Required repository UI assets
+## Required Linux release assets
 
-Repository presentation must contain authentic captures generated from production WPF code:
+Official Linux publication must include x64 and ARM64 self-contained deliverables and checksum/build metadata:
+
+```text
+GhostFTP-linux-x64
+GhostFTP-linux-arm64
+GhostFTP-linux-x64.tar.gz
+GhostFTP-linux-arm64.tar.gz
+GhostFTP-0.1.0-beta-linux-x64.tar.gz
+GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+SHA256SUMS-linux.txt
+BUILD-INFO.txt
+```
+
+Linux packages must come from the same release source/version as Windows. A Linux package is not considered published merely because an intermediate CI artifact exists; the files must be attached to the GitHub Release.
+
+## GitHub Release requirement
+
+Passing CI and uploading workflow artifacts is **not** the same as publishing a Release.
+
+For 0.1.0 Beta the official GitHub Release tag is:
+
+```text
+v0.1.0-beta
+```
+
+`.github/workflows/release.yml` is responsible for creating/synchronizing the Release and attaching the verified Windows/Linux assets. The workflow can be triggered manually, by an appropriate version tag or by a `.github/release-trigger-*` change on `main`.
+
+A release is complete only when the GitHub Releases API/page contains the expected tag and required downloadable assets.
+
+## Authentic repository UI assets
+
+Repository presentation must use authentic captures generated from production WPF code:
 
 ```text
 assets/readme/ghostftp-client.png
 assets/readme/ghostftp-site-manager.png
 ```
 
-These images must be created by the real application `--capture-ui` path. AI-generated mockups, hand-drawn replacements or unrelated third-party screenshots must not be committed under these canonical filenames.
+README must lead with the real `ghostftp-client.png` rather than a decorative/mock hero. Canonical images must be generated by the compiled application `--capture-ui` path.
 
-The dedicated screenshot workflow rebuilds the client and refreshes those images from the actual MainWindow and Site Manager. Normal CI independently regenerates the same views into an artifact and verifies that capture works from the exact candidate commit.
+The dedicated screenshot workflow rebuilds and refreshes those images. Normal CI independently regenerates capture artifacts and validates the canonical 1914×907 MainWindow viewport.
 
-## Required validation gates
+## Windows/Linux product parity gate
 
-No official Beta or stable release should be published until the exact source commit passes:
+Windows and Linux are separate native renderers of one product:
 
-1. repository checkout;
-2. .NET SDK setup;
-3. restore;
-4. warning-as-error Release build;
-5. dependency/version/channel/privacy/product/publisher/platform audit;
-6. Core security and correctness tests;
-7. bounded parallel queue/session-isolation tests;
-8. Windows/WPF editable-input tests;
-9. application localization coverage;
-10. Setup localization and live language-switch tests;
-11. authentic production MainWindow + Site Manager capture;
-12. product/publisher identity checks;
-13. Windows x64/ARM64 self-contained packaging for release publication;
-14. required executable and executable-version verification;
-15. SHA-256 manifest generation;
-16. verified artifact upload.
+- shared `GhostFTP.Core` FTP/FTPS engine;
+- shared `GhostFTP.Design` product identity/localization/reference palette;
+- same major workstation hierarchy;
+- same FTP/plain-FTP warning semantics;
+- same transfer/session/privacy boundaries;
+- same server-only keepalive policy;
+- same no-telemetry policy.
 
-The official Release workflow repeats required validation instead of trusting an unrelated prior build.
+WPF and X11/XWayland can differ in OS font/window rasterization. Literal byte-identical screenshots are not a release claim. Core behavior, hierarchy, palette and safety semantics must remain aligned.
 
-## Stable 1.0.0 gate
+See `docs/UI-PARITY.md`.
 
-Passing the normal CI suite does not by itself turn a Beta build into a stable release.
+## Mandatory source/build gates
 
-The first stable release must be explicitly promoted to **1.0.0** by changing both `VERSION` and `RELEASE_CHANNEL` and then passing the complete release workflow for that exact commit.
+Before official Beta or stable publication, the exact source must pass:
 
-Before stable 1.0.0 is published:
+1. version/channel/product/publisher synchronization;
+2. zero-forbidden dependency/privacy source audit;
+3. Windows warning-as-error Release build;
+4. Linux renderer Release build;
+5. Core security/correctness self-tests on Windows and Linux;
+6. bounded parallel queue/session/cancellation tests on Windows and Linux;
+7. WPF editable-input and localization smoke tests;
+8. authentic production MainWindow + Site Manager capture;
+9. canonical 1914×907 screenshot verification;
+10. real Linux renderer smoke under Xvfb;
+11. Windows x64/ARM64 self-contained packaging;
+12. Windows executable/product/publisher/file-version verification;
+13. Linux x64/ARM64 self-contained packaging;
+14. final packaged Linux x64 runtime smoke under Xvfb;
+15. Windows/Linux SHA-256 manifest verification;
+16. required release-asset upload;
+17. trusted Authenticode verification for stable Windows publication.
 
-- the product must be considered complete enough for normal production use;
-- blocking correctness, data-loss, credential, transport, installer and core UX defects must be resolved;
-- required Windows x64 and ARM64 packages must build successfully;
-- `portable.exe` and `setup.exe` must verify as 1.0.0.0 file-version binaries;
-- release notes must no longer describe the build as Beta;
-- the GitHub Release must be a normal stable release, not a prerelease.
+The official Release workflow repeats required checks instead of assuming an unrelated earlier CI build was correct.
 
-## Professional-workspace gate
+## Security release gate
 
-The production FTP workspace must retain clear operational structure:
+The active security model requires:
 
-- discoverable File/View/Sites/Transfers/Tools/Help navigation;
-- Saved Sites / Site Manager access;
-- labeled Quick Connect fields;
-- Local and Remote file tables;
-- visible Transfers queue;
-- focus-safe destructive actions;
-- resizable pane boundaries with usable minimums;
-- a bounded local Connection Log that never records passwords or secret blobs.
+- undefined/invalid FTP security modes fail closed;
+- Explicit FTPS requires positive 2xx `AUTH TLS` before TLS upgrade;
+- no silent FTPS → FTP downgrade;
+- explicit plain-FTP confirmation in both renderers;
+- normal certificate-chain/hostname validation with no trust-all switch;
+- `PBSZ 0` + `PROT P` for FTPS protected data channels;
+- successful `TYPE I` before data operations;
+- passive data channels connect to the authenticated control host;
+- CR/LF/NUL command-injection protection;
+- bounded server replies/listing/traversal/queue resources;
+- root-deletion/path-containment safeguards;
+- stale-session invalidation after keepalive/diagnostic failure.
 
-UI restructuring must not reduce file-transfer correctness, security or keyboard safety merely for visual similarity to another client.
+A change weakening one of these boundaries requires explicit review/documentation before release.
 
-## Connection-resilience gate
+## Transfer gate
 
-Automatic connection maintenance remains inside the explicit FTP/FTPS trust boundary.
+`GhostFTP.QueueSelfTest` is mandatory. The queue must preserve:
 
-Current keepalive policy:
+- 1–8 bounded concurrency;
+- default concurrency 3;
+- isolated real transfer sessions;
+- per-job cancellation isolation;
+- queue capacity 4,096;
+- transient-only retry policy;
+- local progress/bytes/speed/ETA/retry/lifecycle state;
+- deterministic worker shutdown.
 
-- standard FTP `NOOP` only against the selected server session;
-- user-configurable and disableable;
-- no Ghost FTP, BRENDIGO LTD, GitHub, analytics or unrelated endpoint;
-- no silent reconnect with saved credentials after health-check failure;
-- confirmed failures invalidate stale control-channel state.
+Authentication, certificate, permission and permanent 5xx failures must not be blindly retried.
 
-`PRIVACY.md`, `SECURITY.md` and current release notes must describe intentional changes before release.
+## Focus-safety gate
 
-## Transfer-concurrency gate
+Destructive keyboard actions must not silently target the wrong storage domain.
 
-The queue remains bounded and testable.
+Windows and Linux must keep Local, Remote and Transfers context explicit. When Transfers owns selection/focus, Delete cancels a transfer rather than deleting a local file. Selecting a Local/Remote row must clear stale transfer selection where necessary.
 
-- Concurrent workers have an explicit upper bound.
-- Real transfer jobs do not share the browser control session.
-- Cancelling/failing one transfer does not terminate unrelated workers.
-- Queue saturation becomes visible application state.
-- Progress/speed/ETA remain local UI state and are not product analytics.
+## Keepalive/privacy gate
 
-`GhostFTP.QueueSelfTest` is mandatory.
+Keepalive is protocol traffic to the already selected server, not telemetry:
+
+- standard FTP `NOOP`;
+- default 60 seconds;
+- configurable 15–600 seconds;
+- `0` disables;
+- Demo skipped;
+- Windows/Linux parity;
+- no Ghost FTP/BRENDIGO LTD/analytics endpoint;
+- no silent credential-based reconnect after failure.
+
+`PRIVACY.md`, `SECURITY.md` and current release notes must remain synchronized.
 
 ## Dependency policy
 
-Shipping projects currently require zero third-party NuGet `PackageReference` entries. Adding one requires an explicit product-policy decision and documentation/security review.
+Shipping projects currently contain zero third-party NuGet `<PackageReference>` entries.
 
-GitHub Actions and Microsoft .NET build infrastructure are build-time services, not runtime product dependencies.
+- Windows uses .NET/WPF + Windows APIs.
+- Linux uses .NET + system `libX11.so.6` ABI.
+- Shared protocol/cryptography uses Microsoft .NET primitives.
 
-## Privacy policy for releases
+Adding a third-party runtime dependency requires an explicit security/privacy/licensing decision and documentation update.
 
-A release must not introduce:
+## Saved-credential gate
 
-- application telemetry;
-- user tracking;
-- analytics SDKs;
-- advertising SDKs;
-- background crash-report upload;
-- hidden product network requests;
-- automatic background update checks;
-- cloud profile synchronization.
+Windows optional saved passwords use CurrentUser DPAPI. Linux optional saved passwords use AES-256-GCM with a local random 256-bit key restricted to the current user where Unix permissions are supported.
 
-FTP/FTPS traffic to a user-selected server, including documented optional keepalive, is protocol traffic rather than Ghost FTP telemetry. Any new automatic network destination requires privacy review and documentation before release.
+Session-only Quick Connect must remain excluded from persisted profile JSON and must never persist its Quick Connect password.
 
-Documentation capture uses built-in Demo mode and must not create an FTP network connection or external image-generation request.
-
-## Product and publisher metadata
-
-Release metadata distinguishes:
-
-- Product: **Ghost FTP / GhostFTP**.
-- Developer / publisher / licensor: **BRENDIGO LTD**.
-- Company number: **16545639**.
-- Product website: **https://ghostftp.com**.
-- Publisher website: **https://brendigo.com**.
-
-Legacy product identities are rejected by source audit.
-
-## Platform policy
-
-Production GUI target is Windows x64/ARM64 using WPF. `GhostFTP.Core` remains platform-neutral `net10.0` for future renderer work.
-
-Android/iOS shipping targets remain outside scope. A Linux GUI must not be claimed until an actual renderer passes the parity/security/privacy/localization gates in `docs/PLATFORM-SUPPORT.md`.
-
-## Installer requirements
+## Windows Setup gate
 
 Official Setup must:
 
-- use the shared Ghost FTP visual system;
-- display the embedded repository license;
-- require explicit license acceptance;
-- provide language selection;
-- persist selected client language locally;
-- validate embedded application payload;
-- install per-user by default without UAC/admin rights;
-- register Ghost FTP in Windows Installed Apps;
-- use installed `GhostFTP-Setup.exe --uninstall` for uninstall;
-- not generate a separate uninstaller executable;
-- preserve local user data unless removal is explicitly selected.
+- use shared Ghost FTP product/visual identity;
+- display embedded license and require acceptance;
+- support local language selection;
+- install per user without requiring admin rights by default;
+- validate embedded/copied executable size, `MZ`, ProductName, CompanyName and exact FileVersion;
+- keep rollback material when replacing an existing app until later install stages succeed;
+- register normal Installed Apps metadata;
+- use installed `GhostFTP-Setup.exe --uninstall` for interactive uninstall;
+- not advertise `QuietUninstallString` until true silent uninstall exists;
+- preserve local user data unless explicit removal is chosen.
 
-The Setup executable uses the same active product version as the client package. It must not independently claim stable 1.0.0 while the application remains on a 0.x Beta line.
+## Code-signing gate
 
-## Release publication
-
-The Release workflow derives the numeric version from `VERSION`, channel from `RELEASE_CHANNEL`, requires `docs/releases/v<version>.md` and uses that file as the GitHub Release body.
-
-Tag policy:
+Official Windows release packaging can sign with a PFX provided only through GitHub Actions secrets:
 
 ```text
-Beta:   v0.1.0-beta
-Stable: v1.0.0
+GHOSTFTP_SIGNING_PFX_BASE64
+GHOSTFTP_SIGNING_PFX_PASSWORD
 ```
 
-The same rule applies to later versions: Beta releases append `-beta`; stable releases use the plain version tag.
+Private keys must never be committed.
 
-If a release already exists, verified assets may be refreshed and notes synchronized without silently retargeting the existing tag to unrelated history.
+Beta releases may be published unsigned if trusted signing secrets are not configured, but `SIGNING.txt` must state the result. A self-signed development certificate is not a SmartScreen/Unknown Publisher solution.
 
-## Checksums
+Stable Windows release **must** pass trusted Authenticode verification for BRENDIGO LTD.
 
-`SHA256SUMS.txt` is created from final executable assets and published with the release.
+## Live real-server smoke policy
 
-## Failed gate policy
+`tests/GhostFTP.LiveSmoke` is an optional non-destructive integration harness. It is not allowed to embed real credentials in source, README, workflow text or fixtures.
 
-A failed build, audit, self-test, UI capture, smoke test, packaging check, executable-version check or required-asset check means the release is not ready. Do not label a release stable while a required gate is red.
+Credentials must be supplied through environment variables/GitHub Actions repository secrets. The test sequence is limited to:
+
+```text
+connect → PWD → optional CWD → LIST → NOOP → disconnect
+```
+
+It performs no remote writes. Plain FTP requires explicit `GHOSTFTP_LIVE_ALLOW_PLAIN=1`.
+
+Failure to run the live smoke because credentials are not securely configured must be reported honestly; it must not be presented as a passed test.
+
+## Privacy policy for releases
+
+A release must not introduce application telemetry, tracking, advertising SDKs, automatic crash upload, hidden background web requests, cloud profile sync or automatic background update checks.
+
+FTP/FTPS traffic to a user-selected server, documented server-only keepalive and explicitly opened website links are within the user-selected network boundary.
+
+Documentation capture uses local Demo mode and must not contact a real FTP server or image-generation service.
+
+## Product/publisher metadata
+
+Release metadata distinguishes:
+
+- Product: **Ghost FTP / GhostFTP**
+- Developer/publisher/licensor: **BRENDIGO LTD**
+- Company number: **16545639**
+- Product site: `https://ghostftp.com`
+- Publisher site: `https://brendigo.com`
+
+Legacy product identities are rejected by source audit.
+
+## Failed-gate policy
+
+A failed build, audit, self-test, real-renderer smoke test, UI capture, packaging check, file-version check, checksum check, signing requirement or required Release-asset upload means that release is not complete.
+
+Do not call a GitHub Actions artifact a final public Release and do not call a red build finished.
