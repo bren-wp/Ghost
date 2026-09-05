@@ -68,6 +68,21 @@ Local configuration can include:
 
 These values are not synchronized by Ghost FTP.
 
+## Session-only Quick Connect
+
+Quick Connect is allowed to remain completely ephemeral. The **Keep in this tab** option retains an ad-hoc connection definition only in the current application process so the connection can remain visible in the sidebar during that session.
+
+A session-only entry:
+
+- is marked as memory-only in the runtime model;
+- is excluded from JSON serialization;
+- is explicitly filtered by `ProfileStore.SaveAsync` even if a caller passes the whole in-memory profile collection;
+- never stores the Quick Connect password;
+- disappears when Ghost FTP exits;
+- is covered by a Core self-test that verifies its host and runtime flag never reach `profiles.json`.
+
+Selecting **Keep in this tab** is therefore different from saving a server through Site Manager. Only an explicit saved-site action enters the persistent profile store.
+
 ## Password handling
 
 Passwords are not persisted unless **Remember password** is enabled for a saved profile.
@@ -177,7 +192,7 @@ Opening ghostftp.com or brendigo.com is user-initiated. Ghost FTP does not open 
 
 ## Summary
 
-Ghost FTP's privacy rule is simple: configuration stays local, Connection Log/diagnostics/transfer metrics stay local, and network traffic is limited to the server session the user selected plus links the user explicitly opens. Optional keepalive stays on that selected FTP/FTPS connection and can be disabled. Authentic repository screenshots are rendered from Demo mode without a real FTP connection.
+Ghost FTP's privacy rule is simple: configuration stays local, Connection Log/diagnostics/transfer metrics stay local, and network traffic is limited to the server session the user selected plus links the user explicitly opens. Quick Connect can be retained for the current tab/session without writing that connection definition to disk. Optional keepalive stays on the selected FTP/FTPS connection and can be disabled. Authentic repository screenshots are rendered from Demo mode without a real FTP connection.
 
 Product: https://ghostftp.com  
 Repository: https://github.com/bren-wp/Ghost  
