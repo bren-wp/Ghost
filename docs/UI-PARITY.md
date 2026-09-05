@@ -1,6 +1,6 @@
 # Ghost FTP desktop UI parity contract
 
-Ghost FTP **0.1.0 Beta** is one desktop product with native Windows and Linux renderers. This document defines the visual/workflow contract that prevents the two implementations from drifting into separate products.
+Ghost FTP **0.1.1 Beta** is one desktop product with native Windows and Linux renderers. This document defines the visual/workflow contract that prevents the two implementations from drifting into separate products.
 
 ## Authentic reference
 
@@ -118,5 +118,7 @@ Visual parity also includes safety behavior:
 - same stale-session state after keepalive failure;
 - same shared FTP/FTPS transfer engine;
 - no renderer-specific telemetry path.
+
+0.1.1 additionally requires the same complete local Demo workflow regression suite on Windows and Linux so lifecycle, conflict-protection and post-disconnect behavior cannot drift silently between the native renderers.
 
 See `SECURITY.md`, `PRIVACY.md` and `docs/PLATFORM-SUPPORT.md`.
