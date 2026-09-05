@@ -45,7 +45,9 @@ public sealed class AppPaths
 
 public sealed class AppSettings
 {
-    public AppTheme Theme { get; set; } = AppTheme.System;
+    // The approved Ghost FTP reference workstation is the first-run appearance on every desktop.
+    // System/Light remain explicit user choices; they are never inferred by contacting a service.
+    public AppTheme Theme { get; set; } = AppTheme.Dark;
     public string LanguageCode { get; set; } = "en";
     public string LastLocalDirectory { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     public bool ConfirmDeletes { get; set; } = true;
@@ -184,7 +186,7 @@ public sealed class AppSettingsStore
     private static void Normalize(AppSettings settings)
     {
         if (!Enum.IsDefined(settings.Theme))
-            settings.Theme = AppTheme.System;
+            settings.Theme = AppTheme.Dark;
 
         var language = (settings.LanguageCode ?? string.Empty).Trim();
         settings.LanguageCode = language.Length <= 16 && LanguageCodePattern.IsMatch(language) ? language : "en";
