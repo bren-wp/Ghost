@@ -1,5 +1,5 @@
+using GhostFTP.Core.Services;
 using GhostFTP.Design;
-using GhostFTP.Services;
 using GhostFTP.UI;
 using System.Windows;
 using System.Windows.Threading;
@@ -24,7 +24,7 @@ public static class Program
             var paths = new AppPaths();
             var settings = new AppSettingsStore(paths.SettingsFile).LoadAsync().GetAwaiter().GetResult();
             configuredTheme = settings.Theme;
-            configuredLanguage = settings.LanguageCode;
+            configuredLanguage = GhostLocalization.NormalizeLanguageCode(settings.LanguageCode);
         }
         catch
         {
