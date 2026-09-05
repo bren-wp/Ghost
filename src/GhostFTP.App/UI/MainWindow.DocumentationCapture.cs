@@ -8,7 +8,8 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
-    private const double DocumentationCaptureScale = 1.5;
+    private const int ReferenceCaptureWidth = 1914;
+    private const int ReferenceCaptureHeight = 907;
 
     private async Task RunDocumentationCaptureAsync()
     {
@@ -17,15 +18,22 @@ public sealed partial class MainWindow
 
         Directory.CreateDirectory(_captureDirectory);
         WindowState = WindowState.Normal;
-        Width = 1600;
-        Height = 960;
+        SizeToContent = SizeToContent.WidthAndHeight;
         Left = 20;
         Top = 20;
+
+        if (Content is FrameworkElement referenceRoot)
+        {
+            referenceRoot.Width = ReferenceCaptureWidth;
+            referenceRoot.Height = ReferenceCaptureHeight;
+        }
 
         var demo = _profiles.FirstOrDefault(x => x.IsDemo);
         if (demo is not null)
         {
             _profilesList.SelectedItem = demo;
+            if (_referenceSitesList is not null)
+                _referenceSitesList.SelectedItem = demo;
             ProfileSelected();
             await ConnectAsync();
         }
@@ -39,7 +47,10 @@ public sealed partial class MainWindow
         }, DispatcherPriority.ApplicationIdle);
 
         var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
-        CaptureElementToPng(this, clientPath, DocumentationCaptureScale);
+        if (Content is FrameworkElement captureRoot)
+            CaptureReferenceRootToPng(captureRoot, clientPath);
+        else
+            throw new InvalidOperationException("Ghost FTP documentation capture requires a framework root element.");
 
         if (_profileStore is not null)
         {
@@ -50,7 +61,7 @@ public sealed partial class MainWindow
             manager.Show();
             await Dispatcher.InvokeAsync(manager.UpdateLayout, DispatcherPriority.ApplicationIdle);
             var managerPath = Path.Combine(_captureDirectory, "ghostftp-site-manager.png");
-            CaptureElementToPng(manager, managerPath, DocumentationCaptureScale);
+            CaptureElementToPng(manager, managerPath);
             manager.Close();
         }
 
@@ -84,22 +95,36 @@ public sealed partial class MainWindow
             _connectionLogList.ScrollIntoView(_connectionLog[^1]);
     }
 
-    private static void CaptureElementToPng(FrameworkElement element, string path, double scale)
+    private static void CaptureReferenceRootToPng(FrameworkElement element, string path)
     {
+        element.Width = ReferenceCaptureWidth;
+        element.Height = ReferenceCaptureHeight;
+        element.Measure(new Size(ReferenceCaptureWidth, ReferenceCaptureHeight));
+        element.Arrange(new Rect(0, 0, ReferenceCaptureWidth, ReferenceCaptureHeight));
         element.UpdateLayout();
-        var dpi = VisualTreeHelper.GetDpi(element);
-        scale = Math.Clamp(scale, 1d, 2d);
 
-        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX * scale));
-        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY * scale));
         var bitmap = new RenderTargetBitmap(
-            width,
-            height,
-            96d * dpi.DpiScaleX * scale,
-            96d * dpi.DpiScaleY * scale,
+            ReferenceCaptureWidth,
+            ReferenceCaptureHeight,
+            96d,
+            96d,
             PixelFormats.Pbgra32);
         bitmap.Render(element);
+        SavePng(bitmap, path);
+    }
 
+    private static void CaptureElementToPng(FrameworkElement element, string path)
+    {
+        element.UpdateLayout();
+        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth));
+        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight));
+        var bitmap = new RenderTargetBitmap(width, height, 96d, 96d, PixelFormats.Pbgra32);
+        bitmap.Render(element);
+        SavePng(bitmap, path);
+    }
+
+    private static void SavePng(BitmapSource bitmap, string path)
+    {
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
