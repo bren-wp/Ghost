@@ -80,6 +80,8 @@ if (Test-Path (Join-Path $root 'assets/readme/ghostftp-hero.svg') -PathType Leaf
 }
 
 foreach ($relative in @(
+    'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj',
+    'tests/GhostFTP.DemoSelfTest/Program.cs',
     'tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj',
     'tests/GhostFTP.LiveSmoke/Program.cs',
     '.github/workflows/live-smoke.yml',
@@ -88,6 +90,24 @@ foreach ($relative in @(
 )) {
     if (!(Test-Path (Join-Path $root $relative) -PathType Leaf)) { throw "Missing final release file: $relative" }
 }
+
+$demo = Require-Tokens 'tests/GhostFTP.DemoSelfTest/Program.cs' @(
+    'Demo session complete local FTP workflow',
+    'Demo mode performed no external network operation',
+    'UploadFileAsync',
+    'DownloadFileAsync',
+    'UploadDirectoryAsync',
+    'DownloadDirectoryAsync',
+    'RenameAsync',
+    'DeleteDirectoryAsync',
+    'KeepAliveAsync',
+    'Ghost FTP Demo round-trip payload'
+)
+$ci = Require-Tokens '.github/workflows/ci.yml' @(
+    'Complete local Demo workflow self-test',
+    'Complete local Demo workflow self-test on Linux',
+    'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj'
+)
 
 $live = Require-Tokens 'tests/GhostFTP.LiveSmoke/Program.cs' @(
     'GHOSTFTP_LIVE_PASSWORD',
@@ -153,4 +173,4 @@ $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
     '(FtpSecurityMode)999'
 )
 
-Write-Host 'Final Ghost FTP 0.1.0 hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, Linux lifecycle/keepalive/focus safety, installer identity/rollback checks, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets.'
+Write-Host 'Ghost FTP hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, installer identity/rollback checks, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets.'
