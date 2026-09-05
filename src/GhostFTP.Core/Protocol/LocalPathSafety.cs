@@ -2,7 +2,7 @@ namespace GhostFTP.Core.Protocol;
 
 public static class LocalPathSafety
 {
-    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> WindowsReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "CON", "PRN", "AUX", "NUL",
         "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
@@ -14,13 +14,21 @@ public static class LocalPathSafety
         InputGuard.CommandArgument(remoteName, nameof(remoteName));
         var invalid = Path.GetInvalidFileNameChars();
         var chars = remoteName.Select(ch => invalid.Contains(ch) || char.IsControl(ch) ? '_' : ch).ToArray();
-        var result = new string(chars).Trim().TrimEnd('.');
+        var result = new string(chars).Trim();
+
+        if (OperatingSystem.IsWindows())
+            result = result.TrimEnd('.', ' ');
+
         if (string.IsNullOrWhiteSpace(result) || result is "." or "..")
             result = "unnamed";
 
-        var stem = Path.GetFileNameWithoutExtension(result);
-        if (ReservedNames.Contains(stem))
-            result = "_" + result;
+        if (OperatingSystem.IsWindows())
+        {
+            var stem = Path.GetFileNameWithoutExtension(result);
+            if (WindowsReservedNames.Contains(stem))
+                result = "_" + result;
+        }
+
         return result;
     }
 
@@ -28,9 +36,17 @@ public static class LocalPathSafety
     {
         var rootFull = Path.GetFullPath(root);
         var candidate = Path.GetFullPath(Path.Combine(rootFull, SafeFileName(childName)));
-        var prefix = rootFull.EndsWith(Path.DirectorySeparatorChar) ? rootFull : rootFull + Path.DirectorySeparatorChar;
-        if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && !string.Equals(candidate, rootFull, StringComparison.OrdinalIgnoreCase))
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var relative = Path.GetRelativePath(rootFull, candidate);
+
+        if (Path.IsPathRooted(relative)
+            || string.Equals(relative, "..", comparison)
+            || relative.StartsWith(".." + Path.DirectorySeparatorChar, comparison)
+            || relative.StartsWith(".." + Path.AltDirectorySeparatorChar, comparison))
+        {
             throw new IOException("Resolved path escapes the selected local directory.");
+        }
+
         return candidate;
     }
 }
