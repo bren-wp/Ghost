@@ -9,9 +9,10 @@ public static class GhostBrand
 {
     public const string DisplayName = "Ghost FTP";
     public const string ProductName = "GhostFTP";
+    public const string ReleaseChannelDisplay = "Beta";
     public const string Website = "https://ghostftp.com";
     public const string Repository = "https://github.com/bren-wp/Ghost";
-    public const string PrivacyTagline = "Private FTP / FTPS workspace for Windows";
+    public const string PrivacyTagline = ReleaseChannelDisplay + " · Private FTP / FTPS workspace for Windows";
 
     public const string Publisher = "BRENDIGO LTD";
     public const string PublisherWebsite = "https://brendigo.com";
