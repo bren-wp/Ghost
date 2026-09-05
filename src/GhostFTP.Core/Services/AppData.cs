@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -262,17 +263,18 @@ public static class PrivateFilePermissions
 
     public static void TryHardenDirectory(string path)
     {
-        if (OperatingSystem.IsWindows()) return;
-        TrySetMode(path, PrivateDirectoryMode);
+        if (!OperatingSystem.IsLinux()) return;
+        TrySetLinuxMode(path, PrivateDirectoryMode);
     }
 
     public static void TryHardenFile(string path)
     {
-        if (OperatingSystem.IsWindows() || !File.Exists(path)) return;
-        TrySetMode(path, PrivateFileMode);
+        if (!OperatingSystem.IsLinux() || !File.Exists(path)) return;
+        TrySetLinuxMode(path, PrivateFileMode);
     }
 
-    private static void TrySetMode(string path, UnixFileMode mode)
+    [SupportedOSPlatform("linux")]
+    private static void TrySetLinuxMode(string path, UnixFileMode mode)
     {
         try
         {
@@ -280,7 +282,7 @@ public static class PrivateFilePermissions
         }
         catch (Exception ex) when (ex is PlatformNotSupportedException or UnauthorizedAccessException or IOException)
         {
-            // Permission hardening is best effort on filesystems that do not expose Unix modes.
+            // Permission hardening is best effort on Linux filesystems that do not expose Unix modes.
         }
     }
 }
