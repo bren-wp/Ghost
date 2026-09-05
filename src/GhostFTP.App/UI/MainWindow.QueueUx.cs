@@ -9,12 +9,12 @@ public sealed partial class MainWindow
     {
         _queueList.SelectionMode = SelectionMode.Extended;
         _queueList.ContextMenu = CreateContextMenu(
-            ("Retry selected", (_, _) => RetrySelectedTransfers()),
-            ("Cancel selected", (_, _) => CancelSelectedTransfer()),
-            ("Cancel all active", (_, _) => CancelAllTransfers()),
+            (L("RetrySelected"), (_, _) => RetrySelectedTransfers()),
+            (L("CancelSelected"), (_, _) => CancelSelectedTransfer()),
+            (L("CancelAll"), (_, _) => CancelAllTransfers()),
             ("Copy source path", (_, _) => CopySelectedTransferSource()),
             ("Copy destination path", (_, _) => CopySelectedTransferDestination()),
-            ("Clear finished", (_, _) =>
+            (L("ClearFinished"), (_, _) =>
             {
                 _queue?.ClearFinished();
                 UpdateQueueSummary();
