@@ -1,11 +1,11 @@
 # Ghost FTP platform support
 
-This document defines the shipping platform contract for **Ghost FTP 0.1.0 Beta**. Platform claims are based on source, CI runtime tests and release artifacts rather than repository description text.
+This document defines the shipping platform contract for **Ghost FTP 0.1.1 Beta**. Platform claims are based on source, CI runtime tests and release artifacts rather than repository description text.
 
 ## Current public line
 
 ```text
-VERSION=0.1.0
+VERSION=0.1.1
 RELEASE_CHANNEL=beta
 ```
 
@@ -13,7 +13,7 @@ All 0.x builds remain Beta. The first stable target is **1.0.0**.
 
 ## Shared engine
 
-`src/GhostFTP.Core` targets platform-neutral `net10.0` and is used by both desktop renderers. Shared behavior includes FTP/FTPS negotiation, TLS/data-channel policy, parsing, path safety, transfer queue, retry/cancellation policy, server-only keepalive and persistence primitives.
+`src/GhostFTP.Core` targets platform-neutral `net10.0` and is used by both desktop renderers. Shared behavior includes FTP/FTPS negotiation, TLS/data-channel policy, parsing, path safety, transfer queue, retry/cancellation policy, server-only keepalive, persistence primitives and the local-only Demo session used by deterministic regression tests.
 
 ## Windows
 
@@ -37,6 +37,8 @@ src/GhostFTP.Setup
 ```
 
 Windows Setup is a separate maintenance workflow, not a second FTP client UI. It embeds the application payload, validates Ghost FTP/BRENDIGO LTD/file-version identity, installs per user, writes normal Installed Apps metadata and supports update/uninstall.
+
+0.1.1 stages both the application and maintenance Setup binaries before changing an existing installation, rejects older candidate file versions and retains rollback copies for both binaries until later install stages succeed.
 
 Expected Windows release assets include `setup.exe`, `portable.exe`, ARM64 aliases, architecture-specific canonical names, `SHA256SUMS.txt` and `SIGNING.txt`.
 
@@ -73,11 +75,12 @@ CI does more than cross-compile:
 1. restores and builds the Linux renderer on Ubuntu;
 2. starts the real X11/XWayland renderer under Xvfb;
 3. runs shared Core tests on Linux;
-4. runs transfer-queue tests on Linux;
-5. runs the source/privacy/platform audit;
-6. builds self-contained `linux-x64` and `linux-arm64` packages;
-7. verifies SHA-256 manifests;
-8. starts the final packaged x64 binary under Xvfb.
+4. runs the complete local-only Demo workflow regression test on Linux;
+5. runs transfer-queue tests on Linux;
+6. runs the source/privacy/platform/security audits;
+7. builds self-contained `linux-x64` and `linux-arm64` packages;
+8. verifies SHA-256 manifests;
+9. starts the final packaged x64 binary under Xvfb.
 
 ## Visual parity
 
@@ -116,4 +119,4 @@ Live credentials are intentionally not part of normal CI or repository fixtures.
 
 ## Release gate
 
-A platform package is publishable only after its build, runtime smoke tests and checksum validation succeed for the exact release source. Windows stable publication additionally requires trusted Authenticode validation.
+A platform package is publishable only after its build, runtime smoke tests, complete Demo regression workflow and checksum validation succeed for the exact release source. Windows stable publication additionally requires trusted Authenticode validation.
