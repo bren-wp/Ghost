@@ -1,12 +1,12 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace GhostFTP.Design;
 
 /// <summary>
 /// Applies the approved workstation reference palette after the base Ghost theme.
-/// This intentionally changes only local WPF resources; it performs no I/O or network access.
+/// The override is deliberately limited to immutable brush resources so it is safe
+/// even after WPF has sealed control styles. It performs no I/O or network access.
 /// </summary>
 public static class GhostReferenceTheme
 {
@@ -36,19 +36,6 @@ public static class GhostReferenceTheme
         resources["DangerSoft"] = Brush(GhostReferencePalette.DangerSoft);
         resources["Warning"] = Brush(GhostReferencePalette.Warning);
         resources["WarningSoft"] = Brush(GhostReferencePalette.WarningSoft);
-
-        // Tighten stock WPF controls to the approved dense workstation proportions.
-        if (resources[typeof(GridViewColumnHeader)] is Style header)
-        {
-            header.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 6, 10, 6)));
-            header.Setters.Add(new Setter(Control.MinHeightProperty, 32d));
-        }
-
-        if (resources[typeof(ListViewItem)] is Style row)
-        {
-            row.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 3, 7, 3)));
-            row.Setters.Add(new Setter(Control.MinHeightProperty, 28d));
-        }
     }
 
     private static SolidColorBrush Brush(string hex)
