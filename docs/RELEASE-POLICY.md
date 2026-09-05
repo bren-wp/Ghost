@@ -14,7 +14,7 @@ RELEASE_CHANNEL
 Current line:
 
 ```text
-VERSION=0.1.0
+VERSION=0.1.1
 RELEASE_CHANNEL=beta
 ```
 
@@ -25,7 +25,8 @@ Rules:
 - Beta GitHub Releases are prereleases;
 - first stable version is **1.0.0**;
 - version changes must keep `Directory.Build.props`, Windows manifests and release notes synchronized;
-- version-number changes must never silently discard completed product/security work.
+- version-number changes must never silently discard completed product/security work;
+- a new hardening payload after a published release advances the public version instead of silently repointing a published tag.
 
 See `docs/VERSIONING.md`.
 
@@ -43,7 +44,7 @@ The file is the authoritative detailed GitHub Release body. It must cover user-v
 
 ## Required Windows release assets
 
-Every official 0.1.0 Beta Windows release must include non-empty:
+Every official Beta/stable Windows release must include non-empty:
 
 ```text
 setup.exe
@@ -60,7 +61,7 @@ SIGNING.txt
 
 `setup.exe` / `portable.exe` are the canonical x64 names. ARM64 aliases and architecture-explicit copies are provided for clarity and automation.
 
-All Windows executable `FileVersion` values must match numeric `VERSION` as a four-part value. For 0.1.0 the expected file version is `0.1.0.0`.
+All Windows executable `FileVersion` values must match numeric `VERSION` as a four-part value. For the current 0.1.1 Beta release the expected file version is `0.1.1.0`.
 
 ## Required Linux release assets
 
@@ -71,11 +72,13 @@ GhostFTP-linux-x64
 GhostFTP-linux-arm64
 GhostFTP-linux-x64.tar.gz
 GhostFTP-linux-arm64.tar.gz
-GhostFTP-0.1.0-beta-linux-x64.tar.gz
-GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+GhostFTP-<VERSION>-<CHANNEL>-linux-x64.tar.gz
+GhostFTP-<VERSION>-<CHANNEL>-linux-arm64.tar.gz
 SHA256SUMS-linux.txt
 BUILD-INFO.txt
 ```
+
+For the current release the version-explicit archives are `GhostFTP-0.1.1-beta-linux-x64.tar.gz` and `GhostFTP-0.1.1-beta-linux-arm64.tar.gz`.
 
 Linux packages must come from the same release source/version as Windows. A Linux package is not considered published merely because an intermediate CI artifact exists; the files must be attached to the GitHub Release.
 
@@ -83,15 +86,15 @@ Linux packages must come from the same release source/version as Windows. A Linu
 
 Passing CI and uploading workflow artifacts is **not** the same as publishing a Release.
 
-For 0.1.0 Beta the official GitHub Release tag is:
+For 0.1.1 Beta the official GitHub Release tag is:
 
 ```text
-v0.1.0-beta
+v0.1.1-beta
 ```
 
-`.github/workflows/release.yml` is responsible for creating/synchronizing the Release and attaching the verified Windows/Linux assets. The workflow can be triggered manually, by an appropriate version tag or by a `.github/release-trigger-*` change on `main`.
+`.github/workflows/release.yml` is responsible for creating the Release and attaching the verified Windows/Linux assets. The workflow can be triggered manually, by the matching version tag or by the current `.github/release-trigger-*` change on `main`.
 
-A release is complete only when the GitHub Releases API/page contains the expected tag and required downloadable assets.
+A release is complete only when the GitHub Releases API/page contains the expected tag and required downloadable assets for the exact version source.
 
 ## Authentic repository UI assets
 
@@ -131,18 +134,19 @@ Before official Beta or stable publication, the exact source must pass:
 3. Windows warning-as-error Release build;
 4. Linux renderer Release build;
 5. Core security/correctness self-tests on Windows and Linux;
-6. bounded parallel queue/session/cancellation tests on Windows and Linux;
-7. WPF editable-input and localization smoke tests;
-8. authentic production MainWindow + Site Manager capture;
-9. canonical 1914×907 screenshot verification;
-10. real Linux renderer smoke under Xvfb;
-11. Windows x64/ARM64 self-contained packaging;
-12. Windows executable/product/publisher/file-version verification;
-13. Linux x64/ARM64 self-contained packaging;
-14. final packaged Linux x64 runtime smoke under Xvfb;
-15. Windows/Linux SHA-256 manifest verification;
-16. required release-asset upload;
-17. trusted Authenticode verification for stable Windows publication.
+6. complete local Demo workflow regression tests on Windows and Linux;
+7. bounded parallel queue/session/cancellation tests on Windows and Linux;
+8. WPF editable-input and localization smoke tests;
+9. authentic production MainWindow + Site Manager capture;
+10. canonical 1914×907 screenshot verification;
+11. real Linux renderer smoke under Xvfb;
+12. Windows x64/ARM64 self-contained packaging;
+13. Windows executable/product/publisher/file-version verification;
+14. Linux x64/ARM64 self-contained packaging;
+15. final packaged Linux x64 runtime smoke under Xvfb;
+16. Windows/Linux SHA-256 manifest verification;
+17. required GitHub Release asset upload;
+18. trusted Authenticode verification for stable Windows publication.
 
 The official Release workflow repeats required checks instead of assuming an unrelated earlier CI build was correct.
 
@@ -164,6 +168,12 @@ The active security model requires:
 - stale-session invalidation after keepalive/diagnostic failure.
 
 A change weakening one of these boundaries requires explicit review/documentation before release.
+
+## Demo regression gate
+
+`GhostFTP.DemoSelfTest` is mandatory on Windows and Linux. The local-only Demo workflow must cover connect/diagnostics/PWD/CWD/listing/keepalive, file and recursive-directory round trips, rename, create/delete, conflict protection, cleanup, root-delete protection, disconnect reset and rejection of operations after disconnect.
+
+The Demo test must not use a real FTP server, analytics endpoint or external network dependency.
 
 ## Transfer gate
 
@@ -225,8 +235,12 @@ Official Setup must:
 - display embedded license and require acceptance;
 - support local language selection;
 - install per user without requiring admin rights by default;
-- validate embedded/copied executable size, `MZ`, ProductName, CompanyName and exact FileVersion;
-- keep rollback material when replacing an existing app until later install stages succeed;
+- stage and validate the application payload and maintenance Setup binary before changing an existing installation;
+- validate candidate executable size, `MZ`, ProductName, CompanyName and exact FileVersion;
+- reject an older candidate FileVersion than an installed Ghost FTP binary;
+- keep rollback material for both replaced application and maintenance Setup binaries until later install stages succeed;
+- attempt to restore both previous binaries if a later stage fails;
+- clean stale application/Setup transaction files during uninstall;
 - register normal Installed Apps metadata;
 - use installed `GhostFTP-Setup.exe --uninstall` for interactive uninstall;
 - not advertise `QuietUninstallString` until true silent uninstall exists;
@@ -258,31 +272,3 @@ connect → PWD → optional CWD → LIST → NOOP → disconnect
 ```
 
 It performs no remote writes. Plain FTP requires explicit `GHOSTFTP_LIVE_ALLOW_PLAIN=1`.
-
-Failure to run the live smoke because credentials are not securely configured must be reported honestly; it must not be presented as a passed test.
-
-## Privacy policy for releases
-
-A release must not introduce application telemetry, tracking, advertising SDKs, automatic crash upload, hidden background web requests, cloud profile sync or automatic background update checks.
-
-FTP/FTPS traffic to a user-selected server, documented server-only keepalive and explicitly opened website links are within the user-selected network boundary.
-
-Documentation capture uses local Demo mode and must not contact a real FTP server or image-generation service.
-
-## Product/publisher metadata
-
-Release metadata distinguishes:
-
-- Product: **Ghost FTP / GhostFTP**
-- Developer/publisher/licensor: **BRENDIGO LTD**
-- Company number: **16545639**
-- Product site: `https://ghostftp.com`
-- Publisher site: `https://brendigo.com`
-
-Legacy product identities are rejected by source audit.
-
-## Failed-gate policy
-
-A failed build, audit, self-test, real-renderer smoke test, UI capture, packaging check, file-version check, checksum check, signing requirement or required Release-asset upload means that release is not complete.
-
-Do not call a GitHub Actions artifact a final public Release and do not call a red build finished.
