@@ -1,6 +1,8 @@
 # Ghost FTP Security
 
-Ghost FTP 1.7.0 is designed around explicit trust boundaries, conservative FTP/FTPS behavior, bounded untrusted input, local-only persistence, deterministic control-connection state and focus-safe desktop operations.
+Ghost FTP **0.1.0 Beta** is designed around explicit trust boundaries, conservative FTP/FTPS behavior, bounded untrusted input, local-only persistence, deterministic control-connection state and focus-safe desktop operations.
+
+The public numbering reset to 0.1.0 Beta does not remove security work completed during the preserved internal development history. The security boundaries below describe the current source line.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
 
@@ -93,7 +95,7 @@ This focus boundary is treated as a data-safety property.
 
 ## Site Manager credential boundary
 
-Ghost FTP 1.7 adds a first-class Site Manager, but it does not introduce a new credential store.
+The current Ghost FTP Beta includes a first-class Site Manager, but it does not introduce a new credential store.
 
 - Site Manager edits cloned profile models until the dialog is accepted.
 - Built-in Demo cannot be modified or removed into a real-server profile.
@@ -106,7 +108,7 @@ Global timeout, retry, keepalive and concurrency policy remains centralized rath
 
 ## Connection Log boundary
 
-The 1.7 Connection Log is bounded in-memory user-interface state.
+The current Connection Log is bounded in-memory user-interface state.
 
 It can contain timestamps, host/port/security connection attempts, TLS/plain state, listing counts and visible error summaries. It is not intended to contain passwords, protected password blobs or file contents.
 
@@ -182,6 +184,19 @@ The per-user Setup validates the embedded Ghost FTP payload:
 - locked/running Ghost FTP causes visible failure;
 - installed maintenance Setup copy is validated before use;
 - invalid/oversized settings are quarantined or neutralized when Setup persists language.
+
+## Version/channel integrity
+
+Security and release metadata are now coupled to the public Beta/stable version policy.
+
+- `VERSION` contains the numeric product version.
+- `RELEASE_CHANNEL` contains `beta` or `stable`.
+- all `0.x.y` builds must remain Beta.
+- the first stable release is `1.0.0`.
+- `portable.exe`, `setup.exe` and architecture-specific copies must have file versions matching the active numeric version.
+- a Beta package must not independently claim stable 1.0.0 metadata.
+
+This prevents a packaging/versioning mismatch from making an unfinished build appear stable.
 
 ## Uninstall boundary
 
