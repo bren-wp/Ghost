@@ -336,14 +336,17 @@ internal sealed class InstallerService
 
     private void ScheduleSelfDelete(string currentSetup)
     {
-        // Register a reliable OS-level fallback first. The hidden cmd process below attempts
-        // immediate cleanup after Setup exits; MoveFileEx guarantees eventual removal on reboot
-        // if the process is kept open longer than the immediate cleanup window.
+        // Register the OS-level fallback first. A running executable cannot delete itself, and
+        // the user can remain on the Finish page for an arbitrary amount of time.
         _ = MoveFileEx(currentSetup, null, MoveFileDelayUntilReboot);
 
         try
         {
-            var command = $"ping 127.0.0.1 -n 4 >nul & del /f /q \"{currentSetup}\" >nul 2>&1 & rmdir \"{InstallDirectory}\" >nul 2>&1";
+            // Retry local cleanup for up to ten minutes. Each pass first attempts deletion; once
+            // Setup exits and the file unlocks, the same hidden helper removes the executable and
+            // then the empty install directory. Loopback ping is only a local one-second delay and
+            // never leaves the machine.
+            var command = $"for /l %i in (1,1,600) do @(del /f /q \"{currentSetup}\" >nul 2>&1 & if not exist \"{currentSetup}\" (rmdir \"{InstallDirectory}\" >nul 2>&1 & exit /b 0) & ping 127.0.0.1 -n 2 >nul) & exit /b 0";
             var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"))
             {
                 UseShellExecute = false,
@@ -358,7 +361,7 @@ internal sealed class InstallerService
         }
         catch
         {
-            // MoveFileEx above remains the guaranteed fallback.
+            // MoveFileEx above remains the eventual cleanup fallback.
         }
     }
 

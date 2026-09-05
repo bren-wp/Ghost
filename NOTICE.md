@@ -4,7 +4,8 @@
 
 BRENDIGO LTD  
 Company number: **16545639**  
-Registered office: **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom**
+Registered office: **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom**  
+Developer / publisher website: **https://brendigo.com**
 
 Copyright © 2026 BRENDIGO LTD. All rights reserved.
 

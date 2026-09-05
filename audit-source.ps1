@@ -140,10 +140,16 @@ if ($installerService -match 'GhostFTP-Uninstall\.exe') {
 if ($installerService -notmatch 'InstalledSetupPath' -or $installerService -notmatch '--uninstall') {
     throw 'Installed Apps uninstall must use the installed GhostFTP-Setup.exe with --uninstall.'
 }
+if ($installerService -notmatch 'MoveFileDelayUntilReboot' -or $installerService -notmatch 'for /l %i in \(1,1,600\)') {
+    throw 'Setup self-removal must retain delete-on-reboot fallback and bounded delayed retry cleanup.'
+}
 
 $brandSource = Get-Content (Join-Path $root 'src/GhostFTP.Design/GhostBrand.cs') -Raw
-foreach ($requiredBrandText in @('BRENDIGO LTD','16545639','71–75 Shelton Street')) {
-    if ($brandSource -notmatch [regex]::Escape($requiredBrandText)) { throw "Publisher identity is incomplete: $requiredBrandText" }
+foreach ($requiredBrandText in @('BRENDIGO LTD','16545639','71–75 Shelton Street','https://ghostftp.com','https://brendigo.com')) {
+    if ($brandSource -notmatch [regex]::Escape($requiredBrandText)) { throw "Publisher/product identity is incomplete: $requiredBrandText" }
+}
+if ($brandSource -notmatch 'PublisherWebsite') {
+    throw 'GhostBrand must expose the BRENDIGO LTD publisher website explicitly.'
 }
 
 $targets = Get-Content (Join-Path $root 'Directory.Build.targets') -Raw
@@ -178,4 +184,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata, Ghost FTP-only product identity, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, native editable inputs, embedded license wizard, same-Setup uninstall, shared localization/design/icon architecture and synchronized version metadata."
+Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata and brendigo.com identity, Ghost FTP-only product identity, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, native editable inputs, embedded license wizard, same-Setup uninstall with bounded self-cleanup, shared localization/design/icon architecture and synchronized version metadata."

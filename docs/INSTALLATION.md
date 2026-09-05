@@ -1,8 +1,8 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows installation model used by Ghost FTP 1.4.0 and later.
+This document describes the Windows installation model used by Ghost FTP 1.4.1 and later.
 
-Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
+Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom. Publisher website: https://brendigo.com.
 
 ## Supported Windows environment
 
@@ -121,12 +121,14 @@ If local data removal is not selected, profiles/settings remain available for a 
 
 ## Self-removal of Setup
 
-A running executable cannot reliably delete itself immediately on Windows. Ghost FTP therefore uses the same installed Setup binary for uninstall and then:
+A running executable cannot reliably delete itself immediately on Windows. Ghost FTP therefore uses the same installed Setup binary for uninstall and then applies two cleanup layers:
 
-- schedules Windows delete-on-reboot as a fallback for the maintenance Setup executable; and
-- starts a local hidden delayed cleanup attempt to remove `GhostFTP-Setup.exe` and the now-empty install directory after Setup exits.
+1. Windows delete-on-reboot is registered as an eventual fallback for the maintenance Setup executable.
+2. A hidden local cleanup helper performs bounded repeated deletion attempts for up to approximately ten minutes. If the user remains on the Finish page, the helper waits; after Setup exits and Windows releases the file lock, the helper removes `GhostFTP-Setup.exe` and then attempts to remove the empty install directory.
 
-No additional uninstaller binary is created.
+The retry delay uses only `127.0.0.1` loopback traffic as a local timer. It does not contact an external host and does not add telemetry or an updater.
+
+No additional uninstaller binary, Windows service or scheduled task is created.
 
 ## Portable edition
 
@@ -144,6 +146,10 @@ Close Ghost FTP, wait for active transfer windows/processes to exit, and run Set
 
 Close the client first. If the installed executable remains locked, uninstall reports the failure rather than silently claiming success.
 
+### The maintenance Setup file remains briefly after uninstall
+
+The installed Setup executable can remain visible while the uninstall Finish window itself is still open because Windows keeps the running executable locked. Close the Finish window. The local cleanup helper retries deletion after the process exits; delete-on-reboot remains a fallback if Windows still refuses removal.
+
 ### Settings file is malformed or oversized
 
 Setup does not trust arbitrary local JSON. Invalid/oversized settings can be quarantined before Setup writes the selected language. Ghost FTP itself also applies bounded settings/profile reads and recovery rules.
@@ -155,3 +161,5 @@ The language selected in Setup is written as the client language. The desktop ap
 ## Privacy
 
 Setup performs local installation, update, shortcut and registry operations only. It contains no telemetry, analytics, advertising, crash upload or automatic update checker and does not report installation status to Ghost FTP or BRENDIGO LTD.
+
+Opening https://ghostftp.com or https://brendigo.com is always user-initiated; Setup does not open either website in the background.

@@ -1,5 +1,30 @@
 # Ghost FTP changelog
 
+## 1.4.1 — 2026-09-05
+
+### Publisher identity hardening
+
+- Added `GhostBrand.PublisherWebsite` as the canonical BRENDIGO LTD website.
+- Product website remains `https://ghostftp.com`; developer/publisher website is now explicitly `https://brendigo.com`.
+- Expanded source audit so both URLs and the BRENDIGO LTD publisher identity must remain present in the central brand source.
+- Expanded the Windows/WPF smoke test to validate Ghost FTP product identity, BRENDIGO LTD publisher identity and both HTTPS website values.
+- Updated README/legal/install documentation so the product URL and publisher URL have distinct roles instead of being conflated.
+
+### Uninstall self-cleanup
+
+- Replaced the previous one-shot delayed `GhostFTP-Setup.exe` self-delete attempt with a bounded retry loop.
+- The hidden cleanup helper now tolerates a user remaining on the uninstall Finish page for up to several minutes before Setup actually exits.
+- Each retry attempts to remove the maintenance Setup executable; after the file unlocks, the helper removes it and then attempts to remove the empty install directory.
+- Windows delete-on-reboot remains registered first as an eventual fallback if local cleanup cannot complete.
+- The retry delay uses loopback-only traffic and does not contact any external host.
+- No separate uninstaller executable, service, scheduled task or background updater was added.
+
+### Version and release discipline
+
+- Synchronized VERSION, assembly/file/informational metadata and both Windows manifests to 1.4.1.
+- Added dedicated `docs/releases/v1.4.1.md` release notes before release publication.
+- 1.4.1 intentionally does not change the FTP/FTPS protocol engine or transfer-integrity model validated in 1.4.0.
+
 ## 1.4.0 — 2026-09-05
 
 ### Internationalization

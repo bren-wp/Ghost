@@ -19,6 +19,7 @@ public static class Program
             TestPasswordBox(failures);
             TestComboBox(failures);
             TestLocalization(failures);
+            TestBrandIdentity(failures);
         }
         catch (Exception ex)
         {
@@ -35,6 +36,7 @@ public static class Program
             Console.WriteLine("PASS  Ghost FTP security selector");
             Console.WriteLine($"PASS  Ghost FTP application localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
             Console.WriteLine($"PASS  Ghost FTP Setup localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
+            Console.WriteLine("PASS  Ghost FTP / BRENDIGO LTD product and publisher identity");
             return 0;
         }
 
@@ -89,7 +91,7 @@ public static class Program
     private static void TestLocalization(List<string> failures)
     {
         var languages = GhostLocalization.SupportedLanguages;
-        Assert(languages.Count == 29, $"Ghost FTP must ship with exactly 29 validated languages in 1.4.0; found {languages.Count}.", failures);
+        Assert(languages.Count == 29, $"Ghost FTP must ship with exactly 29 validated languages; found {languages.Count}.", failures);
         Assert(languages[0].Code == GhostLocalization.DefaultLanguageCode,
             "English must remain the primary/default language.", failures);
         Assert(languages.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() == languages.Count,
@@ -121,6 +123,19 @@ public static class Program
         Assert(GhostLocalization.T("Settings") == "Settings", "English application fallback text is incorrect.", failures);
         Assert(GhostSetupLocalization.T("Welcome") == "Welcome", "English Setup fallback text is incorrect.", failures);
         GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
+    }
+
+    private static void TestBrandIdentity(List<string> failures)
+    {
+        Assert(GhostBrand.DisplayName == "Ghost FTP", "Product display name drifted from Ghost FTP.", failures);
+        Assert(GhostBrand.ProductName == "GhostFTP", "Compact product identifier drifted from GhostFTP.", failures);
+        Assert(GhostBrand.Publisher == "BRENDIGO LTD", "Publisher drifted from BRENDIGO LTD.", failures);
+        Assert(GhostBrand.Website == "https://ghostftp.com", "Product website drifted from ghostftp.com.", failures);
+        Assert(GhostBrand.PublisherWebsite == "https://brendigo.com", "Publisher website drifted from brendigo.com.", failures);
+        Assert(Uri.TryCreate(GhostBrand.Website, UriKind.Absolute, out var productUri) && productUri.Scheme == Uri.UriSchemeHttps,
+            "Ghost FTP product website must be an absolute HTTPS URI.", failures);
+        Assert(Uri.TryCreate(GhostBrand.PublisherWebsite, UriKind.Absolute, out var publisherUri) && publisherUri.Scheme == Uri.UriSchemeHttps,
+            "BRENDIGO LTD publisher website must be an absolute HTTPS URI.", failures);
     }
 
     private static string DescribeException(Exception exception)

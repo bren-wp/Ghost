@@ -361,7 +361,7 @@ internal sealed class SettingsDialog : GhostDialog
 
 internal sealed class AboutDialog : GhostDialog
 {
-    public AboutDialog(Window owner) : base(owner, $"{L("About")} {GhostBrand.DisplayName}", 580, 600)
+    public AboutDialog(Window owner) : base(owner, $"{L("About")} {GhostBrand.DisplayName}", 610, 620)
     {
         ResizeMode = ResizeMode.NoResize;
         var body = new StackPanel();
@@ -377,7 +377,7 @@ internal sealed class AboutDialog : GhostDialog
             Children =
             {
                 GhostTheme.Text(L("PrivacyByDesign"), 12.5, weight: FontWeights.SemiBold),
-                GhostTheme.Text("No telemetry, analytics, tracking SDK, ads or automatic update checker. Network traffic is created only by FTP/FTPS actions you initiate or the Ghost FTP website link you open yourself.", 11, muted: true)
+                GhostTheme.Text("No telemetry, analytics, tracking SDK, ads or automatic update checker. External product/publisher websites open only when you click their buttons.", 11, muted: true)
             }
         }, new Thickness(12), 10));
 
@@ -389,7 +389,8 @@ internal sealed class AboutDialog : GhostDialog
                 GhostTheme.Text("Developer and publisher", 11, muted: true),
                 GhostTheme.Text(GhostBrand.Publisher, 12.5, weight: FontWeights.SemiBold),
                 GhostTheme.Text($"Company number: {GhostBrand.CompanyNumber}", 10.5, muted: true),
-                GhostTheme.Text(GhostBrand.RegisteredOffice, 10.5, muted: true)
+                GhostTheme.Text(GhostBrand.RegisteredOffice, 10.5, muted: true),
+                GhostTheme.Text("brendigo.com", 10.5, muted: true)
             }
         }, new Thickness(12), 10));
 
@@ -398,9 +399,14 @@ internal sealed class AboutDialog : GhostDialog
         body.Children.Add(GhostTheme.Text("ghostftp.com", 11.5, muted: true));
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) };
-        var web = GhostTheme.Button("Open ghostftp.com", primary: true);
-        web.Click += (_, _) => OpenUrl(GhostBrand.Website);
-        buttons.Children.Add(web);
+        var productWeb = GhostTheme.Button("Open ghostftp.com", primary: true);
+        productWeb.Click += (_, _) => OpenUrl(GhostBrand.Website);
+        buttons.Children.Add(productWeb);
+
+        var publisherWeb = GhostTheme.Button("Open brendigo.com");
+        publisherWeb.Margin = new Thickness(8, 0, 0, 0);
+        publisherWeb.Click += (_, _) => OpenUrl(GhostBrand.PublisherWebsite);
+        buttons.Children.Add(publisherWeb);
         body.Children.Add(buttons);
 
         Content = Shell(body);
@@ -415,7 +421,7 @@ internal sealed class AboutDialog : GhostDialog
         }
         catch
         {
-            // Opening the Ghost FTP website is optional and must not affect the app session.
+            // Opening an external product/publisher website is optional and must not affect the app session.
         }
     }
 }

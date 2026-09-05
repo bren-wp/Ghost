@@ -8,9 +8,10 @@
 
 Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), registered office **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom**.
 
-- Website: https://ghostftp.com
+- Product website: https://ghostftp.com
+- Developer / publisher website: https://brendigo.com
 - Repository: https://github.com/bren-wp/Ghost
-- Current source version: **1.4.0**
+- Current source version: **1.4.1**
 - Runtime baseline: **.NET 10 / C# 14 / WPF**
 - Product identity: **Ghost FTP / GhostFTP**
 - Developer / publisher / licensor: **BRENDIGO LTD**
@@ -29,21 +30,34 @@ Every official Windows release is required to publish these verified assets:
 
 CI and Release fail if any required executable is missing or empty.
 
+## What changed in 1.4.1
+
+Ghost FTP 1.4.1 is a focused publisher-identity and uninstall-cleanup patch. The FTP/FTPS protocol engine and transfer-integrity model from 1.4.0 are intentionally unchanged.
+
+- `https://brendigo.com` is now a first-class BRENDIGO LTD publisher/developer website value in the shared brand model.
+- Source audit requires the Ghost FTP product URL, BRENDIGO LTD identity and publisher URL to remain present.
+- Windows/WPF smoke tests validate both product and publisher HTTPS URLs.
+- Uninstall self-cleanup now retries removal of the running maintenance `GhostFTP-Setup.exe` for a bounded period instead of relying on one short delayed attempt.
+- Windows delete-on-reboot remains an eventual fallback when the Setup executable is still locked.
+- No separate uninstaller executable, service, scheduled task, telemetry or updater was added.
+
+See [docs/releases/v1.4.1.md](docs/releases/v1.4.1.md).
+
 ## What changed in 1.4.0
 
 Ghost FTP 1.4.0 is a reliability, internationalization, installer and FTP-integrity release.
 
 ### 29 languages
 
-English remains the primary language and the guaranteed fallback. Ghost FTP now ships selectable language support for:
+English remains the primary language and the guaranteed fallback. Ghost FTP ships selectable language support for:
 
 English, Croatian, German, French, Spanish, Italian, Portuguese, Dutch, Polish, Czech, Slovak, Slovenian, Hungarian, Romanian, Bulgarian, Greek, Turkish, Ukrainian, Russian, Serbian, Bosnian, Swedish, Danish, Norwegian, Finnish, Japanese, Korean, Simplified Chinese and Traditional Chinese.
 
 The desktop app and Setup share one local C# localization system. No translation service, cloud lookup or network request is used. CI checks the core application catalog and Setup wizard catalog for all 29 languages.
 
-### New Setup wizard
+### Setup wizard
 
-`setup.exe` now uses a guided Windows 11-style flow:
+`setup.exe` uses a guided Windows 11-style flow:
 
 1. **Language** — choose the Setup language and initial Ghost FTP client language.
 2. **License** — review the embedded repository license and explicitly accept it before continuing.
@@ -65,9 +79,9 @@ See [docs/INSTALLATION.md](docs/INSTALLATION.md).
 - transfer queue exposes retry count and Retrying state;
 - cancelling one job during retry backoff cannot terminate the entire worker;
 - separate FTP/FTPS sessions remain isolated per transfer;
-- remote navigation now synchronizes UI path state through server `CWD` + `PWD`;
+- remote navigation synchronizes UI path state through server `CWD` + `PWD`;
 - connection diagnostics perform local `NOOP`, `SYST`, `PWD` and capability checks against the connected server;
-- downloads verify the final partial-file length against server `SIZE` when available before promotion to the destination;
+- downloads verify final partial-file length against server `SIZE` when available before promotion to the destination;
 - uploads verify temporary/final remote size through `SIZE` when available before/after commit;
 - failed upload replacement keeps rollback behavior for an existing destination.
 
@@ -120,7 +134,7 @@ Application network traffic is created only when the user explicitly:
 
 1. connects to an FTP/FTPS server;
 2. performs FTP/FTPS operations; or
-3. opens a Ghost FTP website link.
+3. opens a Ghost FTP or BRENDIGO LTD website link.
 
 Demo mode is completely local and opens no network connection. Connection diagnostics communicate only with the FTP/FTPS server that the user is already connected to and do not upload results to Ghost FTP or BRENDIGO LTD.
 
@@ -211,9 +225,10 @@ Every `main` update is required to pass:
 5. real Windows/WPF editable-input smoke tests;
 6. application localization coverage checks;
 7. Setup localization coverage checks;
-8. x64 and ARM64 self-contained packaging;
-9. canonical `setup.exe` and `portable.exe` verification;
-10. artifact upload.
+8. Ghost FTP / BRENDIGO LTD website identity checks;
+9. x64 and ARM64 self-contained packaging;
+10. canonical `setup.exe` and `portable.exe` verification;
+11. artifact upload.
 
 The Release workflow repeats these checks before a GitHub Release can be published.
 
@@ -247,4 +262,4 @@ docs/
   releases/            detailed notes used by GitHub Releases
 ```
 
-Ghost FTP is developed and published by **BRENDIGO LTD**. Copyright © 2026 BRENDIGO LTD. All rights reserved. See [NOTICE.md](NOTICE.md).
+Ghost FTP is developed and published by **BRENDIGO LTD** — https://brendigo.com. Copyright © 2026 BRENDIGO LTD. All rights reserved. See [NOTICE.md](NOTICE.md).
