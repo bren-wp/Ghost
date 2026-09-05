@@ -1,18 +1,20 @@
 <p align="center">
-  <img src="assets/readme/ghostftp-hero.svg" alt="Ghost FTP — private FTP and FTPS workspace for Windows" width="100%">
+  <img src="assets/readme/ghostftp-hero.svg" alt="Ghost FTP — private FTP and FTPS desktop workspace" width="100%">
 </p>
 
 # Ghost FTP
 
-**Ghost FTP** (`GhostFTP`) is a privacy-first FTP/FTPS client for Windows with a modern dual-pane workspace, local-only configuration, a dependency-free C# codebase and a release pipeline that publishes both installer and portable editions.
+**Ghost FTP** (`GhostFTP`) is a privacy-first FTP/FTPS desktop client with a modern dual-pane workspace, local-only configuration, a dependency-free C# codebase and a release pipeline that publishes verified Windows installer and portable editions.
 
 Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), registered office **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom**.
 
 - Product website: https://ghostftp.com
 - Developer / publisher website: https://brendigo.com
 - Repository: https://github.com/bren-wp/Ghost
-- Current source version: **1.4.1**
-- Runtime baseline: **.NET 10 / C# 14 / WPF**
+- Current source version: **1.5.0**
+- Runtime baseline: **.NET 10 / C# 14**
+- Production GUI target: **Windows / WPF**
+- Shared protocol core: **platform-neutral `net10.0`**
 - Product identity: **Ghost FTP / GhostFTP**
 - Developer / publisher / licensor: **BRENDIGO LTD**
 - License: proprietary/source-available; see [LICENSE](LICENSE)
@@ -30,24 +32,36 @@ Every official Windows release is required to publish these verified assets:
 
 CI and Release fail if any required executable is missing or empty.
 
-## What changed in 1.4.1
+## What changed in 1.5.0
 
-Ghost FTP 1.4.1 is a focused publisher-identity and uninstall-cleanup patch. The FTP/FTPS protocol engine and transfer-integrity model from 1.4.0 are intentionally unchanged.
+Ghost FTP 1.5.0 focuses on professional desktop ergonomics, transfer throughput and explicit platform/release discipline.
 
-- `https://brendigo.com` is now a first-class BRENDIGO LTD publisher/developer website value in the shared brand model.
-- Source audit requires the Ghost FTP product URL, BRENDIGO LTD identity and publisher URL to remain present.
-- Windows/WPF smoke tests validate both product and publisher HTTPS URLs.
-- Uninstall self-cleanup now retries removal of the running maintenance `GhostFTP-Setup.exe` for a bounded period instead of relying on one short delayed attempt.
-- Windows delete-on-reboot remains an eventual fallback when the Setup executable is still locked.
-- No separate uninstaller executable, service, scheduled task, telemetry or updater was added.
+- Added real resizable splitters for the Saved Servers sidebar, Local/Remote file panes and transfer queue.
+- Added double-click splitter reset behavior so users can recover the default workspace quickly.
+- Explicitly enabled resize-with-grip behavior and reduced the safe minimum window size.
+- Fixed a real responsive-layout bug: dynamic GridView column resizing existed but was never wired into the main-window lifecycle.
+- File and queue columns now recalculate when the window or underlying list changes size.
+- Reworked the transfer queue from one worker to a bounded parallel worker pool.
+- Up to three transfers run concurrently by default, while the engine keeps an internal hard cap of eight.
+- Real FTP/FTPS jobs continue to use isolated transfer sessions so one failure cannot desynchronize browsing or another transfer.
+- Queue shutdown now awaits every worker before releasing cancellation resources.
+- Added an explicit platform-support contract: Windows remains the production GUI, `GhostFTP.Core` remains reusable `net10.0`, Android/iOS are not shipping, and Linux GUI support is not falsely claimed while the project remains WPF + zero-third-party-package.
+- Version metadata and detailed release documentation are synchronized to 1.5.0.
 
-See [docs/releases/v1.4.1.md](docs/releases/v1.4.1.md).
+See [docs/releases/v1.5.0.md](docs/releases/v1.5.0.md) and [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md).
 
-## What changed in 1.4.0
+## 1.4.2 stability baseline
 
-Ghost FTP 1.4.0 is a reliability, internationalization, installer and FTP-integrity release.
+Ghost FTP 1.4.2 fixed the Setup crash that could occur when switching languages while the WPF ComboBox still owned controls from the previous logical tree.
 
-### 29 languages
+- Reusable wizard controls are detached before rebuilding.
+- Language-driven rebuilds are deferred until the input event unwinds.
+- Repeated rebuild requests are coalesced.
+- The real Setup window is exercised by a live WPF language-switch smoke test.
+
+See [docs/releases/v1.4.2.md](docs/releases/v1.4.2.md).
+
+## 29 languages
 
 English remains the primary language and the guaranteed fallback. Ghost FTP ships selectable language support for:
 
@@ -55,7 +69,7 @@ English, Croatian, German, French, Spanish, Italian, Portuguese, Dutch, Polish, 
 
 The desktop app and Setup share one local C# localization system. No translation service, cloud lookup or network request is used. CI checks the core application catalog and Setup wizard catalog for all 29 languages.
 
-### Setup wizard
+## Setup wizard
 
 `setup.exe` uses a guided Windows 11-style flow:
 
@@ -70,15 +84,15 @@ Uninstall uses the same installed `GhostFTP-Setup.exe --uninstall` maintenance e
 
 See [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
-### FTP reliability and integrity
+## FTP reliability and integrity
 
 - configurable connect, command and transfer-idle timeouts;
 - configurable automatic transfer retry count from 0–5;
 - automatic retry is limited to transient network / FTP 4xx failures;
 - authentication, certificate, permission and permanent FTP errors are not retried blindly;
+- bounded parallel transfer workers with isolated real FTP/FTPS sessions;
 - transfer queue exposes retry count and Retrying state;
-- cancelling one job during retry backoff cannot terminate the entire worker;
-- separate FTP/FTPS sessions remain isolated per transfer;
+- cancelling one job during retry backoff cannot terminate the queue;
 - remote navigation synchronizes UI path state through server `CWD` + `PWD`;
 - connection diagnostics perform local `NOOP`, `SYST`, `PWD` and capability checks against the connected server;
 - downloads verify final partial-file length against server `SIZE` when available before promotion to the destination;
@@ -91,7 +105,7 @@ See [docs/INSTALLATION.md](docs/INSTALLATION.md).
 - Explicit FTPS (`AUTH TLS`).
 - Implicit FTPS.
 - TLS 1.2 / TLS 1.3.
-- Standard Windows/.NET certificate-chain and hostname validation.
+- Standard Windows/.NET certificate-chain and hostname validation in the production Windows client.
 - No certificate-validation bypass setting.
 - EPSV with PASV fallback.
 - Passive data channels use the authenticated control host rather than trusting a server-supplied PASV host redirect.
@@ -113,7 +127,8 @@ Ghost FTP provides a dual-pane Local / Remote workflow with:
 - native WPF TextBox/PasswordBox editing for reliable focus, caret, selection, paste and keyboard/IME behavior;
 - Local Home, Desktop, Documents and Downloads shortcuts;
 - Remote root and parent navigation;
-- responsive wrapping toolbars and dynamically sized file columns;
+- resizable Saved Servers, Local/Remote and Transfers regions;
+- responsive wrapping toolbars and dynamically sized file/queue columns;
 - multi-selection upload/download/delete workflows;
 - drag-and-drop upload;
 - create folder, rename, refresh and path navigation;
@@ -122,7 +137,7 @@ Ghost FTP provides a dual-pane Local / Remote workflow with:
 - Open in File Explorer for local items;
 - hidden/system item preference;
 - item and selection summaries;
-- transfer queue with progress, speed, retry count, Retry selected, Cancel selected, Cancel all and Clear finished;
+- parallel transfer queue with progress, speed, retry count, Retry selected, Cancel selected, Cancel all and Clear finished;
 - connection diagnostics from the connection status area;
 - keyboard shortcuts including `F5`, `F2`, `Delete`, `Ctrl+F` and `Ctrl+L`.
 
@@ -142,14 +157,22 @@ See [PRIVACY.md](PRIVACY.md).
 
 ## Zero third-party runtime dependencies
 
-The source tree contains **zero NuGet `PackageReference` entries**. Shipping code uses only:
+The source tree contains **zero NuGet `PackageReference` entries**. Shipping Windows code uses only:
 
 - C#;
 - Microsoft .NET base class libraries;
 - Microsoft WPF included in .NET Desktop;
 - Windows APIs already present in Windows for DPAPI, DWM/Mica, shell shortcuts and uninstall registration.
 
-Releases are self-contained. End users do not need to install .NET separately.
+Windows releases are self-contained. End users do not need to install .NET separately.
+
+## Platform support
+
+- **Windows x64 / ARM64:** production desktop GUI and Setup.
+- **Linux:** the protocol engine is reusable because `GhostFTP.Core` targets `net10.0`; a production Linux GUI is not yet claimed because WPF is Windows-only and this repository currently forbids third-party package dependencies.
+- **Android / iOS:** not shipping and not part of the current desktop product scope.
+
+Ghost FTP does not call a Windows binary “Linux-compatible” merely to satisfy a platform label. See [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md) for the parity requirements a real Linux desktop renderer must meet.
 
 ## Security boundaries
 
@@ -181,7 +204,7 @@ Saved passwords are optional. When enabled they are encrypted through Windows DP
 
 ## Build and validate
 
-Requirements:
+Requirements for the production Windows GUI:
 
 - Windows 10 version 2004 or newer; Windows 11 recommended;
 - .NET SDK 10.0.x for source builds.
@@ -235,8 +258,10 @@ The Release workflow repeats these checks before a GitHub Release can be publish
 ## Documentation
 
 - [CHANGELOG.md](CHANGELOG.md) — detailed version history.
+- [docs/releases/](docs/releases/) — version-specific detailed release notes.
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — install, update and uninstall behavior.
 - [docs/LOCALIZATION.md](docs/LOCALIZATION.md) — languages and translation architecture.
+- [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md) — exact Windows/Linux/mobile support contract.
 - [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md) — release requirements and quality gates.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — project and runtime architecture.
 - [docs/UI-UX.md](docs/UI-UX.md) — shared Windows 11 design rules.
@@ -251,10 +276,10 @@ assets/
   brand/               official Ghost FTP vector branding
   readme/              repository artwork
 src/
-  GhostFTP.Core/       FTP/FTPS engine, parsers, demo session, transfer queue
-  GhostFTP.Design/     shared design, product identity and localization
-  GhostFTP.App/        Windows desktop application, C# programmatic UI
-  GhostFTP.Setup/      guided install/update/uninstall wizard
+  GhostFTP.Core/       platform-neutral FTP/FTPS engine, parsers, demo session, transfer queue
+  GhostFTP.Design/     shared Windows design, product identity and localization
+  GhostFTP.App/        Windows desktop application, C# programmatic WPF UI
+  GhostFTP.Setup/      guided Windows install/update/uninstall wizard
 tests/
   GhostFTP.SelfTest/   Core security and correctness tests
   GhostFTP.UiSmoke/    real Windows/WPF input and localization smoke tests
