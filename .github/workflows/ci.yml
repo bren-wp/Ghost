@@ -46,14 +46,24 @@ jobs:
           "GHOSTFTP_CHANNEL=$channel" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Restore
-        run: dotnet restore GhostFTP.sln
+        shell: pwsh
+        run: |
+          dotnet restore GhostFTP.sln
+          dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
 
       - name: Build Windows solution plus Linux compile target
-        run: dotnet build GhostFTP.sln -c Release --no-restore
+        shell: pwsh
+        run: |
+          dotnet build GhostFTP.sln -c Release --no-restore
+          dotnet build tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj -c Release --no-restore
 
       - name: Dependency, version, channel, privacy, platform and signing audit
         shell: pwsh
         run: ./audit-source.ps1
+
+      - name: Final security release-contract audit
+        shell: pwsh
+        run: ./audit-hardening.ps1
 
       - name: Core self-test
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
@@ -166,9 +176,13 @@ jobs:
           dotnet restore src/GhostFTP.Linux/GhostFTP.Linux.csproj
           dotnet restore tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj
           dotnet restore tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj
+          dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
 
-      - name: Build Linux desktop client
-        run: dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
+      - name: Build Linux desktop client and live-smoke harness
+        shell: bash
+        run: |
+          dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
+          dotnet build tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj -c Release --no-restore
 
       - name: Smoke-test real Linux X11/XWayland renderer
         shell: bash
@@ -186,6 +200,10 @@ jobs:
       - name: Cross-platform source audit
         shell: pwsh
         run: ./audit-source.ps1
+
+      - name: Final security release-contract audit
+        shell: pwsh
+        run: ./audit-hardening.ps1
 
       - name: Build self-contained Linux x64 and ARM64 packages
         shell: bash
