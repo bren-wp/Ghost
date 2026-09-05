@@ -24,7 +24,8 @@ public sealed partial class MainWindow
             _queue = new TransferQueueService(
                 CreateTransferSessionAsync,
                 SynchronizationContext.Current,
-                _settings.AutomaticTransferRetries);
+                _settings.AutomaticTransferRetries,
+                _settings.ConcurrentTransfers);
             _queueList.ItemsSource = _queue.Jobs;
             _queue.JobUpdated += QueueJobUpdated;
 
@@ -163,16 +164,19 @@ public sealed partial class MainWindow
             SetStatus(
                 _session.IsEncrypted ? "Connected · TLS" : selected?.IsDemo == true ? "Demo · local" : "Connected · FTP",
                 _session.IsEncrypted ? "Success" : "AccentSoft");
+            _statusBadge.ToolTip = "Connection status · click for local diagnostics";
         }
         catch (OperationCanceledException)
         {
             await DisconnectCoreAsync();
             SetStatus(GhostLocalization.T("Offline"), "Surface2");
+            _statusBadge.ToolTip = "Connection status · click for local diagnostics";
         }
         catch (Exception ex)
         {
             await DisconnectCoreAsync();
             SetStatus("Connection failed", "Danger");
+            _statusBadge.ToolTip = "Connection status · click for local diagnostics";
             GhostMessageDialog.Error(this, "Ghost FTP could not connect to the server.", ex.Message, "Connection failed");
         }
         finally
@@ -208,6 +212,7 @@ public sealed partial class MainWindow
             _remotePath = "/";
             _remotePathBox.Text = "/";
             SetStatus(GhostLocalization.T("Offline"), "Surface2");
+            _statusBadge.ToolTip = "Connection status · click for local diagnostics";
         }
         finally
         {
