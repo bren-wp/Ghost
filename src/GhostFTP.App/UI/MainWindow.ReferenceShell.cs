@@ -66,18 +66,67 @@ public sealed partial class MainWindow
             toolbar.Background = ReferenceBrush(GhostReferencePalette.Toolbar);
             toolbar.BorderBrush = GhostTheme.R("Border");
             toolbar.BorderThickness = new Thickness(0, 0, 0, 1);
+            toolbar.Padding = new Thickness(0);
 
-            // The approved reference keeps identity in the permanent left rail rather than
-            // repeating it in the action toolbar. Remove only that known identity child.
-            if (toolbar.Child is DockPanel dock
-                && dock.Children.Count > 1
-                && dock.Children[0] is StackPanel identity)
+            if (toolbar.Child is DockPanel dock)
             {
-                dock.Children.Remove(identity);
+                // Product identity belongs to the permanent left rail in the approved shell.
+                if (dock.Children.Count > 1 && dock.Children[0] is StackPanel identity)
+                    dock.Children.Remove(identity);
+
+                StyleReferenceToolbar(dock);
             }
         }
 
         NormalizeReferenceWorkspace();
+    }
+
+    private static void StyleReferenceToolbar(DockPanel dock)
+    {
+        var actions = dock.Children.OfType<WrapPanel>().FirstOrDefault();
+        if (actions is null)
+            return;
+
+        actions.Margin = new Thickness(0);
+        actions.VerticalAlignment = VerticalAlignment.Stretch;
+
+        foreach (var button in actions.Children.OfType<Button>())
+        {
+            button.MinWidth = 82;
+            button.Width = double.NaN;
+            button.MinHeight = GhostReferencePalette.ToolbarHeight - 1;
+            button.Margin = new Thickness(0);
+            button.Padding = new Thickness(12, 6, 12, 5);
+            button.Background = Brushes.Transparent;
+            button.BorderBrush = GhostTheme.R("Border");
+            button.BorderThickness = new Thickness(0, 0, 1, 0);
+            button.HorizontalContentAlignment = HorizontalAlignment.Center;
+            button.VerticalContentAlignment = VerticalAlignment.Center;
+
+            if (button.Content is string text)
+                button.Content = ReferenceToolbarContent(text);
+        }
+    }
+
+    private static UIElement ReferenceToolbarContent(string text)
+    {
+        var split = text.IndexOf(' ');
+        var icon = split > 0 ? text[..split] : "·";
+        var label = split > 0 ? text[(split + 1)..].Trim() : text;
+        var stack = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        var iconText = GhostTheme.Text(icon, 18, weight: FontWeights.SemiBold);
+        iconText.Foreground = GhostTheme.R("Accent");
+        iconText.HorizontalAlignment = HorizontalAlignment.Center;
+        stack.Children.Add(iconText);
+        var labelText = GhostTheme.Text(label, 9.75, weight: FontWeights.Medium);
+        labelText.HorizontalAlignment = HorizontalAlignment.Center;
+        labelText.Margin = new Thickness(0, 4, 0, 0);
+        stack.Children.Add(labelText);
+        return stack;
     }
 
     private void NormalizeReferenceWorkspace()
@@ -94,6 +143,8 @@ public sealed partial class MainWindow
 
         if (log is null || quickConnect is null)
             return;
+
+        NormalizeQuickConnect(quickConnect);
 
         _workspaceContent.Children.Remove(log);
         _workspaceContent.Children.Remove(quickConnect);
@@ -123,6 +174,54 @@ public sealed partial class MainWindow
 
         Grid.SetRow(top, 0);
         _workspaceContent.Children.Add(top);
+    }
+
+    private void NormalizeQuickConnect(Border quickConnect)
+    {
+        if (quickConnect.Child is not StackPanel root || root.Children.Count < 3)
+            return;
+        if (root.Children[0] is not Grid header
+            || root.Children[1] is not Grid rowOne
+            || root.Children[2] is not Grid rowTwo)
+            return;
+
+        // Saved-site navigation is already permanently available in the left rail. Keep
+        // Quick Connect focused on connection fields, matching the approved reference.
+        var title = header.Children.OfType<StackPanel>().FirstOrDefault();
+        if (title is not null)
+        {
+            header.Children.Remove(title);
+            header.Children.Clear();
+            header.ColumnDefinitions.Clear();
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(title, 0);
+            header.Children.Add(title);
+        }
+        _profilesList.Visibility = Visibility.Collapsed;
+
+        // Move username/password into the main connection row so the normal desktop layout
+        // reads Host → Port → Security → Username → Password like the approved reference.
+        var username = rowTwo.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 0);
+        var password = rowTwo.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 2);
+        if (username is not null && password is not null)
+        {
+            rowTwo.Children.Remove(username);
+            rowTwo.Children.Remove(password);
+            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 92 });
+            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 92 });
+            Grid.SetColumn(username, 6);
+            Grid.SetColumn(password, 8);
+            rowOne.Children.Add(username);
+            rowOne.Children.Add(password);
+        }
+
+        var note = GhostTheme.Text("Credentials stay local to this desktop session unless explicitly saved in Site Manager.", 9, muted: true);
+        note.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(note, 0);
+        Grid.SetColumnSpan(note, 3);
+        rowTwo.Children.Add(note);
     }
 
     private Border BuildReferenceSidebar()
@@ -202,6 +301,9 @@ public sealed partial class MainWindow
 
         var empty = GhostTheme.Text("No saved connection in this tab.", 10, muted: true);
         empty.Margin = new Thickness(24, 4, 8, 12);
+        empty.Visibility = _profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _profiles.CollectionChanged += (_, _) =>
+            empty.Visibility = _profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         nav.Children.Add(empty);
         nav.Children.Add(ReferenceNavButton("☆", "Favorites in this tab", () => _ = OpenSiteManagerAsync()));
         nav.Children.Add(ReferenceNavButton("◷", "Recent connections in this tab", () => _ = ShowConnectionDiagnosticsAsync()));
