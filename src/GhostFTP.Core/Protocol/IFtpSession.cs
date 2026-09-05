@@ -23,6 +23,14 @@ public interface IFtpSession : IAsyncDisposable
     Task DownloadDirectoryAsync(string remotePath, string localDirectory, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default);
     Task UploadDirectoryAsync(string localDirectory, string remotePath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default);
 
+    Task KeepAliveAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsConnected)
+            throw new InvalidOperationException("FTP session is not connected.");
+        return Task.CompletedTask;
+    }
+
     Task<FtpServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

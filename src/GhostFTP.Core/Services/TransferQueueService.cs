@@ -48,14 +48,28 @@ public sealed class TransferQueueService : IAsyncDisposable
 
     public TransferJob EnqueueUpload(string source, string destination, bool isDirectory)
     {
-        var job = new TransferJob { Direction = TransferDirection.Upload, Source = source, Destination = destination, IsDirectory = isDirectory };
+        var job = new TransferJob
+        {
+            Direction = TransferDirection.Upload,
+            Source = source,
+            Destination = destination,
+            IsDirectory = isDirectory,
+            TotalBytes = isDirectory ? null : TryGetLocalFileLength(source)
+        };
         Enqueue(job);
         return job;
     }
 
     public TransferJob EnqueueDownload(string source, string destination, bool isDirectory, long? totalBytes = null)
     {
-        var job = new TransferJob { Direction = TransferDirection.Download, Source = source, Destination = destination, IsDirectory = isDirectory, TotalBytes = totalBytes };
+        var job = new TransferJob
+        {
+            Direction = TransferDirection.Download,
+            Source = source,
+            Destination = destination,
+            IsDirectory = isDirectory,
+            TotalBytes = totalBytes
+        };
         Enqueue(job);
         return job;
     }
@@ -82,6 +96,7 @@ public sealed class TransferQueueService : IAsyncDisposable
         {
             job.Error = "Transfer queue is shutting down.";
             job.State = TransferState.Failed;
+            job.FinishedUtc = DateTimeOffset.UtcNow;
             Jobs.Add(job);
             JobUpdated?.Invoke(this, job);
             return;
@@ -96,6 +111,7 @@ public sealed class TransferQueueService : IAsyncDisposable
             cts.Dispose();
             job.Error = $"Transfer queue is full. Maximum queued transfers: {MaxQueuedTransfers:N0}.";
             job.State = TransferState.Failed;
+            job.FinishedUtc = DateTimeOffset.UtcNow;
             JobUpdated?.Invoke(this, job);
             return;
         }
@@ -136,6 +152,8 @@ public sealed class TransferQueueService : IAsyncDisposable
 
                     Ui(() =>
                     {
+                        job.StartedUtc ??= DateTimeOffset.UtcNow;
+                        job.FinishedUtc = null;
                         job.State = TransferState.Running;
                         if (attempt == 0) job.Error = null;
                     }, job);
@@ -145,13 +163,20 @@ public sealed class TransferQueueService : IAsyncDisposable
                     {
                         job.Progress = 100;
                         job.Error = null;
+                        job.SpeedBytesPerSecond = 0;
                         job.State = TransferState.Completed;
+                        job.FinishedUtc = DateTimeOffset.UtcNow;
                     }, job);
                     return;
                 }
                 catch (OperationCanceledException)
                 {
-                    Ui(() => job.State = TransferState.Cancelled, job);
+                    Ui(() =>
+                    {
+                        job.SpeedBytesPerSecond = 0;
+                        job.State = TransferState.Cancelled;
+                        job.FinishedUtc = DateTimeOffset.UtcNow;
+                    }, job);
                     return;
                 }
                 catch (Exception ex) when (attempt < _maxAutomaticRetries && IsTransient(ex))
@@ -176,7 +201,12 @@ public sealed class TransferQueueService : IAsyncDisposable
                     }
                     catch (OperationCanceledException)
                     {
-                        Ui(() => job.State = TransferState.Cancelled, job);
+                        Ui(() =>
+                        {
+                            job.SpeedBytesPerSecond = 0;
+                            job.State = TransferState.Cancelled;
+                            job.FinishedUtc = DateTimeOffset.UtcNow;
+                        }, job);
                         return;
                     }
                     continue;
@@ -186,8 +216,9 @@ public sealed class TransferQueueService : IAsyncDisposable
                     Ui(() =>
                     {
                         job.Error = ex.Message;
-                        job.State = TransferState.Failed;
                         job.SpeedBytesPerSecond = 0;
+                        job.State = TransferState.Failed;
+                        job.FinishedUtc = DateTimeOffset.UtcNow;
                     }, job);
                     return;
                 }
@@ -210,22 +241,42 @@ public sealed class TransferQueueService : IAsyncDisposable
         var stopwatch = Stopwatch.StartNew();
         long lastBytes = 0;
         var lastTime = TimeSpan.Zero;
+        var hasSpeedBaseline = false;
+
         var progress = new Progress<(long transferred, long? total)>(p =>
         {
+            var transferred = Math.Max(0, p.transferred);
             var total = p.total ?? job.TotalBytes;
             var elapsed = stopwatch.Elapsed;
-            var deltaSeconds = (elapsed - lastTime).TotalSeconds;
-            var speed = deltaSeconds >= 0.5 ? Math.Max(0, p.transferred - lastBytes) / deltaSeconds : -1;
-            if (deltaSeconds >= 0.5)
+            var speed = -1d;
+
+            if (!hasSpeedBaseline)
             {
-                lastBytes = p.transferred;
+                lastBytes = transferred;
                 lastTime = elapsed;
+                hasSpeedBaseline = true;
             }
+            else
+            {
+                var deltaSeconds = (elapsed - lastTime).TotalSeconds;
+                if (deltaSeconds >= 0.5)
+                {
+                    speed = Math.Max(0, transferred - lastBytes) / deltaSeconds;
+                    lastBytes = transferred;
+                    lastTime = elapsed;
+                }
+            }
+
             Ui(() =>
             {
-                job.BytesTransferred = p.transferred;
-                if (total is > 0) job.Progress = p.transferred * 100d / total.Value;
-                if (speed >= 0) job.SpeedBytesPerSecond = speed;
+                job.BytesTransferred = transferred;
+                if (total is > 0)
+                {
+                    job.TotalBytes = total;
+                    job.Progress = transferred * 100d / total.Value;
+                }
+                if (speed >= 0)
+                    job.SpeedBytesPerSecond = speed;
             }, job);
         });
 
@@ -263,6 +314,19 @@ public sealed class TransferQueueService : IAsyncDisposable
         }
 
         return false;
+    }
+
+    private static long? TryGetLocalFileLength(string source)
+    {
+        try
+        {
+            var info = new FileInfo(source);
+            return info.Exists ? Math.Max(0, info.Length) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static async Task DisposeLeaseAsync(IFtpSession? session, bool disposeAfter)

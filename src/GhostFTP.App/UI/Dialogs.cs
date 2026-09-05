@@ -235,20 +235,24 @@ internal sealed class SettingsDialog : GhostDialog
     private readonly CheckBox _confirmDeletes;
     private readonly CheckBox _showHidden;
     private readonly TextBox _retries;
+    private readonly TextBox _parallelTransfers;
     private readonly TextBox _connectTimeout;
     private readonly TextBox _commandTimeout;
     private readonly TextBox _transferTimeout;
+    private readonly TextBox _keepAlive;
 
     public AppTheme SelectedTheme => (AppTheme)Math.Max(0, _theme.SelectedIndex);
     public string SelectedLanguageCode => (_language.SelectedItem as GhostLanguage)?.Code ?? GhostLocalization.DefaultLanguageCode;
     public bool ConfirmDeletes => _confirmDeletes.IsChecked == true;
     public bool ShowHiddenFiles => _showHidden.IsChecked == true;
     public int AutomaticTransferRetries { get; private set; }
+    public int ConcurrentTransfers { get; private set; }
     public int ConnectTimeoutSeconds { get; private set; }
     public int CommandTimeoutSeconds { get; private set; }
     public int TransferIdleTimeoutSeconds { get; private set; }
+    public int KeepAliveSeconds { get; private set; }
 
-    public SettingsDialog(Window owner, AppSettings settings) : base(owner, L("Settings"), 620, 760)
+    public SettingsDialog(Window owner, AppSettings settings) : base(owner, L("Settings"), 660, 840)
     {
         ResizeMode = ResizeMode.CanResizeWithGrip;
         _theme = new GhostComboBox();
@@ -261,9 +265,11 @@ internal sealed class SettingsDialog : GhostDialog
         _confirmDeletes = Check(L("ConfirmDeletes"), settings.ConfirmDeletes);
         _showHidden = Check(L("ShowHidden"), settings.ShowHiddenFiles);
         _retries = NumberBox(settings.AutomaticTransferRetries, 1);
+        _parallelTransfers = NumberBox(settings.ConcurrentTransfers, 1);
         _connectTimeout = NumberBox(settings.ConnectTimeoutSeconds, 3);
         _commandTimeout = NumberBox(settings.CommandTimeoutSeconds, 3);
         _transferTimeout = NumberBox(settings.TransferIdleTimeoutSeconds, 4);
+        _keepAlive = NumberBox(settings.KeepAliveSeconds, 3);
 
         var body = new StackPanel();
         body.Children.Add(GhostTheme.Text(L("Settings"), 24, weight: FontWeights.SemiBold));
@@ -279,12 +285,19 @@ internal sealed class SettingsDialog : GhostDialog
         body.Children.Add(_showHidden);
         body.Children.Add(Spacer(14));
 
-        body.Children.Add(GhostTheme.Text("Transfer reliability", 12, weight: FontWeights.SemiBold));
-        body.Children.Add(GhostTheme.Text("Automatic retries apply only to transient network/FTP 4xx failures. Authentication and permission errors are never retried automatically.", 10.5, muted: true));
+        body.Children.Add(GhostTheme.Text("Transfer and connection reliability", 12, weight: FontWeights.SemiBold));
+        var reliabilityNote = GhostTheme.Text(
+            "Retries apply only to transient network/FTP 4xx failures. Parallel transfers use isolated FTP/FTPS sessions. Keepalive sends NOOP only to the FTP/FTPS server you explicitly connected to; use 0 to disable it.",
+            10.5,
+            muted: true);
+        reliabilityNote.TextWrapping = TextWrapping.Wrap;
+        body.Children.Add(reliabilityNote);
         body.Children.Add(Spacer(10));
-        body.Children.Add(TwoFields("Automatic retries (0–5)", _retries, "Connect timeout, seconds (3–120)", _connectTimeout));
+        body.Children.Add(TwoFields("Automatic retries (0–5)", _retries, "Concurrent transfers (1–8)", _parallelTransfers));
         body.Children.Add(Spacer(10));
-        body.Children.Add(TwoFields("Command timeout, seconds (5–300)", _commandTimeout, "Transfer idle timeout, seconds (15–3600)", _transferTimeout));
+        body.Children.Add(TwoFields("Connect timeout, seconds (3–120)", _connectTimeout, "Command timeout, seconds (5–300)", _commandTimeout));
+        body.Children.Add(Spacer(10));
+        body.Children.Add(TwoFields("Transfer idle timeout, seconds (15–3600)", _transferTimeout, "Keepalive seconds (0 or 15–600)", _keepAlive));
 
         var shortcuts = GhostTheme.Surface(new StackPanel
         {
@@ -316,9 +329,11 @@ internal sealed class SettingsDialog : GhostDialog
         try
         {
             AutomaticTransferRetries = ParseRange(_retries, 0, 5, "Automatic retries");
+            ConcurrentTransfers = ParseRange(_parallelTransfers, 1, 8, "Concurrent transfers");
             ConnectTimeoutSeconds = ParseRange(_connectTimeout, 3, 120, "Connect timeout");
             CommandTimeoutSeconds = ParseRange(_commandTimeout, 5, 300, "Command timeout");
             TransferIdleTimeoutSeconds = ParseRange(_transferTimeout, 15, 3600, "Transfer idle timeout");
+            KeepAliveSeconds = ParseKeepAlive(_keepAlive);
             if (_language.SelectedItem is not GhostLanguage)
                 throw new InvalidOperationException("Select a valid language.");
             DialogResult = true;
@@ -340,6 +355,13 @@ internal sealed class SettingsDialog : GhostDialog
     {
         if (!int.TryParse(box.Text.Trim(), out var value) || value < minimum || value > maximum)
             throw new InvalidOperationException($"{name} must be between {minimum} and {maximum}.");
+        return value;
+    }
+
+    private static int ParseKeepAlive(TextBox box)
+    {
+        if (!int.TryParse(box.Text.Trim(), out var value) || value < 0 || (value > 0 && value < 15) || value > 600)
+            throw new InvalidOperationException("Keepalive must be 0 (disabled) or between 15 and 600 seconds.");
         return value;
     }
 

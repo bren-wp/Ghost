@@ -113,6 +113,7 @@ public sealed partial class MainWindow : Window
         ConfigureEvents();
         ConfigureQueueUx();
         ConfigureResponsiveColumns();
+        ConfigureKeepAliveLoop();
 
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Loaded += OnLoadedAsync;

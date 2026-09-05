@@ -1,6 +1,6 @@
 # Ghost FTP Security
 
-Ghost FTP 1.4.0 is designed around explicit trust boundaries, conservative FTP/FTPS behavior, bounded untrusted input and local-only persistence.
+Ghost FTP 1.6.0 is designed around explicit trust boundaries, conservative FTP/FTPS behavior, bounded untrusted input, local-only persistence and deterministic control-connection state.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
 
@@ -36,6 +36,20 @@ Remote navigation uses server `CWD` and then `PWD`. The visible Remote path is s
 
 This reduces path drift on servers that implement relative working-directory semantics differently from a purely client-side path model.
 
+## Control-channel keepalive and stale-state handling
+
+Ghost FTP can send the standard FTP `NOOP` command periodically while a real FTP/FTPS server session remains connected.
+
+- Keepalive is configurable and can be disabled with an interval of `0`.
+- Enabled intervals are constrained to 15–600 seconds.
+- Keepalive uses the existing user-selected server session only; it does not contact a product or analytics endpoint.
+- Demo mode does not use keepalive.
+- A failed `NOOP` resets the unusable browser transport instead of leaving a stale `IsConnected=true` state.
+- A genuine control-channel failure during Connection Diagnostics applies the same transport reset.
+- Ghost FTP does not silently reconnect with saved credentials after a keepalive failure. Reconnection remains an explicit user action.
+
+This prevents later file operations from being issued against a connection the application already knows is no longer trustworthy.
+
 ## Download integrity
 
 Downloads use a `.ghostftp.part` file. When the server supports `SIZE`, Ghost FTP verifies the final partial-file length against the expected remote length before promoting the partial file to the requested destination.
@@ -60,13 +74,25 @@ This is a byte-length integrity check based on FTP `SIZE`; it is not a cryptogra
 
 Automatic retries are configurable from 0 to 5 attempts and are limited to transient failures such as socket/timeouts and FTP 4xx replies.
 
-Authentication failures, TLS/certificate failures, permission problems and permanent FTP 5xx errors are not blindly retried. Cancellation during retry backoff is scoped to the affected transfer and must not terminate the queue worker.
+Authentication failures, TLS/certificate failures, permission problems and permanent FTP 5xx errors are not blindly retried. Cancellation during retry backoff is scoped to the affected transfer and must not terminate other queue workers.
 
-## Transfer isolation
+## Transfer isolation and concurrency
 
 Browsing uses the primary FTP/FTPS session. Queued transfers use independent sessions where required so a long upload/download, cancellation or retry cannot consume control replies intended for the browser session.
 
-The transfer queue is bounded. Queue saturation becomes a visible failed job rather than an unhandled WPF exception.
+The concurrent transfer limit is configurable from 1–8 and normalized before use. The queue remains bounded at 4,096 jobs. Queue saturation becomes a visible failed job rather than an unhandled WPF exception.
+
+Transfer progress, speed and ETA are display-only local state. Speed measurement establishes a baseline from the first current-session sample so bytes from an existing resumed partial transfer are not incorrectly counted as newly transferred throughput.
+
+## Keyboard destructive-action routing
+
+File-operation shortcuts are scoped to the UI pane that actually owns keyboard focus.
+
+- `Delete` on Local/Remote acts only on that active file pane.
+- `Delete` while Transfers has focus cancels the selected transfer instead of falling through to a local delete action.
+- `F2`, `F5`, `Enter`, `Backspace`, `Ctrl+F` and `Ctrl+L` do not silently route to the Local pane when a non-file region has focus.
+
+This removes ambiguous focus fallback from destructive operations and is part of the desktop safety boundary.
 
 ## Local filesystem safety
 
@@ -88,6 +114,9 @@ Ghost FTP treats local JSON as untrusted input.
 - The Demo profile is canonicalized and duplicate Demo entries are removed.
 - Oversized or invalid protected-password data is discarded.
 - Decrypted saved passwords pass through the FTP command-argument guard before use.
+- Concurrent transfers normalize to 1–8.
+- Keepalive normalizes to disabled (`0`) or 15–600 seconds.
+- Existing timeout and workspace-geometry bounds remain enforced.
 
 Settings/profile writes use unique temporary files and atomic replacement/backup recovery where supported.
 
@@ -101,7 +130,7 @@ Ghost FTP does not implement a cloud credential vault, account synchronization o
 
 Connection Diagnostics is user-initiated and communicates only with the FTP/FTPS server already selected by the user. It can inspect control-channel health, `SYST`, `PWD`, known `FEAT` capabilities and current TLS/plain transport state.
 
-Diagnostic results remain local and are not uploaded to Ghost FTP or BRENDIGO LTD.
+Diagnostic results remain local and are not uploaded to Ghost FTP or BRENDIGO LTD. If diagnostics prove the control channel is unusable, the connection state is reset rather than left stale.
 
 ## Editable-input regression protection
 

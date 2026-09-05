@@ -62,14 +62,16 @@ public sealed partial class MainWindow
     private static GridView CreateQueueGrid()
     {
         var grid = new GridView { AllowsColumnReorder = true };
-        grid.Columns.Add(Column(L("Item"), "DisplayName", 150));
-        grid.Columns.Add(Column(L("Direction"), "Direction", 76));
-        grid.Columns.Add(Column(L("State"), "State", 76));
-        grid.Columns.Add(Column(L("Progress"), "ProgressText", 70));
-        grid.Columns.Add(Column("Retry", "RetryText", 48));
-        grid.Columns.Add(Column(L("Speed"), "SpeedText", 82));
-        grid.Columns.Add(Column(L("Source"), "Source", 210));
-        grid.Columns.Add(Column(L("Destination"), "Destination", 210));
+        grid.Columns.Add(Column(L("Item"), "DisplayName", 140));
+        grid.Columns.Add(Column(L("Direction"), "Direction", 70));
+        grid.Columns.Add(Column(L("State"), "State", 72));
+        grid.Columns.Add(Column(L("Progress"), "ProgressText", 62));
+        grid.Columns.Add(Column("Transferred", "TransferredText", 120));
+        grid.Columns.Add(Column(L("Speed"), "SpeedText", 78));
+        grid.Columns.Add(Column("ETA", "EtaText", 58));
+        grid.Columns.Add(Column("Retry", "RetryText", 44));
+        grid.Columns.Add(Column(L("Source"), "Source", 190));
+        grid.Columns.Add(Column(L("Destination"), "Destination", 190));
         return grid;
     }
 
@@ -98,26 +100,30 @@ public sealed partial class MainWindow
 
     private void ResizeQueueColumns()
     {
-        if (_queueList.View is not GridView grid || grid.Columns.Count != 8 || _queueList.ActualWidth <= 0) return;
+        if (_queueList.View is not GridView grid || grid.Columns.Count != 10 || _queueList.ActualWidth <= 0) return;
 
-        var available = Math.Max(820, _queueList.ActualWidth - 22);
-        var item = Math.Clamp(available * 0.15, 125, 190);
-        var direction = 76d;
-        var state = 76d;
-        var progress = 70d;
-        var retry = 48d;
-        var speed = 82d;
-        var remaining = Math.Max(260, available - item - direction - state - progress - retry - speed);
+        var available = Math.Max(650, _queueList.ActualWidth - 22);
+        var item = Math.Clamp(available * 0.12, 96, 170);
+        var direction = 60d;
+        var state = 66d;
+        var progress = 56d;
+        var transferred = Math.Clamp(available * 0.11, 92, 140);
+        var speed = 72d;
+        var eta = 50d;
+        var retry = 40d;
+        var remaining = Math.Max(120, available - item - direction - state - progress - transferred - speed - eta - retry);
         var source = remaining / 2;
 
         grid.Columns[0].Width = item;
         grid.Columns[1].Width = direction;
         grid.Columns[2].Width = state;
         grid.Columns[3].Width = progress;
-        grid.Columns[4].Width = retry;
+        grid.Columns[4].Width = transferred;
         grid.Columns[5].Width = speed;
-        grid.Columns[6].Width = source;
-        grid.Columns[7].Width = source;
+        grid.Columns[6].Width = eta;
+        grid.Columns[7].Width = retry;
+        grid.Columns[8].Width = source;
+        grid.Columns[9].Width = source;
     }
 
     private static ContextMenu CreateContextMenu(params (string text, RoutedEventHandler handler)[] items)
@@ -214,25 +220,60 @@ public sealed partial class MainWindow
     private async Task HandleShortcutAsync(KeyEventArgs e)
     {
         var typing = Keyboard.FocusedElement is TextBox or PasswordBox or ComboBox;
+        var localActive = _localList.IsKeyboardFocusWithin || _localPathBox.IsKeyboardFocusWithin || _localFilter.IsKeyboardFocusWithin;
         var remoteActive = _remoteList.IsKeyboardFocusWithin || _remotePathBox.IsKeyboardFocusWithin || _remoteFilter.IsKeyboardFocusWithin;
+        var queueActive = _queueList.IsKeyboardFocusWithin;
 
-        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F)
+        if (!queueActive && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.F)
         {
-            (remoteActive ? _remoteFilter : _localFilter).Focus();
+            if (remoteActive)
+                _remoteFilter.Focus();
+            else if (localActive)
+                _localFilter.Focus();
+            else
+                return;
             e.Handled = true;
             return;
         }
 
-        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.L)
+        if (!queueActive && Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.L)
         {
-            var path = remoteActive ? _remotePathBox : _localPathBox;
+            var path = remoteActive ? _remotePathBox : localActive ? _localPathBox : null;
+            if (path is null)
+                return;
             path.Focus();
             path.SelectAll();
             e.Handled = true;
             return;
         }
 
-        if (typing) return;
+        if (typing)
+            return;
+
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.A)
+        {
+            if (queueActive) _queueList.SelectAll();
+            else if (remoteActive) _remoteList.SelectAll();
+            else if (localActive) _localList.SelectAll();
+            else return;
+            e.Handled = true;
+            return;
+        }
+
+        // Queue focus is intentionally isolated from file-operation shortcuts. In previous
+        // versions Delete/F2 while the queue had focus could fall through to Local actions.
+        if (queueActive)
+        {
+            if (e.Key == Key.Delete)
+            {
+                CancelSelectedTransfer();
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (!localActive && !remoteActive)
+            return;
 
         if (e.Key == Key.F5)
         {
@@ -250,6 +291,18 @@ public sealed partial class MainWindow
         {
             if (remoteActive) await DeleteRemoteSelectedAsync();
             else DeleteLocalSelected();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            if (remoteActive) await OpenRemoteSelectedAsync();
+            else OpenLocalSelected();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Back)
+        {
+            if (remoteActive) await RemoteUpAsync();
+            else LocalUp();
             e.Handled = true;
         }
     }

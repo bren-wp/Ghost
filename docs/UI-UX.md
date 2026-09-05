@@ -1,6 +1,6 @@
 # Ghost FTP UI / UX Guidelines
 
-This document defines the Windows desktop and Setup interaction rules for Ghost FTP 1.4.0. The desktop application, dialogs, Setup wizard and uninstall flow must feel like one coherent Windows 11 product.
+This document defines the Windows desktop and Setup interaction rules for Ghost FTP 1.6.0. The desktop application, dialogs, Setup wizard and uninstall flow must feel like one coherent premium Windows 11 product while preserving native input behavior and explicit safety boundaries.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer and publisher shown on legal/publisher surfaces.
 
@@ -22,7 +22,8 @@ The visual system prioritizes:
 - accent treatment for primary actions;
 - danger treatment for destructive actions;
 - readable disabled, hover, selected and focus states;
-- no accidental white legacy WPF surfaces in dark mode.
+- no accidental white legacy WPF surfaces in dark mode;
+- practical information density suitable for long FTP/FTPS work sessions.
 
 Mica and DWM enhancements are optional. Failure of a Windows visual API must never prevent the application from running.
 
@@ -36,13 +37,29 @@ The desktop client follows this hierarchy:
 4. Local / Remote file workspace.
 5. Transfer queue.
 
-Local and Remote panes should have equal visual weight.
+Local and Remote panes should have equal default visual weight while remaining user-resizable.
+
+## Resizable professional workspace
+
+Ghost FTP behaves as a workstation rather than a fixed dashboard.
+
+The user can resize:
+
+- Saved Servers versus the main workspace;
+- Local versus Remote file panes;
+- file browsing versus the Transfers queue.
+
+Double-clicking a splitter resets the relevant region to a sensible default. Window size, maximized state and pane geometry are stored locally and normalized before restoration.
+
+The layout must never trust malformed persisted dimensions. Minimum/maximum normalization keeps a damaged settings file from producing an unusable zero-sized or effectively off-screen workspace.
 
 ## Responsive layout
 
 The declared minimum window size must remain usable. Toolbars should wrap instead of clipping actions, path fields should receive flexible width, and long lists should scroll inside their pane.
 
-GridView columns should scale with available pane width. Avoid fixed widths that cause unnecessary horizontal scrolling at the supported minimum size.
+GridView columns should scale with available pane width. Avoid fixed widths that create unnecessary horizontal scrolling at the supported minimum size.
+
+Transfer columns prioritize operational information—item, state, progress, transferred bytes, speed and ETA—while Source/Destination share the remaining width.
 
 ## Editable controls are functional infrastructure
 
@@ -108,28 +125,59 @@ Remote folder navigation is synchronized with server `CWD` and `PWD`. The UI pat
 
 This rule applies to path-bar navigation and folder traversal so the user sees the directory the server actually accepted.
 
+## Connection state and keepalive
+
+Connection status is operational state, not decoration.
+
+- Connected state differentiates TLS from plain FTP.
+- Lost control-channel state must not remain visually Connected.
+- Configurable keepalive may use FTP `NOOP` against the currently selected real server session.
+- A failed keepalive or diagnostic control check resets stale transport state and surfaces **Connection lost**.
+- Ghost FTP does not silently reconnect after that failure; reconnect remains explicit.
+- Demo mode remains local and does not use network keepalive.
+
+The status badge doubles as the entry point for Connection Diagnostics.
+
 ## Transfer queue
 
 The transfer queue is an operational control surface rather than a passive status list.
 
 It supports:
 
-- progress and speed;
 - queued/running/retrying/completed/failed/cancelled state;
+- percentage progress;
+- transferred bytes and known total;
+- current speed;
+- ETA when enough information is available;
 - retry count;
+- start/finish timestamps in details;
 - Retry selected;
 - Cancel selected;
 - Cancel all;
 - Clear finished;
-- copy source/destination path.
+- copy source/destination path;
+- per-transfer details;
+- aggregate live throughput.
+
+Double-clicking a transfer opens details. It must not silently retry a job merely because the user wanted more information.
 
 Queue-capacity failures remain visible as failed jobs. A queue or transfer failure must not crash the WPF event loop.
 
-## Retry UX
+## Retry and concurrency UX
 
-Automatic transfer retries are configurable from 0 to 5. The UI should make retry behavior visible enough that a user can distinguish a currently retrying transfer from a frozen one.
+Automatic transfer retries are configurable from 0 to 5. Concurrent transfers are configurable from 1 to 8.
 
-Only transient failures are retried automatically. Permanent authentication, permission or certificate failures should surface immediately with actionable text.
+The UI should make retry behavior visible enough that a user can distinguish a currently retrying transfer from a frozen one. Permanent authentication, permission or certificate failures should surface immediately rather than enter a blind retry loop.
+
+Real parallel transfers use isolated FTP/FTPS sessions. The browser control connection is not shared as a transfer worker.
+
+## Transfer-speed and ETA semantics
+
+Speed and ETA are estimates for the current transfer session.
+
+A resumed partial download may already contain bytes before the current session starts. The first current-session progress sample establishes a new measurement baseline so already-existing bytes are not reported as current network throughput.
+
+ETA is shown only when Ghost FTP has both a known total and a usable current speed. Unknown values should display a neutral placeholder rather than an invented estimate.
 
 ## Connection Diagnostics
 
@@ -148,6 +196,23 @@ The dialog should state that diagnostics remain local and communicate only with 
 Normal user-facing workflow errors should use Ghost FTP-styled dialogs or inline error cards rather than raw unhandled exceptions.
 
 Synchronous toolbar/context-menu actions and asynchronous network/filesystem operations require local exception boundaries. Recovery should preserve the main window whenever possible.
+
+## Focus-safe keyboard routing
+
+Keyboard shortcuts operate on the context that actually owns focus. A non-file region must never silently default destructive actions to Local.
+
+- `F5` — refresh active Local/Remote file pane.
+- `F2` — rename in active Local/Remote file pane.
+- `Delete` — delete selected Local/Remote item(s), honoring confirmation settings.
+- `Delete` while Transfers has focus — cancel selected active transfer.
+- `Ctrl+F` — focus active Local/Remote pane filter.
+- `Ctrl+L` — focus/select active Local/Remote path.
+- `Ctrl+A` — select all in active Local, Remote or Transfers list.
+- `Enter` — open/activate selected Local/Remote item.
+- `Backspace` — navigate to parent directory in active Local/Remote pane.
+- Enter in Quick Connect password field — connect.
+
+Queue focus is intentionally isolated from file-operation shortcuts. Sidebar/button focus is not treated as implicit Local-pane focus.
 
 ## Setup wizard
 
@@ -168,9 +233,11 @@ The wizard must:
 - require explicit license acceptance before continuing;
 - review install location and desktop-shortcut choice;
 - show a Ready summary;
-- show inline progress;
+- show visible progress/state while changing files and registration;
 - show a visible inline failure message on Ready if install/update fails;
 - offer Launch Ghost FTP after success.
+
+A language change must not rebuild the WPF logical tree unsafely. Reusable controls are detached before rebuild and language-driven re-rendering is deferred until the selection input event has unwound.
 
 ## Uninstall UX
 
@@ -188,20 +255,11 @@ There is no separate uninstaller executable.
 
 ## Localization UX
 
-English is the primary/default language and fallback. Ghost FTP 1.4.0 validates 29 selectable languages for core application and Setup vocabulary.
+English is the primary/default language and fallback. Ghost FTP validates 29 selectable languages for core application and Setup vocabulary.
 
 Language switching is local-only. Missing non-critical technical text may fall back to English rather than presenting a misleading translation.
 
 Product/legal proper names must remain semantically correct across languages: **Ghost FTP** for the product and **BRENDIGO LTD** for the publisher where publisher identity is shown.
-
-## Keyboard shortcuts
-
-- `F5` — refresh active pane.
-- `F2` — rename selected item.
-- `Delete` — delete selected item(s), honoring confirmation settings.
-- `Ctrl+F` — focus active-pane filter.
-- `Ctrl+L` — focus/select active-pane path.
-- Enter in Quick Connect password field — connect.
 
 ## Accessibility and maintainability
 
@@ -211,8 +269,9 @@ Product/legal proper names must remain semantically correct across languages: **
 - Text must not rely on color alone to communicate meaning.
 - Interactive controls should maintain reasonable hit targets.
 - Editable fields remain keyboard reachable.
+- Resizable splitters must preserve usable minimum pane sizes.
 - Shared visual primitives belong in `GhostFTP.Design`, not duplicate app/setup theme classes.
 
 ## Release requirement
 
-UI changes are not release-ready until the exact source commit passes compilation, source/privacy/product/publisher audit, Core self-tests, WPF editable-input tests, localization coverage tests and packaging validation.
+UI changes are not release-ready until the exact source commit passes compilation, source/privacy/product/publisher/platform audit, Core self-tests, parallel queue tests, WPF editable-input/localization/Setup tests and required packaging validation.

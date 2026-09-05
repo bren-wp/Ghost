@@ -27,10 +27,12 @@ Release notes must describe meaningful changes rather than use generic generated
 - user-visible features;
 - UI/UX changes;
 - FTP/FTPS behavior;
+- connection resilience and transfer behavior;
 - security and stability fixes;
 - installer/update/uninstall changes;
 - localization changes;
 - privacy/dependency impact;
+- platform-scope changes;
 - known limitations;
 - validation performed;
 - required download assets.
@@ -76,16 +78,45 @@ No official release should be published until the exact source commit has passed
 2. .NET SDK setup;
 3. restore;
 4. Release build with warnings treated as errors;
-5. dependency/version/privacy/product/publisher audit;
+5. dependency/version/privacy/product/publisher/platform audit;
 6. Core security and correctness self-tests;
-7. Windows/WPF editable-input smoke tests;
-8. application localization coverage tests;
-9. Setup localization coverage tests;
-10. x64 and ARM64 self-contained packaging;
-11. required executable verification;
-12. release artifact upload.
+7. bounded parallel transfer queue/session-isolation self-test;
+8. Windows/WPF editable-input smoke tests;
+9. application localization coverage tests;
+10. Setup localization and live language-switch tests;
+11. product/publisher identity checks;
+12. x64 and ARM64 self-contained packaging;
+13. required executable verification;
+14. SHA-256 manifest generation;
+15. release artifact upload.
 
 The official Release workflow repeats these gates instead of trusting a previous unrelated build.
+
+## Connection-resilience gate
+
+A release that contains automatic connection maintenance must keep that behavior inside the explicit FTP/FTPS trust boundary.
+
+Current keepalive policy:
+
+- uses standard FTP `NOOP` only against the currently selected server session;
+- is user-configurable and disableable;
+- must not contact a Ghost FTP, BRENDIGO LTD, GitHub, analytics or unrelated endpoint;
+- must not silently reconnect with saved credentials after a health-check failure;
+- must invalidate stale control-channel state after a confirmed keepalive/diagnostic failure.
+
+`PRIVACY.md`, `SECURITY.md` and the current release notes must describe any intentional change to this behavior before release.
+
+## Transfer-concurrency gate
+
+The transfer queue must remain bounded and testable.
+
+- Concurrent worker count must have an explicit upper bound.
+- Real FTP/FTPS transfer jobs must not share the browser control session.
+- Cancelling/failing one transfer must not terminate unrelated workers.
+- Queue saturation must become visible application state rather than an unhandled exception.
+- Transfer progress/speed/ETA information remains local UI state and must not be sent to a product analytics service.
+
+The dedicated QueueSelfTest is a mandatory release gate.
 
 ## Dependency policy
 
@@ -108,7 +139,7 @@ A release must not introduce:
 - background update checks;
 - cloud profile synchronization.
 
-Any intentional future change to network behavior would require an explicit privacy review and documentation before release.
+FTP/FTPS traffic to a user-selected server, including documented optional keepalive on that selected connection, is protocol traffic rather than Ghost FTP product telemetry. Any new network destination or new automatic network behavior requires an explicit privacy review and documentation before release.
 
 ## Product and publisher metadata
 
@@ -117,9 +148,16 @@ Release metadata must keep the distinction clear:
 - Product: **Ghost FTP / GhostFTP**.
 - Developer / publisher / licensor: **BRENDIGO LTD**.
 - Company number: **16545639**.
-- Website: **https://ghostftp.com**.
+- Product website: **https://ghostftp.com**.
+- Publisher website: **https://brendigo.com**.
 
 Legacy product identities are rejected by source audit.
+
+## Platform policy
+
+The production GUI target is currently Windows x64/ARM64 using WPF. `GhostFTP.Core` must remain platform-neutral `net10.0` while future desktop renderer work is evaluated.
+
+Android/iOS shipping targets remain outside the current product scope and are rejected by source audit. A Linux GUI must not be claimed until an actual Linux renderer passes the same protocol, privacy, security and UX parity gates documented in `docs/PLATFORM-SUPPORT.md`.
 
 ## Installer requirements
 
