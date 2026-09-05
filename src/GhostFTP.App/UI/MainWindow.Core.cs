@@ -93,10 +93,10 @@ public sealed partial class MainWindow : Window
 
         Title = $"{GhostBrand.DisplayName} · {GhostBrand.ReleaseChannelDisplay}";
         Icon = GhostBrand.IconSource;
-        Width = 1560;
-        Height = 940;
-        MinWidth = 1080;
-        MinHeight = 700;
+        Width = 1914;
+        Height = 907;
+        MinWidth = 1280;
+        MinHeight = 720;
         ResizeMode = ResizeMode.CanResizeWithGrip;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = GhostTheme.R("Bg");
@@ -119,7 +119,7 @@ public sealed partial class MainWindow : Window
         _localFilter.MaxLength = 512;
         _remoteFilter.MaxLength = 512;
 
-        Content = BuildLayout();
+        Content = BuildReferenceShell(BuildLayout());
         ConfigureWorkspaceResizing();
         ConfigureLists();
         ConfigureEvents();
