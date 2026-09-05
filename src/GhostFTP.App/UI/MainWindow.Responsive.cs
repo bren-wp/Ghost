@@ -27,44 +27,41 @@ public sealed partial class MainWindow
 
     private void ConfigureWorkspaceResizing()
     {
-        if (!TryGetWorkspaceGrids(out var root, out var content, out var panes))
+        if (_workspaceBody is null || _workspaceContent is null || _filePanesGrid is null)
             return;
 
-        // Sidebar / workspace splitter.
-        var sidebar = root.ColumnDefinitions[0];
-        sidebar.MinWidth = 220;
-        sidebar.MaxWidth = 460;
-        root.ColumnDefinitions[1].Width = new GridLength(8);
+        var sidebar = _workspaceBody.ColumnDefinitions[0];
+        sidebar.MinWidth = 210;
+        sidebar.MaxWidth = 420;
+        _workspaceBody.ColumnDefinitions[1].Width = new GridLength(8);
 
         var sidebarSplitter = CreateSplitter(GridResizeDirection.Columns, Cursors.SizeWE);
-        sidebarSplitter.MouseDoubleClick += (_, _) => sidebar.Width = new GridLength(300);
+        sidebarSplitter.MouseDoubleClick += (_, _) => sidebar.Width = new GridLength(252);
         Grid.SetColumn(sidebarSplitter, 1);
-        root.Children.Add(sidebarSplitter);
+        _workspaceBody.Children.Add(sidebarSplitter);
 
-        // Browser / transfer queue splitter.
-        content.RowDefinitions[4].MinHeight = 220;
-        content.RowDefinitions[5].Height = new GridLength(8);
-        content.RowDefinitions[6].MinHeight = 130;
-        content.RowDefinitions[6].MaxHeight = 460;
+        _workspaceContent.RowDefinitions[2].MinHeight = 250;
+        _workspaceContent.RowDefinitions[3].Height = new GridLength(8);
+        _workspaceContent.RowDefinitions[4].MinHeight = 130;
+        _workspaceContent.RowDefinitions[4].MaxHeight = 440;
 
         var transferSplitter = CreateSplitter(GridResizeDirection.Rows, Cursors.SizeNS);
-        transferSplitter.MouseDoubleClick += (_, _) => content.RowDefinitions[6].Height = new GridLength(210);
-        Grid.SetRow(transferSplitter, 5);
-        content.Children.Add(transferSplitter);
+        transferSplitter.MouseDoubleClick += (_, _) => _workspaceContent.RowDefinitions[4].Height = new GridLength(210);
+        Grid.SetRow(transferSplitter, 3);
+        _workspaceContent.Children.Add(transferSplitter);
 
-        // Local / remote pane splitter.
-        panes.ColumnDefinitions[0].MinWidth = 300;
-        panes.ColumnDefinitions[1].Width = new GridLength(8);
-        panes.ColumnDefinitions[2].MinWidth = 300;
+        _filePanesGrid.ColumnDefinitions[0].MinWidth = 320;
+        _filePanesGrid.ColumnDefinitions[1].Width = new GridLength(8);
+        _filePanesGrid.ColumnDefinitions[2].MinWidth = 320;
 
         var paneSplitter = CreateSplitter(GridResizeDirection.Columns, Cursors.SizeWE);
         paneSplitter.MouseDoubleClick += (_, _) =>
         {
-            panes.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-            panes.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
+            _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+            _filePanesGrid.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
         };
         Grid.SetColumn(paneSplitter, 1);
-        panes.Children.Add(paneSplitter);
+        _filePanesGrid.Children.Add(paneSplitter);
     }
 
     private void ApplyWorkspaceSettings()
@@ -75,17 +72,17 @@ public sealed partial class MainWindow
         Width = Math.Clamp(_settings.WindowWidth, MinWidth, maxWidth);
         Height = Math.Clamp(_settings.WindowHeight, MinHeight, maxHeight);
 
-        if (TryGetWorkspaceGrids(out var root, out var content, out var panes))
+        if (_workspaceBody is not null && _workspaceContent is not null && _filePanesGrid is not null)
         {
-            root.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 220, 460));
-            content.RowDefinitions[6].Height = new GridLength(Math.Clamp(_settings.TransferPanelHeight, 130, 460));
+            _workspaceBody.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 210, 420));
+            _workspaceContent.RowDefinitions[4].Height = new GridLength(Math.Clamp(_settings.TransferPanelHeight, 130, 440));
 
             var localFraction = Math.Clamp(_settings.LocalPaneFraction, 0.25, 0.75);
-            panes.ColumnDefinitions[0].Width = new GridLength(localFraction, GridUnitType.Star);
-            panes.ColumnDefinitions[2].Width = new GridLength(1 - localFraction, GridUnitType.Star);
+            _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(localFraction, GridUnitType.Star);
+            _filePanesGrid.ColumnDefinitions[2].Width = new GridLength(1 - localFraction, GridUnitType.Star);
         }
 
-        if (_settings.WindowMaximized)
+        if (_settings.WindowMaximized && _captureDirectory is null)
         {
             _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
@@ -110,46 +107,19 @@ public sealed partial class MainWindow
 
         _settings.WindowMaximized = WindowState == WindowState.Maximized;
 
-        if (!TryGetWorkspaceGrids(out var root, out var content, out var panes))
+        if (_workspaceBody is null || _workspaceContent is null || _filePanesGrid is null)
             return;
 
-        if (IsFinitePositive(root.ColumnDefinitions[0].ActualWidth))
-            _settings.SidebarWidth = Math.Clamp(root.ColumnDefinitions[0].ActualWidth, 220, 460);
-        if (IsFinitePositive(content.RowDefinitions[6].ActualHeight))
-            _settings.TransferPanelHeight = Math.Clamp(content.RowDefinitions[6].ActualHeight, 130, 460);
+        if (IsFinitePositive(_workspaceBody.ColumnDefinitions[0].ActualWidth))
+            _settings.SidebarWidth = Math.Clamp(_workspaceBody.ColumnDefinitions[0].ActualWidth, 210, 420);
+        if (IsFinitePositive(_workspaceContent.RowDefinitions[4].ActualHeight))
+            _settings.TransferPanelHeight = Math.Clamp(_workspaceContent.RowDefinitions[4].ActualHeight, 130, 440);
 
-        var local = panes.ColumnDefinitions[0].ActualWidth;
-        var remote = panes.ColumnDefinitions[2].ActualWidth;
+        var local = _filePanesGrid.ColumnDefinitions[0].ActualWidth;
+        var remote = _filePanesGrid.ColumnDefinitions[2].ActualWidth;
         var total = local + remote;
         if (IsFinitePositive(total))
             _settings.LocalPaneFraction = Math.Clamp(local / total, 0.25, 0.75);
-    }
-
-    private bool TryGetWorkspaceGrids(out Grid root, out Grid content, out Grid panes)
-    {
-        root = null!;
-        content = null!;
-        panes = null!;
-
-        if (Content is not Grid rootGrid || rootGrid.ColumnDefinitions.Count < 3)
-            return false;
-
-        var contentGrid = rootGrid.Children
-            .OfType<Grid>()
-            .FirstOrDefault(child => Grid.GetColumn(child) == 2 && child.RowDefinitions.Count >= 7);
-        if (contentGrid is null)
-            return false;
-
-        var panesGrid = contentGrid.Children
-            .OfType<Grid>()
-            .FirstOrDefault(child => Grid.GetRow(child) == 4 && child.ColumnDefinitions.Count == 3);
-        if (panesGrid is null)
-            return false;
-
-        root = rootGrid;
-        content = contentGrid;
-        panes = panesGrid;
-        return true;
     }
 
     private static GridSplitter CreateSplitter(GridResizeDirection direction, Cursor cursor)
