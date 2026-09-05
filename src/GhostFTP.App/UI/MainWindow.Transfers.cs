@@ -125,11 +125,16 @@ public sealed partial class MainWindow
         var failed = _queue.Jobs.Count(x => x.State == TransferState.Failed);
         var cancelled = _queue.Jobs.Count(x => x.State == TransferState.Cancelled);
         var completed = _queue.Jobs.Count(x => x.State == TransferState.Completed);
+        var aggregateSpeed = _queue.Jobs
+            .Where(x => x.State == TransferState.Running)
+            .Sum(x => Math.Max(0, x.SpeedBytesPerSecond));
 
         var parts = new List<string>();
         if (running > 0) parts.Add($"{running} running");
         if (retrying > 0) parts.Add($"{retrying} retrying");
         if (queued > 0) parts.Add($"{queued} queued");
+        if (aggregateSpeed >= 1)
+            parts.Add($"{FormatBytes((long)Math.Min(long.MaxValue, aggregateSpeed))}/s total");
         if (failed > 0) parts.Add($"{failed} failed");
         if (cancelled > 0) parts.Add($"{cancelled} cancelled");
         if (completed > 0) parts.Add($"{completed} completed");
@@ -206,8 +211,9 @@ public sealed partial class MainWindow
         var showHiddenChanged = _settings.ShowHiddenFiles != dialog.ShowHiddenFiles;
         var languageChanged = !string.Equals(_settings.LanguageCode, dialog.SelectedLanguageCode, StringComparison.OrdinalIgnoreCase);
         var themeChanged = _settings.Theme != dialog.SelectedTheme;
-        var reliabilityChanged = _settings.AutomaticTransferRetries != dialog.AutomaticTransferRetries
-            || _settings.ConnectTimeoutSeconds != dialog.ConnectTimeoutSeconds
+        var queueRestartNeeded = _settings.AutomaticTransferRetries != dialog.AutomaticTransferRetries
+            || _settings.ConcurrentTransfers != dialog.ConcurrentTransfers;
+        var connectionBehaviorChanged = _settings.ConnectTimeoutSeconds != dialog.ConnectTimeoutSeconds
             || _settings.CommandTimeoutSeconds != dialog.CommandTimeoutSeconds
             || _settings.TransferIdleTimeoutSeconds != dialog.TransferIdleTimeoutSeconds;
 
@@ -216,20 +222,24 @@ public sealed partial class MainWindow
         _settings.ConfirmDeletes = dialog.ConfirmDeletes;
         _settings.ShowHiddenFiles = dialog.ShowHiddenFiles;
         _settings.AutomaticTransferRetries = dialog.AutomaticTransferRetries;
+        _settings.ConcurrentTransfers = dialog.ConcurrentTransfers;
         _settings.ConnectTimeoutSeconds = dialog.ConnectTimeoutSeconds;
         _settings.CommandTimeoutSeconds = dialog.CommandTimeoutSeconds;
         _settings.TransferIdleTimeoutSeconds = dialog.TransferIdleTimeoutSeconds;
+        _settings.KeepAliveSeconds = dialog.KeepAliveSeconds;
 
         if (_settingsStore is not null) await _settingsStore.SaveAsync(_settings);
         if (showHiddenChanged) RefreshLocal();
 
-        var restartNeeded = languageChanged || themeChanged || reliabilityChanged;
+        var restartNeeded = languageChanged || themeChanged || queueRestartNeeded;
         GhostMessageDialog.Information(
             this,
             L("Settings"),
             restartNeeded
-                ? "Settings were saved. File-view changes apply immediately; language, appearance and connection reliability changes apply after Ghost FTP restarts."
-                : "Settings were saved. File-view changes apply immediately.");
+                ? "Settings were saved. File-view and keepalive changes apply immediately. Language, appearance, automatic retry and concurrent-transfer changes apply after Ghost FTP restarts. Connection timeout changes apply to the next connection."
+                : connectionBehaviorChanged
+                    ? "Settings were saved. Keepalive and file-view changes apply immediately; connection timeout changes apply to the next connection."
+                    : "Settings were saved. Changes apply immediately.");
     }
 
     private void SetStatus(string text, string brushKey)
