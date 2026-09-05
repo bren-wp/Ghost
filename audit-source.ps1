@@ -166,13 +166,13 @@ if ($appProject -notmatch '<TargetFramework>net10\.0-windows' -or $appProject -n
 
 $linuxProject = Get-Content (Join-Path $root 'src/GhostFTP.Linux/GhostFTP.Linux.csproj') -Raw
 if ($linuxProject -notmatch '<TargetFramework>net10\.0</TargetFramework>' -or
-    $linuxProject -notmatch 'GhostFTP\.Core\GhostFTP\.Core\.csproj' -or
-    $linuxProject -notmatch 'GhostFTP\.Design\GhostFTP\.Design\.csproj') {
+    $linuxProject -notmatch 'GhostFTP\.Core\\GhostFTP\.Core\.csproj' -or
+    $linuxProject -notmatch 'GhostFTP\.Design\\GhostFTP\.Design\.csproj') {
     throw 'GhostFTP.Linux must remain a real net10.0 renderer sharing Core and Design.'
 }
 
 $solution = Get-Content (Join-Path $root 'GhostFTP.sln') -Raw
-if ($solution -notmatch 'GhostFTP\.Linux' -or $solution -notmatch 'src\GhostFTP\.Linux\GhostFTP\.Linux\.csproj') {
+if ($solution -notmatch 'GhostFTP\.Linux' -or $solution -notmatch 'src\\GhostFTP\.Linux\\GhostFTP\.Linux\.csproj') {
     throw 'GhostFTP.Linux must participate in the solution build.'
 }
 
