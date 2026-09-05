@@ -13,6 +13,7 @@ public sealed partial class MainWindow
     private Button? _referenceNewFolderButton;
     private Button? _referenceRenameButton;
     private Button? _referenceDeleteButton;
+    private CheckBox? _referenceKeepInTab;
 
     private static string R(string key) => GhostReferenceText.T(key);
 
@@ -211,6 +212,51 @@ public sealed partial class MainWindow
         _referenceDeleteButton.IsEnabled = hasSelection && (!remote || IsConnected);
     }
 
+    private void KeepQuickConnectionInTabIfRequested()
+    {
+        if (_referenceKeepInTab?.IsChecked != true || !IsConnected || _activeOptions is null)
+            return;
+
+        // A connection already represented by a saved/local profile does not need a second
+        // temporary entry. Session-only profiles never retain the password.
+        if (MatchingSelectedProfile() is not null)
+            return;
+
+        var existing = _profiles.FirstOrDefault(profile =>
+            profile.IsSessionOnly
+            && string.Equals(profile.Host, _activeOptions.Host, StringComparison.OrdinalIgnoreCase)
+            && profile.Port == _activeOptions.Port
+            && string.Equals(profile.Username, _activeOptions.Username, StringComparison.Ordinal)
+            && profile.Security == _activeOptions.Security);
+
+        if (existing is null)
+        {
+            existing = new ServerProfile
+            {
+                Name = _activeOptions.Host,
+                Host = _activeOptions.Host,
+                Port = _activeOptions.Port,
+                Username = _activeOptions.Username,
+                Security = _activeOptions.Security,
+                InitialPath = string.IsNullOrWhiteSpace(_remotePath) ? "/" : _remotePath,
+                RememberPassword = false,
+                ProtectedPassword = null,
+                IsDemo = false,
+                IsSessionOnly = true
+            };
+            _profiles.Add(existing);
+            AppendConnectionLog($"Kept {_activeOptions.Host}:{_activeOptions.Port} in this tab for the current session only. Nothing was written to the saved-site store.", "PRIVACY");
+        }
+        else
+        {
+            existing.InitialPath = string.IsNullOrWhiteSpace(_remotePath) ? "/" : _remotePath;
+        }
+
+        _profilesList.SelectedItem = existing;
+        if (_referenceSitesList is not null)
+            _referenceSitesList.SelectedItem = existing;
+    }
+
     private static UIElement ReferenceToolbarContent(string text)
     {
         var split = text.IndexOf(' ');
@@ -316,11 +362,31 @@ public sealed partial class MainWindow
             rowOne.Children.Add(password);
         }
 
+        var privacyRow = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        privacyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        privacyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
         var note = GhostTheme.Text(R("CredentialsLocal"), 9, muted: true);
         note.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(note, 0);
-        Grid.SetColumnSpan(note, 3);
-        rowTwo.Children.Add(note);
+        privacyRow.Children.Add(note);
+
+        _referenceKeepInTab = new CheckBox
+        {
+            Content = R("KeepInTab"),
+            ToolTip = R("SessionOnly"),
+            IsChecked = false,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = GhostTheme.R("Muted"),
+            FontFamily = GhostTheme.UiFont,
+            FontSize = 9.5,
+            Margin = new Thickness(12, 0, 0, 0)
+        };
+        Grid.SetColumn(_referenceKeepInTab, 1);
+        privacyRow.Children.Add(_referenceKeepInTab);
+
+        Grid.SetColumn(privacyRow, 0);
+        Grid.SetColumnSpan(privacyRow, 3);
+        rowTwo.Children.Add(privacyRow);
     }
 
     private Border BuildReferenceSidebar()
