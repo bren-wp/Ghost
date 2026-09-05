@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -8,29 +7,22 @@ namespace GhostFTP.Design;
 
 public static class GhostBrand
 {
-    public const string DisplayName = "Ghost FTP";
-    public const string ProductName = "GhostFTP";
-    public const string Website = "https://ghostftp.com";
-    public const string Repository = "https://github.com/bren-wp/Ghost";
-
-    public const string Publisher = "BRENDIGO LTD";
-    public const string PublisherWebsite = "https://brendigo.com";
-    public const string CompanyNumber = "16545639";
-    public const string RegisteredOffice = "71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom";
-    public const string CopyrightNotice = "Copyright © 2026 BRENDIGO LTD. All rights reserved.";
+    public const string DisplayName = GhostProduct.DisplayName;
+    public const string ProductName = GhostProduct.ProductName;
+    public const string Website = GhostProduct.Website;
+    public const string Repository = GhostProduct.Repository;
+    public const string Publisher = GhostProduct.Publisher;
+    public const string PublisherWebsite = GhostProduct.PublisherWebsite;
+    public const string CompanyNumber = GhostProduct.CompanyNumber;
+    public const string RegisteredOffice = GhostProduct.RegisteredOffice;
+    public const string CopyrightNotice = GhostProduct.CopyrightNotice;
 
     private static readonly Lazy<ImageSource> Icon = new(CreateIconSource, LazyThreadSafetyMode.ExecutionAndPublication);
 
-    public static string InformationalVersion =>
-        typeof(GhostBrand).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-        ?? typeof(GhostBrand).Assembly.GetName().Version?.ToString(3)
-        ?? "0.0.0";
-
-    public static bool IsBeta => InformationalVersion.Contains("-beta", StringComparison.OrdinalIgnoreCase);
-
-    public static string ReleaseChannelDisplay => IsBeta ? "Beta" : "Stable";
-
-    public static string PrivacyTagline => IsBeta
+    public static string InformationalVersion => GhostProduct.InformationalVersion;
+    public static bool IsBeta => GhostProduct.IsBeta;
+    public static string ReleaseChannelDisplay => GhostProduct.ReleaseChannelDisplay;
+    public static string PrivacyTagline => GhostProduct.IsBeta
         ? "Beta · Private FTP / FTPS workspace for Windows"
         : "Private FTP / FTPS workspace for Windows";
 
@@ -140,7 +132,6 @@ public static class GhostBrand
             ctx.LineTo(new Point(centerX - 8, centerY + 6), true, false);
             ctx.LineTo(new Point(centerX - 8, centerY - 22), true, false);
             ctx.LineTo(new Point(centerX + 8, centerY - 22), true, false);
-            ctx.LineTo(new Point(centerX + 8, centerY + 6), true, false);
             ctx.LineTo(new Point(centerX + 20, centerY + 6), true, false);
         }
         geometry.Freeze();
