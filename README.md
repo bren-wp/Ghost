@@ -1,107 +1,55 @@
 <p align="center">
-  <img src="assets/readme/ghostftp-hero.svg" alt="Ghost FTP — private FTP and FTPS desktop workspace" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.0 Beta — authentic production Windows desktop client" width="100%">
 </p>
+
+<p align="center"><strong>Authentic application capture generated from the compiled Ghost FTP desktop client — not a mockup, illustration or generated UI.</strong></p>
 
 # Ghost FTP
 
-**Ghost FTP** (`GhostFTP`) is a privacy-first FTP/FTPS desktop client built as a professional dual-pane workstation. It combines a dense, familiar FTP workflow with a modern native desktop design, local-only configuration, strict transport boundaries and a dependency-minimal C# codebase.
+**Ghost FTP** (`GhostFTP`) is a privacy-first native FTP/FTPS desktop workstation for Windows and Linux. It combines a dense dual-pane file workflow, local-only configuration, explicit transport-security boundaries, bounded background transfers and a dependency-minimal C#/.NET codebase.
 
-Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), registered office **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom**.
+Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
 
-- Product website: https://ghostftp.com
-- Developer / publisher website: https://brendigo.com
-- Repository: https://github.com/bren-wp/Ghost
+- Product: https://ghostftp.com
+- Publisher: https://brendigo.com
+- GitHub Releases: https://github.com/bren-wp/Ghost/releases
 - Current source version: **0.1.0**
 - Current release channel: **Beta**
 - Informational version: **0.1.0-beta**
-- First stable release target: **1.0.0**
+- First stable target: **1.0.0**
 - Runtime baseline: **.NET 10 / C# 14**
 - Desktop targets: **Windows x64 / ARM64 and Linux x64 / ARM64**
-- Shared protocol core: **platform-neutral `net10.0`**
 - License: proprietary/source-available; see [LICENSE](LICENSE)
 
-## Current 0.1.0 Beta architecture
-
-Ghost FTP uses one shared FTP/FTPS engine with separate native desktop renderers:
+## One product, one FTP/FTPS core, two native desktop renderers
 
 ```text
-src/GhostFTP.Core      shared FTP/FTPS protocol, transfer queue, models and safety
-src/GhostFTP.Design    shared identity, localization and reference visual tokens
-src/GhostFTP.App       Windows WPF desktop client; installed and portable modes
-src/GhostFTP.Setup     Windows installer / maintenance application
-src/GhostFTP.Linux     Linux X11/XWayland desktop client
+src/GhostFTP.Core      shared FTP/FTPS protocol, safety, models and transfer queue
+src/GhostFTP.Design    shared brand, localization and reference UI contract
+src/GhostFTP.App       Windows WPF desktop renderer; installed and portable modes
+src/GhostFTP.Setup     Windows Setup / maintenance application
+src/GhostFTP.Linux     Linux X11/XWayland desktop renderer
 ```
 
-The Linux implementation is not a renamed Windows binary and does not contain a second FTP implementation. Both desktop clients use `GhostFTP.Core` for protocol behavior and transfer semantics.
+Windows and Linux use the same `GhostFTP.Core` protocol implementation and the same Ghost reference palette, product identity, localization catalog and workstation hierarchy. The native rendering technologies differ — WPF on Windows and X11/XWayland on Linux — so OS font rasterization and window chrome can differ, but the product structure, core actions, colors, privacy policy and transfer semantics are intentionally kept aligned.
 
-See [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md).
+The approved workstation structure is:
 
-## Approved desktop reference and UI parity
+```text
+Permanent product / saved-sites / privacy rail
+→ File / View / Sites / Transfers / Tools / Help
+→ compact global action toolbar + Remote search
+→ Connection Log + Quick Connect
+→ Local + Remote file panes
+→ Transfers
+→ compact connection/privacy status
+```
 
-Ghost FTP now has one documented desktop visual contract for the Windows installed client, `portable.exe`, Setup and Linux. Canonical palette and geometry tokens live in `src/GhostFTP.Design/GhostReferencePalette.cs`; platform renderers consume those tokens instead of maintaining unrelated visual identities.
+Canonical normal-desktop geometry uses a **292 px** left rail, **38 px** menu, **70 px** toolbar and the shared dark Ghost FTP palette. See [docs/UI-PARITY.md](docs/UI-PARITY.md).
 
-The normal desktop reference uses:
+## Windows release files
 
-- permanent **292 px** product / saved-sites / privacy rail;
-- **38 px** menu row;
-- **70 px** global action toolbar;
-- Connection Log and Quick Connect in the same upper workspace row;
-- Local and Remote file panes side by side;
-- full-width Transfers area;
-- compact local status/privacy state;
-- reference dark appearance as the first-run default.
-
-Windows installed mode and `portable.exe` use the same `GhostFTP.App` renderer, so portable mode does not have a separate UI implementation. Setup is a different workflow but uses the same product palette and control language. Linux reproduces the same workstation hierarchy in the native X11/XWayland renderer while continuing to share the FTP/FTPS core.
-
-The authentic Windows reference capture is rendered deterministically at **1914×907** logical pixels so visual-regression output can be compared against the approved desktop viewport without CI-host DPI scaling changing the image dimensions.
-
-See [docs/UI-PARITY.md](docs/UI-PARITY.md).
-
-## Professional FTP workspace
-
-The 0.1.0 Beta workstation is organized around the workflow users expect from established desktop FTP clients while retaining Ghost FTP's own identity:
-
-1. permanent product / saved-site / privacy rail;
-2. **File / View / Sites / Transfers / Tools / Help** menu hierarchy;
-3. compact global action toolbar and Remote search;
-4. local **Connection Log** beside **Quick Connect**;
-5. large **Local / Remote** file panes;
-6. full transfer queue with state, progress and cancellation;
-7. compact connection/privacy status area.
-
-The goal is information density without UI clutter. File browsing and transfer state receive most of the window instead of oversized decorative cards.
-
-### Site Manager
-
-The Site Manager supports:
-
-- site name;
-- host / IP / URL;
-- port;
-- FTP / FTPS security mode;
-- username;
-- optional locally protected saved password;
-- default remote path;
-- immediate connect;
-- local save/remove;
-- protected built-in Demo profile.
-
-Global timeout, retry, keepalive and transfer-concurrency policies remain centralized in Settings rather than being duplicated into every site profile.
-
-### Connection Log
-
-The main workspace includes a bounded local activity log for useful connection events. It can show startup, profile loading, connection attempts, TLS/plain state, listings, disconnects and failures.
-
-Passwords and protected credential blobs are never written to the log. The log is not transmitted to Ghost FTP, BRENDIGO LTD or an analytics provider.
-
-## Windows
-
-The Windows client uses .NET 10 / WPF and ships for:
-
-- Windows x64;
-- Windows ARM64.
-
-Expected official Windows release assets:
+The official Windows release workflow produces and verifies:
 
 ```text
 setup.exe
@@ -116,249 +64,171 @@ SHA256SUMS.txt
 SIGNING.txt
 ```
 
-`setup.exe` and `portable.exe` do not contain different FTP clients. The installed and portable packages both launch the same Windows desktop renderer; portable mode changes only the local data location.
+`portable.exe` and the installed application are the same `GhostFTP.App` renderer. Portable mode changes only where local data is stored; it does not switch to a different FTP engine, UI implementation or privacy policy.
 
-### Windows Authenticode signing
+The release workflow validates file versions and SHA-256 manifests after final packaging/signing. Stable releases additionally require a trusted Authenticode signature. A self-signed development certificate is intentionally **not** represented as a SmartScreen or `Unknown Publisher` solution. See [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
 
-Ghost FTP includes a secure SHA-256 Authenticode release-signing pipeline. The private PFX is supplied only through GitHub Actions secrets and is not committed to the repository.
+## Linux release files
 
-The signing process:
+The Linux renderer is a real native desktop client in `src/GhostFTP.Linux`. It uses the system X11 client ABI directly and can run on Wayland desktops through XWayland without adding a third-party NuGet GUI framework.
 
-- imports the release certificate temporarily;
-- requires the Code Signing EKU;
-- signs final Windows executables with SHA-256;
-- optionally timestamps signatures;
-- verifies signer identity;
-- regenerates SHA-256 checksums after signing;
-- removes temporary private-key material;
-- requires trusted signature validation for stable releases.
-
-A local self-signed RSA-3072 development certificate can be created for testing signing mechanics, but a self-signed certificate does **not** automatically remove Windows `Unknown Publisher` / SmartScreen warnings for end users.
-
-See [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
-
-## Linux
-
-Ghost FTP contains a real Linux desktop client at `src/GhostFTP.Linux`.
-
-The Linux renderer uses the standard X11 client ABI directly. It therefore does not add a third-party NuGet GUI framework. On Wayland desktops it can run through XWayland.
-
-Linux release targets:
-
-- `linux-x64`;
-- `linux-arm64`.
-
-Build Linux release packages with:
+Build it with:
 
 ```bash
 chmod +x build-linux-release.sh
 ./build-linux-release.sh
 ```
 
-Expected output:
+Verified release outputs include:
 
 ```text
-release-linux/GhostFTP-linux-x64
-release-linux/GhostFTP-linux-arm64
-release-linux/GhostFTP-linux-x64.tar.gz
-release-linux/GhostFTP-linux-arm64.tar.gz
-release-linux/GhostFTP-0.1.0-beta-linux-x64.tar.gz
-release-linux/GhostFTP-0.1.0-beta-linux-arm64.tar.gz
-release-linux/SHA256SUMS-linux.txt
-release-linux/BUILD-INFO.txt
+GhostFTP-linux-x64
+GhostFTP-linux-arm64
+GhostFTP-linux-x64.tar.gz
+GhostFTP-linux-arm64.tar.gz
+GhostFTP-0.1.0-beta-linux-x64.tar.gz
+GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+SHA256SUMS-linux.txt
+BUILD-INFO.txt
 ```
 
-The tarballs include user-local `install.sh` and `uninstall.sh` helpers. Uninstall preserves local Ghost FTP profiles/settings by default; explicit `--purge` removes local application data as well.
+Tarballs contain user-local install/uninstall helpers. Normal uninstall preserves profiles/settings; explicit `--purge` removes local Ghost FTP data.
 
-### Linux credential protection
+## Authentic application screenshots
 
-Linux saved-password support uses AES-256-GCM with a cryptographically random local key. The key file is restricted to the current user (`0600`) where the filesystem supports Unix permissions.
-
-This prevents plaintext password persistence and provides authenticated tamper detection. The project does not falsely describe this file-based Linux protection as equivalent to Windows DPAPI or a hardware-backed secret store.
-
-### Linux UI and runtime validation
-
-The Linux renderer consumes the shared Ghost reference palette, keeps the permanent left rail / menu / toolbar / Log + Quick Connect / Local + Remote / Transfers hierarchy and adapts field/button density for narrower windows.
-
-CI launches the real renderer under Xvfb, runs the shared Core and transfer-queue tests, builds self-contained x64/ARM64 packages, verifies checksums and launches the packaged x64 binary again under Xvfb. This is a runtime gate, not merely a compile-only platform claim.
-
-## Authentic Windows UI screenshots
-
-Repository Windows screenshots are generated from the **real compiled Ghost FTP WPF client** rather than external mockups.
-
-Documentation capture command:
+Repository UI screenshots are rebuilt from the real compiled Windows client. The capture path is:
 
 ```powershell
 dotnet run --project src/GhostFTP.App/GhostFTP.App.csproj -c Release --no-build -- --capture-ui assets/readme
 ```
 
-It produces:
-
-```text
-assets/readme/ghostftp-client.png
-assets/readme/ghostftp-site-manager.png
-```
-
-The main client capture uses the fixed **1914×907** reference viewport at 96 DPI. The screenshot workflow rebuilds these files from source. Demo capture is local-only and opens no external FTP connection.
+The production MainWindow capture is deterministic at **1914×907** logical pixels / 96 DPI. Capture mode uses the local-only built-in Demo session and makes no external FTP connection.
 
 <p align="center">
-  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.0 Beta real Windows desktop client" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP production workstation" width="100%">
 </p>
 
 <p align="center">
-  <img src="assets/readme/ghostftp-site-manager.png" alt="Ghost FTP 0.1.0 Beta real Site Manager" width="82%">
+  <img src="assets/readme/ghostftp-site-manager.png" alt="Ghost FTP production Site Manager" width="82%">
 </p>
 
-## FTP / FTPS engine
+The old decorative README hero has been removed from the active documentation so the first image users see is the actual application.
 
-Ghost FTP implements its protocol layer directly on Microsoft .NET networking/cryptography primitives and does not depend on an external FTP NuGet library.
+## FTP / FTPS security model
 
-Supported behavior includes:
+Ghost FTP implements its FTP layer directly on Microsoft .NET networking and cryptography primitives. Shipping projects currently contain zero third-party `<PackageReference>` entries.
 
-- FTP;
-- explicit FTPS (`AUTH TLS`);
-- implicit FTPS;
-- TLS 1.2 / TLS 1.3;
-- normal certificate-chain and hostname validation;
-- no trust-all / ignore-certificate switch;
+Current protocol boundaries include:
+
+- FTP, explicit FTPS (`AUTH TLS`) and implicit FTPS;
+- invalid/unknown security enum values fail closed rather than falling through to plain FTP;
+- TLS 1.2 / TLS 1.3 with normal certificate-chain and hostname validation;
+- no trust-all or certificate-bypass option;
+- plain FTP requires an explicit warning/confirmation in both desktop clients;
+- explicit TLS requires a positive 2xx `AUTH TLS` response before TLS upgrade;
+- protected FTPS data channels use `PROT P`;
+- every transfer requires successful binary mode (`TYPE I`) before file data is sent/received;
 - EPSV preference with PASV fallback;
-- passive data channels bound to the authenticated control host instead of blindly trusting a server-supplied PASV redirect host;
+- PASV data connects to the authenticated control host instead of trusting an arbitrary PASV redirect host;
 - UTF-8 negotiation where supported;
 - MLSD with LIST fallback;
+- bounded control replies, listing payloads, traversal depth and recursive item counts;
+- control-character/CRLF/NUL rejection for FTP command arguments;
+- canonical remote-path handling and remote-root deletion protection;
 - server-confirmed `CWD` + `PWD` navigation;
-- `REST` download resume with `.ghostftp.part` files where supported;
-- `SIZE`-assisted length verification where available;
-- temporary remote upload paths before commit;
-- rollback backup when replacing an existing remote file;
-- create, rename and delete files/directories;
-- recursive upload/download with traversal budgets;
-- remote-root deletion protection;
-- bounded reply/listing parsing;
-- isolated browsing/control connection and independent queued transfer sessions;
-- configurable server-only `NOOP` keepalive;
-- connection diagnostics against the user-selected server.
+- `REST` resume using `.ghostftp.part` files where supported;
+- `SIZE`-assisted transfer length verification where available;
+- temporary remote upload paths plus rollback backup when replacing a file;
+- isolated real transfer sessions rather than sharing the browsing control channel;
+- server-only `NOOP` keepalive, configurable or disableable, on Windows and Linux;
+- no silent credential-based reconnect after a failed keepalive.
 
-## Transfer queue
+See [SECURITY.md](SECURITY.md).
 
-The transfer queue exposes operational state instead of acting as a decorative progress list.
+## Transfer reliability
 
-Configurable bounds:
+The queue is bounded and operational rather than decorative:
 
-- concurrent transfers: 1–8, default 3;
-- automatic retries: 0–5;
-- connect timeout: 3–120 seconds;
-- command timeout: 5–300 seconds;
-- transfer idle timeout: 15–3600 seconds;
-- keepalive: disabled (`0`) or 15–600 seconds.
+- concurrent transfers: **1–8**, default **3**;
+- automatic retries: **0–5**;
+- queue capacity: **4,096** jobs;
+- independent cancellation per job;
+- transient-only retry policy;
+- progress, transferred bytes, speed, ETA, retries and timestamps;
+- isolated FTP/FTPS sessions for real queued transfers;
+- queue saturation becomes visible failed state rather than an unhandled UI exception.
 
-Transient socket/timeout and FTP 4xx conditions can retry. Authentication, TLS/certificate, permission and permanent FTP 5xx failures are not blindly retried.
+Authentication, permission, permanent FTP 5xx and TLS/certificate failures are not blindly retried.
 
-Transfer state can include:
+## Credential and local-data privacy
 
-- direction;
-- queued / running / retrying / completed / cancelled / failed;
-- percentage;
-- transferred bytes / known total;
-- speed;
-- ETA;
-- retry count;
-- source and destination;
-- local failure detail.
+Ghost FTP does not require an account and does not synchronize profiles to a cloud service.
 
-These values remain local UI state and are not product telemetry.
+**Windows:** saved passwords are opt-in and protected using CurrentUser DPAPI.
 
-## Local file safety
+**Linux:** saved passwords use AES-256-GCM with a cryptographically random local 256-bit key. The key file is restricted to the current user (`0600`) where Unix permissions are supported. This protects persisted secrets from plaintext disclosure/tampering but is not falsely described as equivalent to a hardware-backed keyring against compromise of the same OS user account.
 
-Ghost FTP normalizes local download destinations according to the active operating system.
+Session-only Quick Connect entries created by **Keep in this tab** are excluded from persisted profile JSON and disappear with the session.
 
-- Windows reserved device names and invalid filename characters are escaped on Windows.
-- Linux-valid names are not unnecessarily rewritten with Windows-only rules.
-- resolved download targets are checked to remain under the selected local directory.
-- traversal-style remote listing entries are rejected/ignored by the shared protocol layer.
+Ghost FTP contains no application telemetry, analytics SDK, advertising SDK, tracking SDK, automatic crash-report uploader, hidden cloud profile sync or automatic background product-update checker. Normal runtime network activity is limited to the FTP/FTPS server the user explicitly selected, server-only keepalive/diagnostics on that connection and websites the user explicitly opens.
+
+See [PRIVACY.md](PRIVACY.md).
+
+## Installer hardening
+
+The Windows Setup path is per-user and validates an embedded application payload before committing it. Current validation checks minimum size, Windows executable signature, Ghost FTP product identity, **BRENDIGO LTD** publisher identity and exact file version. Existing application replacement keeps a rollback copy until all install stages finish so a later Setup failure does not intentionally strand a half-updated app.
+
+The Installed Apps entry exposes the real interactive uninstall command only. Ghost FTP does not claim a `QuietUninstallString` until a genuine non-interactive uninstall mode exists.
 
 ## Localization
 
-English is the primary/default language and guaranteed fallback.
-
-The localization catalog currently includes 29 selectable languages:
+English is the primary/default language and guaranteed fallback. The local compiled catalog currently exposes 29 languages:
 
 English, Croatian, German, French, Spanish, Italian, Portuguese, Dutch, Polish, Czech, Slovak, Slovenian, Hungarian, Romanian, Bulgarian, Greek, Turkish, Ukrainian, Russian, Serbian, Bosnian, Swedish, Danish, Norwegian, Finnish, Japanese, Korean, Simplified Chinese and Traditional Chinese.
 
-Localization data is compiled locally into C# source. Ghost FTP does not call an online translation service or report the selected language.
+No online translation service is contacted at runtime. See [docs/LOCALIZATION.md](docs/LOCALIZATION.md).
 
-See [docs/LOCALIZATION.md](docs/LOCALIZATION.md).
+## Secure live-server smoke testing
 
-## Privacy by design
+Real FTP credentials are **never committed to this repository, README, test fixtures or Actions logs**. The optional live smoke harness reads connection data only from process environment / GitHub Actions secrets and performs a non-destructive connect/PWD/LIST/keepalive/disconnect sequence.
 
-Ghost FTP contains no:
+The normal CI suite therefore remains deterministic and credential-free. See [docs/LIVE-SMOKE-TEST.md](docs/LIVE-SMOKE-TEST.md) before testing a real server.
 
-- application telemetry;
-- analytics SDK;
-- advertising SDK;
-- tracking SDK;
-- automatic crash-report upload;
-- cloud profile synchronization;
-- hidden product network requests;
-- automatic background product update checker.
-
-Normal network activity is limited to user-requested FTP/FTPS traffic and documented server-only keepalive/diagnostics. Opening a Ghost FTP or BRENDIGO LTD website is an explicit user action.
-
-Settings, saved sites and credentials remain on the user's device. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
-
-## Zero third-party PackageReference policy
-
-Shipping projects currently contain no third-party `<PackageReference>` entries. The project intentionally prefers .NET and operating-system primitives for protocol, cryptography, persistence and desktop integration.
-
-This policy is checked by the repository source audit.
-
-## Build from source
+## Build and verification
 
 ### Windows
-
-Requirements:
-
-- Windows 10/11 or supported Windows build environment;
-- .NET 10 SDK.
 
 ```powershell
 dotnet restore GhostFTP.sln
 dotnet build GhostFTP.sln -c Release --no-restore
+./audit-source.ps1
 dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
 dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-build
+dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
 ./build-release.ps1
 ```
 
 ### Linux
 
-Requirements:
-
-- Linux x64/ARM64 development environment;
-- .NET 10 SDK;
-- standard X11 development/runtime environment for desktop execution (`libX11.so.6` runtime).
-
 ```bash
 dotnet restore src/GhostFTP.Linux/GhostFTP.Linux.csproj
 dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
-dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release
+dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-restore
 chmod +x build-linux-release.sh
 ./build-linux-release.sh
 ```
 
-## Versioning
+CI additionally launches the real Linux renderer under Xvfb and smoke-tests the final packaged Linux x64 binary.
 
-The active public line begins at **0.1.0 Beta** and continues through `0.x.y` Beta releases until the stable quality gate is satisfied. The first stable release is **1.0.0**.
+## Release policy
 
-The version reset does not erase previous implementation work or historical internal-development records.
+All `0.x.y` builds remain **Beta**. The first stable release is **1.0.0** and must satisfy the stable quality/signing gates. The release workflow publishes Windows x64/ARM64 and Linux x64/ARM64 artifacts only after the required build, audit, self-test, packaging and checksum gates pass.
 
-See [docs/VERSIONING.md](docs/VERSIONING.md) and [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md).
+Current notes: [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md). See also [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md), [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md) and [docs/VERSIONING.md](docs/VERSIONING.md).
 
-## Release notes
+## Security reports
 
-Current release documentation: [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md).
-
-## Security
-
-Security reports should follow [SECURITY.md](SECURITY.md). Do not include real production FTP credentials in public issues, logs, screenshots or test fixtures.
+Follow [SECURITY.md](SECURITY.md). Never post real FTP passwords, private keys, access tokens or sensitive server credentials in a public issue.
 
 ## Copyright
 
