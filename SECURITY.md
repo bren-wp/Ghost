@@ -1,6 +1,6 @@
 # Ghost FTP Security
 
-This document describes the active security model for **Ghost FTP 0.1.0 Beta** developed and published by **BRENDIGO LTD**.
+This document describes the active security model for **Ghost FTP 0.1.1 Beta** developed and published by **BRENDIGO LTD**.
 
 ## Supported security scope
 
@@ -100,7 +100,7 @@ If a Keepalive or connection diagnostic proves the control channel unusable, Gho
 
 ## Linux connection-lifecycle hardening
 
-The native Linux renderer shares the same `FtpSession` and now follows the same security boundaries as Windows:
+The native Linux renderer shares the same `FtpSession` and follows the same security boundaries as Windows:
 
 - explicit warning before plain FTP;
 - successful sessions are assigned only after authentication completes;
@@ -133,6 +133,12 @@ This is local file-based credential protection. It does not claim to protect sec
 **Keep in this tab** creates a memory-only runtime profile. Session-only profiles are marked `[JsonIgnore]`, explicitly filtered from `ProfileStore.SaveAsync`, never persist the Quick Connect password and disappear when the application exits.
 
 A dedicated Core self-test checks that a session-only host and runtime flag do not reach `profiles.json`.
+
+## Local Demo regression boundary
+
+The built-in Demo session is deliberately local-only and is used as a deterministic cross-platform regression target. The 0.1.1 test exercises connect, diagnostics, PWD/CWD, LIST, keepalive, file and recursive-directory round trips, rename, create/delete, conflict protection, cleanup, root-delete protection, disconnect reset and rejection of operations after disconnect.
+
+The Demo test does not contact a real FTP server or any analytics endpoint. File-vs-directory replacement conflicts are rejected so a local regression test cannot silently mutate the Demo tree into an invalid shape.
 
 ## Installer integrity and rollback
 
@@ -189,4 +195,4 @@ When reporting a vulnerability, include the affected Ghost FTP version, platform
 
 ## Release gate
 
-A 0.1.0 Beta release is not considered verified until the exact source commit passes the Windows and Linux build/audit/self-test/package/checksum gates. Stable 1.0.0 additionally requires trusted Windows Authenticode validation.
+A 0.1.1 Beta release is not considered verified until the exact source commit passes the Windows and Linux build/audit/Core/Demo/queue/UI/runtime/package/checksum gates and the expected assets are published to the matching GitHub Release. Stable 1.0.0 additionally requires trusted Windows Authenticode validation.
