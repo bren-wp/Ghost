@@ -58,7 +58,18 @@ jobs:
             }
           }
 
-      - name: Commit authentic screenshots
+      - name: Upload authentic screenshot preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: GhostFTP-Authentic-UI-${{ github.sha }}
+          path: |
+            assets/readme/ghostftp-client.png
+            assets/readme/ghostftp-site-manager.png
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit authentic screenshots on main
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
