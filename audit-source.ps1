@@ -107,6 +107,7 @@ if ($mobileTfms) {
 # Required source / documentation / release-control files.
 $requiredFiles = @(
     'src/GhostFTP.Core/GhostFTP.Core.csproj',
+    'src/GhostFTP.Core/Models/ServerProfile.cs',
     'src/GhostFTP.Core/Services/AppData.cs',
     'src/GhostFTP.Core/Services/AesFileSecretProtector.cs',
     'src/GhostFTP.Core/Services/ProfileStore.cs',
@@ -115,8 +116,11 @@ $requiredFiles = @(
     'src/GhostFTP.Design/GhostProduct.cs',
     'src/GhostFTP.Design/GhostBrand.cs',
     'src/GhostFTP.Design/GhostLocalization.cs',
+    'src/GhostFTP.Design/GhostReferencePalette.cs',
+    'src/GhostFTP.Design/GhostReferenceText.cs',
     'src/GhostFTP.App/GhostFTP.App.csproj',
     'src/GhostFTP.App/UI/MainWindow.Layout.cs',
+    'src/GhostFTP.App/UI/MainWindow.ReferenceShell.cs',
     'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs',
     'src/GhostFTP.App/UI/SiteManagerDialog.cs',
     'src/GhostFTP.Linux/GhostFTP.Linux.csproj',
@@ -136,6 +140,7 @@ $requiredFiles = @(
     '.github/workflows/capture-ui.yml',
     'docs/CODE-SIGNING.md',
     'docs/PLATFORM-SUPPORT.md',
+    'docs/UI-PARITY.md',
     'docs/VERSIONING.md',
     'docs/RELEASE-POLICY.md',
     'README.md',
@@ -187,12 +192,23 @@ $productSource = Require-Text 'src/GhostFTP.Design/GhostProduct.cs' @(
 )
 $brandSource = Require-Text 'src/GhostFTP.Design/GhostBrand.cs' @('GhostProduct.DisplayName','GhostProduct.Publisher','GhostProduct.PublisherWebsite')
 
-# Shared local settings and Linux credential protection must remain explicit.
+# Shared local settings, ephemeral profile guarantees and Linux credential protection.
 $appDataSource = Require-Text 'src/GhostFTP.Core/Services/AppData.cs' @(
     'ConcurrentTransfers',
     'KeepAliveSeconds',
     'PrivateFilePermissions',
     'SupportedOSPlatform("linux")'
+)
+$profileModel = Require-Text 'src/GhostFTP.Core/Models/ServerProfile.cs' @(
+    '[JsonIgnore]',
+    'IsSessionOnly',
+    'RememberPassword'
+)
+$profileStore = Require-Text 'src/GhostFTP.Core/Services/ProfileStore.cs' @(
+    'profile.IsSessionOnly',
+    'continue;',
+    'ProtectedPassword',
+    'EnsureDemo'
 )
 $aesSource = Require-Text 'src/GhostFTP.Core/Services/AesFileSecretProtector.cs' @(
     'AesGcm',
@@ -201,6 +217,23 @@ $aesSource = Require-Text 'src/GhostFTP.Core/Services/AesFileSecretProtector.cs'
     'PrivateFilePermissions.TryHardenFile'
 )
 $pathSafety = Require-Text 'src/GhostFTP.Core/Protocol/LocalPathSafety.cs' @('OperatingSystem.IsWindows()','Path.GetRelativePath')
+
+# Shared reference design/localization is authoritative and entirely local.
+$referencePalette = Require-Text 'src/GhostFTP.Design/GhostReferencePalette.cs' @(
+    'SidebarWidth',
+    'MenuHeight',
+    'ToolbarHeight',
+    'Background',
+    'Accent'
+)
+$referenceText = Require-Text 'src/GhostFTP.Design/GhostReferenceText.cs' @(
+    'ConnectionLog',
+    'SiteManager',
+    'KeepInTab',
+    'SessionOnly',
+    'Datoteka',
+    'Pretraži udaljene datoteke'
+)
 
 # Windows professional workstation structure and authentic capture path.
 $layout = Require-Text 'src/GhostFTP.App/UI/MainWindow.Layout.cs' @(
@@ -211,6 +244,14 @@ $layout = Require-Text 'src/GhostFTP.App/UI/MainWindow.Layout.cs' @(
     'BuildFilePanes',
     'BuildTransfers'
 )
+$referenceShell = Require-Text 'src/GhostFTP.App/UI/MainWindow.ReferenceShell.cs' @(
+    'GhostReferenceText.T',
+    'KeepQuickConnectionInTabIfRequested',
+    'ReferenceNewFolderAsync',
+    'ReferenceRenameAsync',
+    'ReferenceDeleteAsync',
+    'SearchRemote'
+)
 $siteManager = Require-Text 'src/GhostFTP.App/UI/SiteManagerDialog.cs' @(
     'Site name',
     'Host / IP / URL',
@@ -218,7 +259,13 @@ $siteManager = Require-Text 'src/GhostFTP.App/UI/SiteManagerDialog.cs' @(
     'RememberPassword',
     'Default remote path'
 )
-$captureSource = Require-Text 'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs' @('RenderTargetBitmap','ghostftp-client.png','ghostftp-site-manager.png')
+$captureSource = Require-Text 'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs' @(
+    'ReferenceCaptureWidth = 1914',
+    'ReferenceCaptureHeight = 907',
+    'RenderTargetBitmap',
+    'ghostftp-client.png',
+    'ghostftp-site-manager.png'
+)
 $programSource = Require-Text 'src/GhostFTP.App/Program.cs' @('--capture-ui')
 
 foreach ($image in @('assets/readme/ghostftp-client.png','assets/readme/ghostftp-site-manager.png')) {
@@ -228,20 +275,25 @@ foreach ($image in @('assets/readme/ghostftp-client.png','assets/readme/ghostftp
     }
 }
 
-# Linux renderer must expose the same major workstation concepts and direct X11 execution.
+# Linux renderer must expose the same workstation concepts through shared localized keys.
 $linuxCore = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Core.cs' @(
     'ProfileStore',
     'AesFileSecretProtector',
     'TransferQueueService',
     'FtpSession',
-    'DemoFtpSession'
+    'DemoFtpSession',
+    'KeepQuickConnectionInTabIfRequested'
 )
 $linuxDraw = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Draw.cs' @(
-    'Connection Log',
-    'Site Manager',
+    'R("ConnectionLog")',
+    'R("SiteManager")',
+    'R("KeepInTab")',
     'DrawFilePanes',
     'DrawTransfers',
-    'QuickConnect'
+    'QuickConnect',
+    'ToolbarNewFolder',
+    'ToolbarRename',
+    'ToolbarDelete'
 )
 $linuxInput = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Input.cs' @(
     'NewLocalFolder',
@@ -254,6 +306,14 @@ $linuxInput = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Input.cs' @(
 )
 $x11 = Require-Text 'src/GhostFTP.Linux/X11Native.cs' @('libX11.so.6','XOpenDisplay','Xutf8DrawString')
 $linuxProgram = Require-Text 'src/GhostFTP.Linux/Program.cs' @('--smoke-test','RequestSmokeTestShutdown')
+
+# Core tests must lock the ephemeral-profile privacy invariant.
+$selfTest = Require-Text 'tests/GhostFTP.SelfTest/Program.cs' @(
+    'Session-only profiles never persist',
+    'session-only.example.test',
+    'isSessionOnly',
+    'profiles.json'
+)
 
 # Signing pipeline: secure secret-based Authenticode with stable-release trust gate.
 $signScript = Require-Text 'tools/Sign-WindowsRelease.ps1' @(
@@ -311,9 +371,17 @@ if ($platformDoc -notmatch 'linux-x64' -or $platformDoc -notmatch 'linux-arm64' 
     throw 'Platform support documentation is not synchronized with the Linux renderer.'
 }
 
+$parityDoc = Get-Content (Join-Path $root 'docs/UI-PARITY.md') -Raw
+if ($parityDoc -notmatch '1914' -or $parityDoc -notmatch '907' -or $parityDoc -notmatch '292 px' -or $parityDoc -notmatch 'GhostReferencePalette') {
+    throw 'UI parity documentation is not synchronized with the canonical reference viewport and palette.'
+}
+
 $privacy = Get-Content (Join-Path $root 'PRIVACY.md') -Raw
 if ($privacy -notmatch 'keepalive' -or $privacy -notmatch 'NOOP' -or $privacy -notmatch '0.*disable') {
     throw 'PRIVACY.md must document configurable server-only keepalive and its disable option.'
+}
+if ($privacy -notmatch 'Session-only Quick Connect' -or $privacy -notmatch 'Keep in this tab' -or $privacy -notmatch 'excluded from JSON') {
+    throw 'PRIVACY.md must document the memory-only Quick Connect persistence boundary.'
 }
 $security = Get-Content (Join-Path $root 'SECURITY.md') -Raw
 if ($security -notmatch 'stale' -or $security -notmatch 'Keepalive' -or $security -notmatch '1.?8') {
@@ -339,4 +407,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP $version ${channel}: synchronized BRENDIGO LTD identity, shared net10.0 FTP core, real Windows WPF and Linux X11/XWayland desktop renderers, zero PackageReference entries, no known telemetry/tracking SDKs, local-only settings/credentials, cross-platform path safety, Authenticode signing pipeline, architecture-explicit Linux packaging, authentic Windows screenshots and synchronized release documentation."
+Write-Host "Source audit passed for Ghost FTP $version ${channel}: synchronized BRENDIGO LTD identity, shared net10.0 FTP core, real Windows WPF and Linux X11/XWayland desktop renderers, shared localized reference-shell contract, memory-only Quick Connect boundary, zero PackageReference entries, no known telemetry/tracking SDKs, local-only settings/credentials, cross-platform path safety, Authenticode signing pipeline, architecture-explicit Linux packaging, authentic Windows screenshots and synchronized release documentation."
