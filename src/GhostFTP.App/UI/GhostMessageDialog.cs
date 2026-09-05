@@ -14,7 +14,7 @@ internal enum GhostMessageKind
 internal sealed class GhostMessageDialog : GhostDialog
 {
     private GhostMessageDialog(
-        Window owner,
+        Window? owner,
         string title,
         string message,
         string? details,
@@ -41,7 +41,7 @@ internal sealed class GhostMessageDialog : GhostDialog
         if (!string.IsNullOrWhiteSpace(details))
         {
             var detailPanel = new StackPanel();
-            detailPanel.Children.Add(GhostTheme.Text("Details", 11.5, weight: FontWeights.SemiBold));
+            detailPanel.Children.Add(GhostTheme.Text(GhostLocalization.T("Details"), 11.5, weight: FontWeights.SemiBold));
             var detailText = GhostTheme.Text(details.Trim(), 11, muted: true);
             detailText.Margin = new Thickness(0, 5, 0, 0);
             detailPanel.Children.Add(detailText);
@@ -57,7 +57,7 @@ internal sealed class GhostMessageDialog : GhostDialog
         Button? cancel = null;
         if (showCancel)
         {
-            cancel = GhostTheme.Button("Cancel");
+            cancel = GhostTheme.Button(GhostLocalization.T("Cancel"));
             cancel.MinWidth = 88;
             cancel.Click += (_, _) => DialogResult = false;
         }
@@ -68,26 +68,50 @@ internal sealed class GhostMessageDialog : GhostDialog
         Loaded += (_, _) => primary.Focus();
     }
 
-    public static void Error(Window owner, string message, string? details = null, string title = "Operation failed")
+    public static void Error(Window? owner, string message, string? details = null, string? title = null)
     {
-        _ = new GhostMessageDialog(owner, title, message, details, GhostMessageKind.Error, "Close", false, false).ShowDialog();
+        _ = new GhostMessageDialog(
+            owner,
+            title ?? GhostLocalization.T("OperationFailed"),
+            message,
+            details,
+            GhostMessageKind.Error,
+            GhostLocalization.T("Close"),
+            false,
+            false).ShowDialog();
     }
 
-    public static void Information(Window owner, string title, string message)
+    public static void Information(Window? owner, string title, string message)
     {
-        _ = new GhostMessageDialog(owner, title, message, null, GhostMessageKind.Information, "OK", false, false).ShowDialog();
+        _ = new GhostMessageDialog(
+            owner,
+            title,
+            message,
+            null,
+            GhostMessageKind.Information,
+            "OK",
+            false,
+            false).ShowDialog();
     }
 
     public static bool Confirm(
-        Window owner,
+        Window? owner,
         string title,
         string message,
-        string confirmText = "Continue",
+        string? confirmText = null,
         bool danger = false,
         bool warning = false)
     {
         var kind = danger ? GhostMessageKind.Error : warning ? GhostMessageKind.Warning : GhostMessageKind.Information;
-        return new GhostMessageDialog(owner, title, message, null, kind, confirmText, true, danger).ShowDialog() == true;
+        return new GhostMessageDialog(
+            owner,
+            title,
+            message,
+            null,
+            kind,
+            confirmText ?? GhostLocalization.T("Continue"),
+            true,
+            danger).ShowDialog() == true;
     }
 
     private static string Symbol(GhostMessageKind kind) => kind switch
