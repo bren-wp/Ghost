@@ -1,0 +1,2 @@
+Ghost FTP 0.1.0 Beta release publication trigger.
+The release workflow must build, test, verify and publish Windows and Linux assets from the merged source commit.
