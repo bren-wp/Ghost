@@ -25,21 +25,31 @@ public sealed partial class FtpSession
     public Task<FtpServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default) =>
         LockedAsync(async ct =>
         {
-            var noop = await SendCommandAsync("NOOP", ct).ConfigureAwait(false);
-            Ensure(noop, 200, 299, "FTP health check failed.");
+            try
+            {
+                var noop = await SendCommandAsync("NOOP", ct).ConfigureAwait(false);
+                Ensure(noop, 200, 299, "FTP health check failed.");
 
-            var systemReply = await TryCommandAsync("SYST", ct).ConfigureAwait(false);
-            var workingDirectory = await GetWorkingDirectoryCoreAsync(ct).ConfigureAwait(false);
-            var serverSystem = systemReply is not null && systemReply.IsPositiveCompletion
-                ? systemReply.Message.Trim()
-                : "Unavailable";
+                var systemReply = await TryCommandAsync("SYST", ct).ConfigureAwait(false);
+                var workingDirectory = await GetWorkingDirectoryCoreAsync(ct).ConfigureAwait(false);
+                var serverSystem = systemReply is not null && systemReply.IsPositiveCompletion
+                    ? systemReply.Message.Trim()
+                    : "Unavailable";
 
-            return new FtpServerInfo(
-                Host,
-                IsEncrypted,
-                workingDirectory,
-                serverSystem,
-                _features.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
-                DateTimeOffset.UtcNow);
+                return new FtpServerInfo(
+                    Host,
+                    IsEncrypted,
+                    workingDirectory,
+                    serverSystem,
+                    _features.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray(),
+                    DateTimeOffset.UtcNow);
+            }
+            catch
+            {
+                // Diagnostics are allowed to reveal that the server connection died, but a
+                // failed diagnostic must never leave IsConnected=true on an unusable transport.
+                await ResetTransportAsync().ConfigureAwait(false);
+                throw;
+            }
         }, cancellationToken);
 }
