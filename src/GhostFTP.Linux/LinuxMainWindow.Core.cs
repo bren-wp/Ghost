@@ -297,12 +297,12 @@ internal sealed partial class LinuxMainWindow : IDisposable
 
             foreach (var directory in new DirectoryInfo(_localPath).EnumerateDirectories())
             {
-                if (!_settings.ShowHiddenFiles && directory.Name.StartsWith('.', StringComparison.Ordinal)) continue;
+                if (!_settings.ShowHiddenFiles && directory.Name.StartsWith(".", StringComparison.Ordinal)) continue;
                 _localItems.Add(new LocalEntry(directory.Name, directory.FullName, true, 0, directory.LastWriteTimeUtc));
             }
             foreach (var file in new DirectoryInfo(_localPath).EnumerateFiles())
             {
-                if (!_settings.ShowHiddenFiles && file.Name.StartsWith('.', StringComparison.Ordinal)) continue;
+                if (!_settings.ShowHiddenFiles && file.Name.StartsWith(".", StringComparison.Ordinal)) continue;
                 _localItems.Add(new LocalEntry(file.Name, file.FullName, false, file.Length, file.LastWriteTimeUtc));
             }
 
