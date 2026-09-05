@@ -17,6 +17,7 @@ public sealed partial class MainWindow
             _profileStore = new ProfileStore(_paths.ProfilesFile, _secrets);
             _settingsStore = new AppSettingsStore(_paths.SettingsFile);
             _settings = await _settingsStore.LoadAsync();
+            ApplyWorkspaceSettings();
             _localPath = _settings.LastLocalDirectory;
             _localPathBox.Text = _localPath;
 
@@ -45,6 +46,7 @@ public sealed partial class MainWindow
     {
         if (_allowClose) return;
         e.Cancel = true;
+        CaptureWorkspaceSettings();
         IsEnabled = false;
         try
         {
