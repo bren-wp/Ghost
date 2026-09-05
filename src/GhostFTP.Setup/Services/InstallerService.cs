@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace GhostFTP.Setup.Services;
 
@@ -11,18 +13,48 @@ internal sealed class InstallerService
 {
     private const string PayloadResourceName = "GhostFTP.PortablePayload.exe";
     private const long MinimumPayloadBytes = 64 * 1024;
+    private const long MaxSettingsFileBytes = 1024 * 1024;
 
     public string InstallDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Programs",
         GhostBrand.ProductName);
 
+    public string DataDirectory { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        GhostBrand.ProductName);
+
     public string AppPath => Path.Combine(InstallDirectory, "GhostFTP.exe");
-    public string UninstallerPath => Path.Combine(InstallDirectory, "GhostFTP-Uninstall.exe");
+    public string InstalledSetupPath => Path.Combine(InstallDirectory, "GhostFTP-Setup.exe");
+    public string SettingsPath => Path.Combine(DataDirectory, "settings.json");
     public bool IsInstalled => File.Exists(AppPath);
 
-    public async Task InstallAsync(bool desktopShortcut, CancellationToken cancellationToken)
+    public string LoadPreferredLanguage()
     {
+        try
+        {
+            if (!File.Exists(SettingsPath))
+                return GhostLocalization.DefaultLanguageCode;
+            var info = new FileInfo(SettingsPath);
+            if (info.Length <= 0 || info.Length > MaxSettingsFileBytes)
+                return GhostLocalization.DefaultLanguageCode;
+
+            using var stream = File.OpenRead(SettingsPath);
+            using var document = JsonDocument.Parse(stream);
+            if (document.RootElement.TryGetProperty("languageCode", out var language) && language.ValueKind == JsonValueKind.String)
+                return GhostLocalization.NormalizeLanguageCode(language.GetString());
+        }
+        catch
+        {
+            // A damaged local settings file must never prevent setup from starting.
+        }
+
+        return GhostLocalization.DefaultLanguageCode;
+    }
+
+    public async Task InstallAsync(bool desktopShortcut, string languageCode, CancellationToken cancellationToken)
+    {
+        languageCode = GhostLocalization.NormalizeLanguageCode(languageCode);
         Directory.CreateDirectory(InstallDirectory);
         var tempApp = Path.Combine(InstallDirectory, $"GhostFTP.exe.new-{Guid.NewGuid():N}");
         var backupApp = Path.Combine(InstallDirectory, $"GhostFTP.exe.backup-{Guid.NewGuid():N}");
@@ -51,10 +83,11 @@ internal sealed class InstallerService
 
             var currentSetup = Environment.ProcessPath
                 ?? throw new InvalidOperationException("Setup executable path is unavailable.");
-            if (!string.Equals(currentSetup, UninstallerPath, StringComparison.OrdinalIgnoreCase))
-                File.Copy(currentSetup, UninstallerPath, true);
+            if (!string.Equals(currentSetup, InstalledSetupPath, StringComparison.OrdinalIgnoreCase))
+                File.Copy(currentSetup, InstalledSetupPath, overwrite: true);
 
             CreateShortcuts(desktopShortcut);
+            await WritePreferredLanguageAsync(languageCode, cancellationToken).ConfigureAwait(false);
             WriteUninstallRegistry();
         }
         finally
@@ -83,17 +116,13 @@ internal sealed class InstallerService
             root?.DeleteSubKeyTree(GhostBrand.ProductName, throwOnMissingSubKey: false);
 
         if (removeUserData)
-        {
-            var data = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                GhostBrand.ProductName);
-            DeleteDirectoryRequired(data, "Local Ghost FTP data could not be removed completely.");
-        }
+            DeleteDirectoryRequired(DataDirectory, "Local Ghost FTP data could not be removed completely.");
 
         var current = Environment.ProcessPath;
         if (!string.IsNullOrWhiteSpace(current) && File.Exists(current))
             _ = MoveFileEx(current, null, MoveFileDelayUntilReboot);
 
+        TryRemoveInstallDirectoryWhenEmpty();
         return Task.CompletedTask;
     }
 
@@ -107,6 +136,57 @@ internal sealed class InstallerService
             UseShellExecute = true,
             WorkingDirectory = InstallDirectory
         });
+    }
+
+    private async Task WritePreferredLanguageAsync(string languageCode, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(DataDirectory);
+        JsonObject root;
+        try
+        {
+            if (File.Exists(SettingsPath) && new FileInfo(SettingsPath).Length <= MaxSettingsFileBytes)
+            {
+                await using var input = File.OpenRead(SettingsPath);
+                root = await JsonNode.ParseAsync(input, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject
+                    ?? new JsonObject();
+            }
+            else
+            {
+                root = new JsonObject();
+            }
+        }
+        catch (JsonException)
+        {
+            root = new JsonObject();
+        }
+
+        root["languageCode"] = languageCode;
+        root["languageConfiguredBySetup"] = true;
+
+        var temp = SettingsPath + ".setup-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await using (var output = new FileStream(
+                temp,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                16 * 1024,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(output, root, cancellationToken: cancellationToken).ConfigureAwait(false);
+                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (File.Exists(SettingsPath))
+                File.Replace(temp, SettingsPath, SettingsPath + ".bak", ignoreMetadataErrors: true);
+            else
+                File.Move(temp, SettingsPath);
+        }
+        finally
+        {
+            TryDelete(temp);
+        }
     }
 
     private async Task ExtractPayloadAsync(string targetPath, CancellationToken cancellationToken)
@@ -166,13 +246,13 @@ internal sealed class InstallerService
 
         root.SetValue("DisplayName", GhostBrand.DisplayName);
         root.SetValue("DisplayVersion", typeof(InstallerService).Assembly.GetName().Version?.ToString(3) ?? "0.0.0");
-        root.SetValue("Publisher", GhostBrand.DisplayName);
+        root.SetValue("Publisher", GhostBrand.Publisher);
         root.SetValue("URLInfoAbout", GhostBrand.Website);
         root.SetValue("HelpLink", GhostBrand.Website);
         root.SetValue("InstallLocation", InstallDirectory);
         root.SetValue("DisplayIcon", AppPath);
-        root.SetValue("UninstallString", $"\"{UninstallerPath}\" --uninstall");
-        root.SetValue("QuietUninstallString", $"\"{UninstallerPath}\" --uninstall");
+        root.SetValue("UninstallString", $"\"{InstalledSetupPath}\" --uninstall");
+        root.SetValue("QuietUninstallString", $"\"{InstalledSetupPath}\" --uninstall");
         root.SetValue("NoModify", 1, RegistryValueKind.DWord);
         root.SetValue("NoRepair", 1, RegistryValueKind.DWord);
 
@@ -180,6 +260,25 @@ internal sealed class InstallerService
         {
             var sizeKb = Math.Max(1L, new FileInfo(AppPath).Length / 1024L);
             root.SetValue("EstimatedSize", Math.Min(sizeKb, int.MaxValue), RegistryValueKind.DWord);
+        }
+    }
+
+    private void TryRemoveInstallDirectoryWhenEmpty()
+    {
+        try
+        {
+            if (!Directory.Exists(InstallDirectory))
+                return;
+            var current = Environment.ProcessPath;
+            var remaining = Directory.EnumerateFileSystemEntries(InstallDirectory)
+                .Where(path => !string.Equals(path, current, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (remaining.Length == 0 && (string.IsNullOrWhiteSpace(current) || !current.StartsWith(InstallDirectory, StringComparison.OrdinalIgnoreCase)))
+                Directory.Delete(InstallDirectory);
+        }
+        catch
+        {
+            // The running installed setup may keep the directory non-empty until reboot/self-delete.
         }
     }
 
