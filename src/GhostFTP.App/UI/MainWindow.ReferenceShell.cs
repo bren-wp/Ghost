@@ -13,6 +13,8 @@ public sealed partial class MainWindow
 
     private UIElement BuildReferenceShell(UIElement workstation)
     {
+        NormalizeReferenceWorkstation(workstation);
+
         var root = new Grid
         {
             Background = GhostTheme.R("Bg")
@@ -38,11 +40,96 @@ public sealed partial class MainWindow
         return root;
     }
 
+    private void NormalizeReferenceWorkstation(UIElement workstation)
+    {
+        if (workstation is not Grid root || root.RowDefinitions.Count < 4)
+            return;
+
+        root.RowDefinitions[0].Height = new GridLength(GhostReferencePalette.MenuHeight);
+        root.RowDefinitions[1].Height = new GridLength(GhostReferencePalette.ToolbarHeight);
+        root.RowDefinitions[3].Height = new GridLength(28);
+
+        var menu = root.Children
+            .OfType<Menu>()
+            .FirstOrDefault(x => Grid.GetRow(x) == 0);
+        if (menu is not null)
+        {
+            menu.Background = ReferenceBrush(GhostReferencePalette.Menu);
+            menu.Padding = new Thickness(7, 0, 430, 0);
+        }
+
+        var toolbar = root.Children
+            .OfType<Border>()
+            .FirstOrDefault(x => Grid.GetRow(x) == 1);
+        if (toolbar is not null)
+        {
+            toolbar.Background = ReferenceBrush(GhostReferencePalette.Toolbar);
+            toolbar.BorderBrush = GhostTheme.R("Border");
+            toolbar.BorderThickness = new Thickness(0, 0, 0, 1);
+
+            // The approved reference keeps identity in the permanent left rail rather than
+            // repeating it in the action toolbar. Remove only that known identity child.
+            if (toolbar.Child is DockPanel dock
+                && dock.Children.Count > 1
+                && dock.Children[0] is StackPanel identity)
+            {
+                dock.Children.Remove(identity);
+            }
+        }
+
+        NormalizeReferenceWorkspace();
+    }
+
+    private void NormalizeReferenceWorkspace()
+    {
+        if (_workspaceContent is null || _workspaceContent.RowDefinitions.Count < 7)
+            return;
+
+        var log = _workspaceContent.Children
+            .OfType<Border>()
+            .FirstOrDefault(x => Grid.GetRow(x) == 0);
+        var quickConnect = _workspaceContent.Children
+            .OfType<Border>()
+            .FirstOrDefault(x => Grid.GetRow(x) == 2);
+
+        if (log is null || quickConnect is null)
+            return;
+
+        _workspaceContent.Children.Remove(log);
+        _workspaceContent.Children.Remove(quickConnect);
+
+        var top = new Grid();
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 360 });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.08, GridUnitType.Star), MinWidth = 390 });
+
+        log.Margin = new Thickness(0);
+        quickConnect.Margin = new Thickness(0);
+        Grid.SetRow(log, 0);
+        Grid.SetColumn(log, 0);
+        Grid.SetRow(quickConnect, 0);
+        Grid.SetColumn(quickConnect, 2);
+        top.Children.Add(log);
+        top.Children.Add(quickConnect);
+
+        _workspaceContent.RowDefinitions[0].Height = new GridLength(205);
+        _workspaceContent.RowDefinitions[0].MinHeight = 170;
+        _workspaceContent.RowDefinitions[0].MaxHeight = 245;
+        _workspaceContent.RowDefinitions[1].Height = new GridLength(8);
+        _workspaceContent.RowDefinitions[2].MinHeight = 0;
+        _workspaceContent.RowDefinitions[2].MaxHeight = 0;
+        _workspaceContent.RowDefinitions[2].Height = new GridLength(0);
+        _workspaceContent.RowDefinitions[3].Height = new GridLength(0);
+
+        Grid.SetRow(top, 0);
+        _workspaceContent.Children.Add(top);
+    }
+
     private Border BuildReferenceSidebar()
     {
         var root = new Grid
         {
-            Background = GhostTheme.R("Surface"),
+            Background = ReferenceBrush(GhostReferencePalette.Sidebar),
             Margin = new Thickness(0)
         };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(108) });
@@ -128,7 +215,7 @@ public sealed partial class MainWindow
             Background = GhostTheme.R("Surface2"),
             BorderBrush = GhostTheme.R("Border"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10)
+            CornerRadius = new CornerRadius(GhostReferencePalette.CardRadius)
         };
         var privacyStack = new StackPanel();
         privacyStack.Children.Add(GhostTheme.Text("◇  Account not required", 10.5, weight: FontWeights.Bold));
@@ -141,7 +228,7 @@ public sealed partial class MainWindow
 
         var footer = new Grid
         {
-            Background = GhostTheme.R("Surface"),
+            Background = ReferenceBrush(GhostReferencePalette.Sidebar),
             Margin = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Stretch
         };
@@ -158,7 +245,7 @@ public sealed partial class MainWindow
 
         return new Border
         {
-            Background = GhostTheme.R("Surface"),
+            Background = ReferenceBrush(GhostReferencePalette.Sidebar),
             BorderBrush = GhostTheme.R("Border"),
             BorderThickness = new Thickness(0, 0, 1, 0),
             Child = root
@@ -172,13 +259,13 @@ public sealed partial class MainWindow
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Width = 430,
-            Height = 106,
+            Height = GhostReferencePalette.MenuHeight + GhostReferencePalette.ToolbarHeight,
             Margin = new Thickness(0, 0, 14, 0),
             Background = Brushes.Transparent,
             IsHitTestVisible = true
         };
-        overlay.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
-        overlay.RowDefinitions.Add(new RowDefinition { Height = new GridLength(68) });
+        overlay.RowDefinitions.Add(new RowDefinition { Height = new GridLength(GhostReferencePalette.MenuHeight) });
+        overlay.RowDefinitions.Add(new RowDefinition { Height = new GridLength(GhostReferencePalette.ToolbarHeight) });
 
         var language = new Button
         {
@@ -205,7 +292,7 @@ public sealed partial class MainWindow
             Background = GhostTheme.R("Surface2"),
             BorderBrush = GhostTheme.R("Border"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(9),
+            CornerRadius = new CornerRadius(GhostReferencePalette.FieldRadius),
             Padding = new Thickness(11, 0, 11, 0),
             Margin = new Thickness(0, 0, 0, 2)
         };
@@ -276,4 +363,11 @@ public sealed partial class MainWindow
         GhostLocalization.SupportedLanguages.FirstOrDefault(x =>
             string.Equals(x.Code, GhostLocalization.CurrentLanguageCode, StringComparison.OrdinalIgnoreCase))?.NativeName
         ?? "English";
+
+    private static SolidColorBrush ReferenceBrush(string hex)
+    {
+        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        brush.Freeze();
+        return brush;
+    }
 }
