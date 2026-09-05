@@ -5,6 +5,8 @@ namespace GhostFTP.Linux;
 internal static class X11Native
 {
     private const string X11 = "libX11.so.6";
+    private const string LibC = "libc.so.6";
+    private const int LcCType = 0;
 
     internal const int KeyPress = 2;
     internal const int ButtonPress = 4;
@@ -238,13 +240,65 @@ internal static class X11Native
     [DllImport(X11)]
     internal static extern int XAllocColor(IntPtr display, nuint colormap, ref XColor screen_in_out);
 
-    [DllImport(X11, CharSet = CharSet.Ansi)]
-    internal static extern IntPtr XCreateFontSet(
+    internal static IntPtr XCreateFontSet(
+        IntPtr display,
+        string baseFontNameList,
+        out IntPtr missingCharsetList,
+        out int missingCharsetCount,
+        out IntPtr defaultString)
+    {
+        // Xlib's locale-aware font APIs expect the native C locale to be initialized.
+        // .NET manages culture independently, so explicitly initialize only LC_CTYPE from
+        // the process environment before asking Xlib for an internationalized font set.
+        _ = SetLocale(LcCType, string.Empty);
+        _ = XSetLocaleModifiers(string.Empty);
+
+        string[] candidates =
+        [
+            baseFontNameList,
+            "-misc-fixed-medium-r-normal--13-120-75-75-c-70-iso10646-1",
+            "-misc-fixed-medium-r-normal--13-120-75-75-c-70-iso8859-1",
+            "fixed"
+        ];
+
+        foreach (var candidate in candidates.Distinct(StringComparer.Ordinal))
+        {
+            var fontSet = XCreateFontSetNative(
+                display,
+                candidate,
+                out missingCharsetList,
+                out missingCharsetCount,
+                out defaultString);
+
+            if (fontSet != IntPtr.Zero)
+                return fontSet;
+
+            if (missingCharsetList != IntPtr.Zero)
+            {
+                XFreeStringList(missingCharsetList);
+                missingCharsetList = IntPtr.Zero;
+            }
+        }
+
+        missingCharsetList = IntPtr.Zero;
+        missingCharsetCount = 0;
+        defaultString = IntPtr.Zero;
+        return IntPtr.Zero;
+    }
+
+    [DllImport(X11, EntryPoint = "XCreateFontSet", CharSet = CharSet.Ansi)]
+    private static extern IntPtr XCreateFontSetNative(
         IntPtr display,
         string base_font_name_list,
         out IntPtr missing_charset_list,
         out int missing_charset_count,
         out IntPtr def_string);
+
+    [DllImport(X11, CharSet = CharSet.Ansi)]
+    private static extern IntPtr XSetLocaleModifiers(string modifier_list);
+
+    [DllImport(LibC, EntryPoint = "setlocale", CharSet = CharSet.Ansi)]
+    private static extern IntPtr SetLocale(int category, string locale);
 
     [DllImport(X11)]
     internal static extern void XFreeFontSet(IntPtr display, IntPtr font_set);
