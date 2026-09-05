@@ -22,7 +22,7 @@ public static class Program
         }
         catch (Exception ex)
         {
-            failures.Add("UI smoke bootstrap: " + ex.Message);
+            failures.Add("UI smoke bootstrap: " + DescribeException(ex));
         }
 
         foreach (var failure in failures)
@@ -105,6 +105,14 @@ public static class Program
             "Unknown language did not fall back to English.", failures);
         Assert(GhostLocalization.T("Settings") == "Settings", "English fallback text is incorrect.", failures);
         GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
+    }
+
+    private static string DescribeException(Exception exception)
+    {
+        var messages = new List<string>();
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            messages.Add($"{current.GetType().Name}: {current.Message}");
+        return string.Join(" -> ", messages);
     }
 
     private static void Assert(bool condition, string message, List<string> failures)
