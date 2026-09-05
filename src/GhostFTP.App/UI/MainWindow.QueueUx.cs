@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace GhostFTP.UI;
 
@@ -25,5 +26,9 @@ public sealed partial class MainWindow
             if (_queueList.SelectedItems.Count > 0)
                 RetrySelectedTransfers();
         };
+
+        _statusBadge.Cursor = Cursors.Hand;
+        _statusBadge.ToolTip = "Connection status · click for local diagnostics";
+        _statusBadge.MouseLeftButtonUp += async (_, _) => await ShowConnectionDiagnosticsAsync();
     }
 }
