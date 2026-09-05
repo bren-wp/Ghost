@@ -15,6 +15,7 @@
     <Compile Remove="GhostBrand.cs" />
     <Compile Remove="GhostComboBox.cs" />
     <Compile Remove="GhostTheme.cs" />
+    <Compile Remove="GhostReferenceTheme.Windows.cs" />
     <Compile Remove="GhostWindowChrome.cs" />
   </ItemGroup>
 </Project>
