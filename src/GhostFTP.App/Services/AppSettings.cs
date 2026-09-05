@@ -1,3 +1,4 @@
+using GhostFTP.Design;
 using System.Text.Json;
 
 namespace GhostFTP.Services;
@@ -12,9 +13,14 @@ public enum AppTheme
 public sealed class AppSettings
 {
     public AppTheme Theme { get; set; } = AppTheme.System;
+    public string LanguageCode { get; set; } = GhostLocalization.DefaultLanguageCode;
     public string LastLocalDirectory { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     public bool ConfirmDeletes { get; set; } = true;
     public bool ShowHiddenFiles { get; set; }
+    public int AutomaticTransferRetries { get; set; } = 2;
+    public int ConnectTimeoutSeconds { get; set; } = 15;
+    public int CommandTimeoutSeconds { get; set; } = 30;
+    public int TransferIdleTimeoutSeconds { get; set; } = 120;
 }
 
 public sealed class AppSettingsStore
@@ -58,6 +64,7 @@ public sealed class AppSettingsStore
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        Normalize(settings);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -121,10 +128,23 @@ public sealed class AppSettingsStore
         var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken).ConfigureAwait(false)
             ?? new AppSettings();
 
+        Normalize(settings);
+        return settings;
+    }
+
+    private static void Normalize(AppSettings settings)
+    {
         if (!Enum.IsDefined(settings.Theme))
             settings.Theme = AppTheme.System;
+
+        settings.LanguageCode = GhostLocalization.NormalizeLanguageCode(settings.LanguageCode);
+
         if (!Directory.Exists(settings.LastLocalDirectory))
             settings.LastLocalDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return settings;
+
+        settings.AutomaticTransferRetries = Math.Clamp(settings.AutomaticTransferRetries, 0, 5);
+        settings.ConnectTimeoutSeconds = Math.Clamp(settings.ConnectTimeoutSeconds, 3, 120);
+        settings.CommandTimeoutSeconds = Math.Clamp(settings.CommandTimeoutSeconds, 5, 300);
+        settings.TransferIdleTimeoutSeconds = Math.Clamp(settings.TransferIdleTimeoutSeconds, 15, 3600);
     }
 }
