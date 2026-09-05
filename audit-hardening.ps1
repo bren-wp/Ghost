@@ -19,10 +19,8 @@ function Require-Tokens([string]$relative, [string[]]$tokens) {
 
 $core = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Core.cs' @(
     'Enum.IsDefined(options.Security)',
-    'Ensure(auth, 200, 299, "Server refused explicit TLS.")',
-    'FtpSecurityMode.Plain',
-    'FtpSecurityMode.ExplicitTls',
-    'FtpSecurityMode.ImplicitTls'
+    'throw new ArgumentOutOfRangeException',
+    'Ensure(auth, 200, 299, "Server refused explicit TLS.")'
 )
 
 $data = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Data.cs' @(
