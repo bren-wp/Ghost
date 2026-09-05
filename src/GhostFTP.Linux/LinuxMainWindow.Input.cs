@@ -433,7 +433,7 @@ internal sealed partial class LinuxMainWindow
         Post(() =>
         {
             Log($"Diagnostics: {info.Host} · {(info.IsEncrypted ? "TLS" : "plain FTP")} · PWD {info.WorkingDirectory}");
-            if (!string.IsNullOrWhiteSpace(info.System)) Log("SYST: " + info.System);
+            if (!string.IsNullOrWhiteSpace(info.ServerSystem)) Log("SYST: " + info.ServerSystem);
             if (info.Features.Count > 0) Log("FEAT: " + string.Join(", ", info.Features.Take(12)));
         });
     }
