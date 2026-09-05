@@ -1,206 +1,265 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows installation model used by the current **Ghost FTP 0.1.0 Beta** public line. The public numbering reset does not remove the installer, updater or uninstall work already completed during the preserved internal-development history.
+This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.0 Beta** public line. Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
 
-Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom. Publisher website: https://brendigo.com.
+## Release identity
 
-## Beta and stable package versioning
-
-The active release identity is defined by root `VERSION` and `RELEASE_CHANNEL` files.
-
-Current values:
+The active release identity is defined by the root `VERSION` and `RELEASE_CHANNEL` files:
 
 ```text
 VERSION=0.1.0
 RELEASE_CHANNEL=beta
 ```
 
-During the public `0.x.y` line, `setup.exe`, `portable.exe` and architecture-specific variants are **Beta packages** whose internal Windows file version matches the numeric product version. For 0.1.0 Beta, the expected Windows file version is `0.1.0.0`.
+Every public `0.x.y` package is Beta. The first release that may be presented as fully stable is **1.0.0**. Canonical package filenames remain predictable while executable/file metadata identifies the exact release.
 
-The first package set that may be presented as fully stable is **Ghost FTP 1.0.0**. At that transition the canonical `setup.exe` and `portable.exe` family must carry `1.0.0.0` file metadata and the release channel becomes `stable`.
+## Verify downloads before running them
 
-Canonical filenames remain unchanged so download URLs stay predictable. See `docs/VERSIONING.md`.
+Official GitHub Releases contain SHA-256 manifests. Verify the downloaded file against the manifest published in the same release before execution, especially when the file was mirrored or transferred through another system.
 
-## Supported Windows environment
+Windows uses `SHA256SUMS.txt`; Linux uses `SHA256SUMS-linux.txt`.
 
-Ghost FTP targets Windows 10 version 2004 / build 19041 or newer. Windows 11 is recommended for the full modern visual treatment. Official release binaries are self-contained and do not require a separate .NET installation.
+The current 0.1.0 Beta Windows executables are not Authenticode-signed when the release signing secrets are not configured. In that case Windows can display an Unknown Publisher or SmartScreen warning. This is not hidden by Setup. A trusted publisher experience requires a valid CA-issued code-signing certificate for **BRENDIGO LTD** and a release that passes the repository signing gate. Never disable Windows security checks merely to suppress such a warning.
 
-Official Windows packages are produced for:
+## Windows
 
-- Windows x64;
-- Windows ARM64.
+### Supported environment
 
-## Installer flow
+Ghost FTP targets Windows 10 version 2004 / build 19041 or newer. Windows 11 is recommended for the complete modern visual treatment. Official packages are self-contained and do not require a separate .NET installation.
 
-The standard `setup.exe` uses a guided wizard. The normal installation sequence is:
+Windows packages are produced for **x64** and **ARM64**.
 
-1. **Language** — select the Setup language and initial Ghost FTP client language.
+### Which Windows file should I use?
+
+For most x64 PCs use:
+
+```text
+setup.exe
+```
+
+For a no-install x64 copy use:
+
+```text
+portable.exe
+```
+
+For Windows on ARM use:
+
+```text
+setup-arm64.exe
+portable-arm64.exe
+```
+
+Architecture-explicit aliases are also published:
+
+```text
+GhostFTP-Setup-win-x64.exe
+GhostFTP-Portable-win-x64.exe
+GhostFTP-Setup-win-arm64.exe
+GhostFTP-Portable-win-arm64.exe
+```
+
+All executables from one release must carry the same active numeric file version. For Ghost FTP 0.1.0 Beta that version is `0.1.0.0`.
+
+### Windows Setup flow
+
+The standard Setup wizard uses this sequence:
+
+1. **Language** — select the Setup language and initial Ghost FTP language.
 2. **License Agreement** — review the embedded BRENDIGO LTD Ghost FTP license.
-3. **Accept license** — the Next action remains disabled until the license is explicitly accepted.
-4. **Install options** — review per-user install location and optional desktop shortcut.
-5. **Ready** — review product, publisher, language, Beta/stable version context and selected options.
+3. **Accept license** — installation remains unavailable until the license is explicitly accepted.
+4. **Install options** — review the per-user location and optional Desktop shortcut.
+5. **Ready** — review product, publisher, language, version/channel and options.
 6. **Install / Update** — Setup validates and installs the architecture-matching Ghost FTP payload.
 7. **Finish** — launch Ghost FTP or close Setup.
 
-The English license text embedded from the repository `LICENSE` file is the governing license text.
+The repository `LICENSE` text embedded in Setup is the governing license text.
 
-## Language selection
+### Windows install location
 
-English is the default and fallback language. Setup supports the same 29 language choices validated by the application.
-
-The selected language is written to Ghost FTP's local settings and becomes the initial client language. Existing valid settings are preserved when the language property is added or changed.
-
-Changing a language never contacts a translation service or any other network service.
-
-## Install location
-
-The default install is per-user and does not require administrative privileges:
+The default installation is per-user and normally needs no administrator privileges:
 
 ```text
 %LOCALAPPDATA%\Programs\GhostFTP\
 ```
 
-The directory contains the installed client and the maintenance copy of Setup:
+The directory contains:
 
 ```text
 GhostFTP.exe
 GhostFTP-Setup.exe
 ```
 
-There is intentionally **no separate uninstall.exe**.
+There is intentionally no separate `uninstall.exe`. The installed maintenance Setup handles update and uninstall.
 
-## User data location
+### Windows user data
 
-Installed-mode application data is stored under:
+Installed-mode data is stored under:
 
 ```text
 %LOCALAPPDATA%\GhostFTP\
 ```
 
-This includes local settings and saved server profiles. Passwords are not persisted unless the user enables **Remember password**. Persisted passwords are protected with Windows DPAPI and scoped to the current Windows user.
+This includes local settings and saved server profiles. A password is persisted only when **Remember password** is enabled. Windows protects persisted passwords with CurrentUser DPAPI. Ghost FTP does not upload saved profiles or credentials.
 
-## Update behavior
+### Windows update safety
 
-Running a newer Setup over an existing installation performs an in-place per-user update.
+Running a newer matching-architecture Setup over an existing installation performs an in-place per-user update. Setup validates that the embedded executable is a plausible Windows PE image and that its version resources identify **Ghost FTP**, **BRENDIGO LTD**, and the exact Setup version before committing the client replacement.
 
-Update safety rules include:
+The client replacement uses temporary-file and rollback semantics rather than overwriting the active executable directly. Close Ghost FTP before updating so Windows can replace the file. A locked application causes a visible failure rather than a false successful update.
 
-- validate the embedded application payload before replacement;
-- require a plausible executable size and Windows `MZ` signature;
-- use temporary files rather than writing directly into the active application file;
-- use atomic replacement/backup semantics when the target filesystem supports them;
-- fail visibly if the installed Ghost FTP executable is locked by a running process;
-- validate the installed Setup maintenance copy;
-- preserve existing local profiles and settings;
-- update the selected client language without discarding unrelated valid settings;
-- keep client and Setup version metadata synchronized with the active `VERSION` / `RELEASE_CHANNEL` values.
+Setup preserves local settings and saved profiles. Invalid or oversized settings are treated as untrusted input and can be quarantined before Setup writes the selected language.
 
-Close Ghost FTP before updating so Windows can replace the executable safely.
+### Windows Installed Apps integration
 
-## Windows Installed Apps integration
+Setup registers Ghost FTP under the current user's Windows uninstall registry location with the Ghost FTP display name, BRENDIGO LTD publisher, current numeric display version, install location, icon, website/help link and uninstall command.
 
-Setup registers Ghost FTP under the current user's Windows uninstall registry location.
-
-The entry includes:
-
-- Display name: Ghost FTP;
-- Publisher: BRENDIGO LTD;
-- Display version matching the current numeric release;
-- install location;
-- Ghost FTP executable icon;
-- product/help website;
-- uninstall command.
-
-The uninstall command points to:
+The uninstall command is:
 
 ```text
 "%LOCALAPPDATA%\Programs\GhostFTP\GhostFTP-Setup.exe" --uninstall
 ```
 
-A 0.x Beta installation must not present itself as stable 1.0.0 in Installed Apps. The first stable display version is reserved for the explicit 1.0.0 release transition.
+Ghost FTP does not publish a `QuietUninstallString` while uninstall remains interactive. This avoids misleading endpoint-management software into assuming silent removal exists.
 
-## Uninstall flow
+### Windows uninstall
 
-Uninstall uses the same Setup executable and a guided flow:
+Uninstall uses the installed Setup and allows the user to choose whether local settings and saved profiles should also be removed. Normal removal deletes the client, Start Menu shortcut, optional Desktop shortcut and Installed Apps registration. Local data remains unless removal is explicitly selected.
 
-1. Welcome / language context.
-2. Choose whether local settings and saved server profiles should also be removed.
-3. Review the uninstall summary.
-4. Remove Ghost FTP.
-5. Finish.
+A running Setup cannot reliably delete its own executable immediately. Ghost FTP therefore registers Windows delete-on-reboot as an eventual fallback and also starts a bounded hidden local cleanup helper that retries after Setup exits. The helper uses `127.0.0.1` only as a local delay mechanism; it does not contact an external service.
 
-The uninstall process removes:
+No Windows service, scheduled task, analytics component or background updater is installed.
 
-- installed `GhostFTP.exe`;
-- Start Menu shortcut;
-- Desktop shortcut if present;
-- Windows Installed Apps registration;
-- optional local Ghost FTP data when explicitly selected.
+### Windows portable edition
 
-If local data removal is not selected, profiles/settings remain available for a future reinstall.
+`portable.exe` does not register Installed Apps and does not run the Setup wizard. Portable mode keeps Ghost FTP data in a `Data` directory next to the executable where portable storage is available. To remove the portable edition, delete the executable and optionally its local `Data` directory.
 
-## Self-removal of Setup
+## Linux
 
-A running executable cannot reliably delete itself immediately on Windows. Ghost FTP therefore uses the same installed Setup binary for uninstall and then applies two cleanup layers:
+### Supported environment
 
-1. Windows delete-on-reboot is registered as an eventual fallback for the maintenance Setup executable.
-2. A hidden local cleanup helper performs bounded repeated deletion attempts for up to approximately ten minutes. If the user remains on the Finish page, the helper waits; after Setup exits and Windows releases the file lock, the helper removes `GhostFTP-Setup.exe` and then attempts to remove the empty install directory.
+Ghost FTP ships a native Linux desktop renderer implemented directly against the X11 client ABI while sharing the same platform-neutral FTP/FTPS core and Ghost FTP design/localization contract used by Windows.
 
-The retry delay uses only `127.0.0.1` loopback traffic as a local timer. It does not contact an external host and does not add telemetry or an updater.
+The Linux UI runs on X11 and can run on Wayland desktops through XWayland. The standard desktop library `libX11.so.6` must be available. Official self-contained packages do not require a separate .NET installation.
 
-No additional uninstaller binary, Windows service or scheduled task is created.
+Linux packages are produced for **x64** and **ARM64**.
 
-## Portable edition
+### Which Linux file should I use?
 
-`portable.exe` does not register Windows Installed Apps and does not run the Setup wizard.
-
-Portable mode stores data in a `Data` directory next to the executable when operating as a portable build. Delete the portable executable and its local `Data` directory manually if you want to remove both the application and its portable data.
-
-During the 0.x development line, `portable.exe` remains a Beta build even though the filename itself does not contain `beta`. Its internal file/product version identifies the exact release. Stable use begins only when the active version is 1.0.0 and the release channel is stable.
-
-## Architecture-specific packages
-
-The release pipeline also emits:
+For a typical Intel/AMD 64-bit Linux desktop use either:
 
 ```text
-GhostFTP-Portable-win-x64.exe
-GhostFTP-Setup-win-x64.exe
-GhostFTP-Portable-win-arm64.exe
-GhostFTP-Setup-win-arm64.exe
-portable-arm64.exe
-setup-arm64.exe
+GhostFTP-linux-x64
+GhostFTP-linux-x64.tar.gz
 ```
 
-All executables from the same release must carry the same active numeric file version. Mixing a 0.x client with a 1.0.0 Setup package is not an accepted release configuration.
+For ARM64 Linux use:
+
+```text
+GhostFTP-linux-arm64
+GhostFTP-linux-arm64.tar.gz
+```
+
+Version/channel-explicit tarballs are also published, for example:
+
+```text
+GhostFTP-0.1.0-beta-linux-x64.tar.gz
+GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+```
+
+Do not try to run Windows `.exe` packages on Linux as the supported Linux distribution method. Use the Linux artifacts from the same GitHub Release.
+
+### Run the standalone Linux binary
+
+After verifying its SHA-256 checksum, make the architecture-matching binary executable if needed and start it from your desktop/session:
+
+```bash
+chmod +x GhostFTP-linux-x64
+./GhostFTP-linux-x64
+```
+
+Use `GhostFTP-linux-arm64` instead on ARM64.
+
+### Install from the Linux tarball
+
+The architecture-specific tarball contains the Ghost FTP executable plus user-local `install.sh` and `uninstall.sh` helpers. Extract the matching archive and run:
+
+```bash
+tar -xzf GhostFTP-linux-x64.tar.gz
+cd GhostFTP-linux-x64
+./install.sh
+```
+
+The helper performs a user-local installation; Ghost FTP does not require a cloud account, package-manager repository, background daemon or telemetry service.
+
+If script execution permission was not preserved by the download/extraction path, inspect the script and then restore its executable bit before running it:
+
+```bash
+chmod +x install.sh uninstall.sh
+```
+
+### Linux user data and credentials
+
+Linux settings and profiles remain local to the current user. Saved passwords are opt-in. Linux uses AES-256-GCM local credential protection backed by a cryptographically random per-user key file. Ghost FTP attempts to restrict that key file to user-only filesystem permissions (`0600`) where Unix permissions are available.
+
+This is local file-based protection and is not described as Windows DPAPI or as a hardware-backed secret store.
+
+### Linux uninstall
+
+Use the installed/unpacked uninstall helper for the matching package:
+
+```bash
+./uninstall.sh
+```
+
+Normal uninstall preserves local Ghost FTP settings/profiles. Use the documented explicit purge option only when you also want local Ghost FTP data removed:
+
+```bash
+./uninstall.sh --purge
+```
+
+Review the helper from the exact release before execution if the package was obtained from a mirror.
+
+## Demo mode
+
+The built-in **GhostFTP Demo** profile is local-only on Windows and Linux. It provides deterministic sample directories, files and transfer operations without opening an FTP socket. Demo mode is used by automated regression tests and authentic Windows documentation capture.
+
+Demo mode is not evidence that an arbitrary external FTP server is reachable. Real-server interoperability is tested separately with the credential-safe, non-destructive workflow documented in `docs/LIVE-SMOKE-TEST.md`.
+
+## Language selection
+
+English is the primary/default language and guaranteed fallback. Ghost FTP validates 29 local language choices. Language data is compiled with the application; selecting a language does not contact an online translation provider or download a language pack.
+
+## Privacy and network behavior
+
+Installation and uninstall are local operations. Ghost FTP contains no application telemetry, advertising SDK, analytics SDK, automatic crash uploader, cloud profile synchronization or automatic background update checker.
+
+Normal runtime network activity is limited to FTP/FTPS servers selected by the user, documented keepalive/diagnostics on an already selected server session, and website links explicitly opened by the user. Opening `ghostftp.com` or `brendigo.com` is user-initiated.
 
 ## Troubleshooting
 
-### Setup says Ghost FTP is running or locked
+### Windows Setup says Ghost FTP is running or locked
 
-Close Ghost FTP, wait for active transfer windows/processes to exit, and run Setup again. Setup intentionally refuses to claim a successful replacement while Windows still has the installed executable locked.
+Close Ghost FTP and wait for the application process to exit, then run Setup again. Setup deliberately refuses to claim a successful executable replacement while Windows still holds the installed binary open.
 
-### Setup cannot remove Ghost FTP
+### Windows reports Unknown Publisher / SmartScreen
 
-Close the client first. If the installed executable remains locked, uninstall reports the failure rather than silently claiming success.
+Check `SIGNING.txt` in the same GitHub Release. If that release is unsigned, the warning is expected. Verify the SHA-256 manifest and obtain Ghost FTP only from a trusted release source. Do not disable SmartScreen or certificate validation as a workaround. A future trusted-signed release must identify BRENDIGO LTD and pass the repository signing gate.
 
-### The maintenance Setup file remains briefly after uninstall
+### Linux fails with `libX11.so.6` missing
 
-The installed Setup executable can remain visible while the uninstall Finish window itself is still open because Windows keeps the running executable locked. Close the Finish window. The local cleanup helper retries deletion after the process exits; delete-on-reboot remains a fallback if Windows still refuses removal.
+Install the standard X11 client runtime supplied by your Linux distribution, then start Ghost FTP again. On a Wayland-only session, XWayland must be available for the current renderer.
 
-### Settings file is malformed or oversized
+### Linux binary is not executable
 
-Setup does not trust arbitrary local JSON. Invalid/oversized settings can be quarantined before Setup writes the selected language. Ghost FTP itself also applies bounded settings/profile reads and recovery rules.
+After verifying the checksum, restore the executable permission with `chmod +x` for the correct architecture-specific binary or install/uninstall helper.
 
-### Installer language does not match the client after an update
+### Settings are malformed or oversized
 
-The language selected in Setup is written as the client language. The desktop application applies stored language configuration at startup. Restart the client after changing the language.
+Ghost FTP treats persisted configuration as untrusted input, applies size/bounds validation and uses recovery/quarantine behavior rather than assuming local JSON is safe.
 
 ### Package says Beta
 
-That is expected for every public Ghost FTP version below 1.0.0. Beta status is removed only when the project reaches the explicit stable 1.0.0 gate and all release validation succeeds for that exact source commit.
+That is expected for every public Ghost FTP version below 1.0.0. Beta status is removed only after the explicit stable 1.0.0 gate passes for the exact source commit.
 
-## Privacy
-
-Setup performs local installation, update, shortcut and registry operations only. It contains no telemetry, analytics, advertising, crash upload or automatic update checker and does not report installation status to Ghost FTP or BRENDIGO LTD.
-
-Opening https://ghostftp.com or https://brendigo.com is always user-initiated; Setup does not open either website in the background.
+See `README.md`, `SECURITY.md`, `PRIVACY.md`, `docs/PLATFORM-SUPPORT.md`, `docs/CODE-SIGNING.md`, `docs/LIVE-SMOKE-TEST.md` and `docs/RELEASE-POLICY.md` for the current product contracts.
