@@ -51,9 +51,10 @@ try {
 
     $signingCertificate = @($imported) |
         Where-Object {
+            $eku = @($_.EnhancedKeyUsageList | ForEach-Object { $_.ObjectId.Value })
             $_.HasPrivateKey -and
             $_.NotAfter -gt (Get-Date).AddDays(1) -and
-            ($_.EnhancedKeyUsageList.ObjectId.Value -contains '1.3.6.1.5.5.7.3.3')
+            ($eku -contains '1.3.6.1.5.5.7.3.3')
         } |
         Sort-Object NotAfter -Descending |
         Select-Object -First 1
@@ -100,7 +101,15 @@ try {
         }
     }
 
+    $checksumPath = Join-Path $ReleaseDirectory 'SHA256SUMS.txt'
+    $checksumLines = Get-ChildItem $ReleaseDirectory -Filter '*.exe' -File | Sort-Object Name | ForEach-Object {
+        $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$hash  $($_.Name)"
+    }
+    $checksumLines | Set-Content $checksumPath -Encoding ascii
+
     Write-Host "Verified Authenticode signatures for $($executables.Count) Ghost FTP executable(s)."
+    Write-Host 'SHA256SUMS.txt regenerated from the final signed binaries.'
 }
 finally {
     foreach ($thumbprint in $importedThumbprints) {
