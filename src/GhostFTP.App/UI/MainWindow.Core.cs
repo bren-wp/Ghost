@@ -57,7 +57,7 @@ public sealed partial class MainWindow : Window
     private bool _allowClose;
     private readonly string? _captureDirectory;
 
-    private readonly ListBox _profilesList = new();
+    private readonly ComboBox _profilesList = new GhostComboBox();
     private readonly ListBox _connectionLogList = new();
     private readonly TextBox _host = GhostTheme.TextBox();
     private readonly TextBox _port = GhostTheme.TextBox("21");
@@ -79,7 +79,6 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock _localSummary = GhostTheme.Text("0 items", 11, muted: true);
     private readonly TextBlock _remoteSummary = GhostTheme.Text("0 items", 11, muted: true);
 
-    private Grid? _workspaceBody;
     private Grid? _workspaceContent;
     private Grid? _filePanesGrid;
 
@@ -92,7 +91,7 @@ public sealed partial class MainWindow : Window
     {
         _captureDirectory = string.IsNullOrWhiteSpace(captureDirectory) ? null : Path.GetFullPath(captureDirectory);
 
-        Title = GhostBrand.DisplayName;
+        Title = $"{GhostBrand.DisplayName} · {GhostBrand.ReleaseChannelDisplay}";
         Icon = GhostBrand.IconSource;
         Width = 1560;
         Height = 940;
@@ -108,6 +107,10 @@ public sealed partial class MainWindow : Window
 
         _security.ItemsSource = new[] { "FTP", "FTPS Explicit", "FTPS Implicit" };
         _security.SelectedIndex = 1;
+        _profilesList.DisplayMemberPath = nameof(ServerProfile.Name);
+        _profilesList.ItemsSource = _profiles;
+        _profilesList.MinWidth = 210;
+        _profilesList.MaxWidth = 340;
         _port.MaxLength = 5;
         _host.MaxLength = 253;
         _username.MaxLength = 512;
