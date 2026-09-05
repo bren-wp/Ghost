@@ -11,7 +11,9 @@ public static class Program
         var uninstall = args.Any(x => string.Equals(x, "--uninstall", StringComparison.OrdinalIgnoreCase));
 
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-        GhostTheme.Apply(GhostTheme.IsSystemDark());
+        var dark = GhostTheme.IsSystemDark();
+        GhostTheme.Apply(dark);
+        GhostReferenceTheme.Apply(dark);
 
         var window = new SetupWindow(uninstall);
         app.MainWindow = window;
