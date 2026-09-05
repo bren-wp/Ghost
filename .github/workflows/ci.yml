@@ -170,6 +170,13 @@ jobs:
       - name: Build Linux desktop client
         run: dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
 
+      - name: Smoke-test real Linux X11/XWayland renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v xvfb-run >/dev/null || { echo 'xvfb-run is required for the Linux UI quality gate.' >&2; exit 1; }
+          xvfb-run -a timeout 15s dotnet run --project src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-build -- --smoke-test
+
       - name: Core self-test on Linux
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-restore
 
@@ -186,7 +193,7 @@ jobs:
           chmod +x ./build-linux-release.sh
           ./build-linux-release.sh
 
-      - name: Verify Linux release assets and checksums
+      - name: Verify Linux release assets, checksums and packaged x64 runtime
         shell: bash
         run: |
           set -euo pipefail
@@ -208,6 +215,7 @@ jobs:
           (cd release-linux && sha256sum -c SHA256SUMS-linux.txt)
           file release-linux/GhostFTP-linux-x64
           file release-linux/GhostFTP-linux-arm64
+          xvfb-run -a timeout 15s release-linux/GhostFTP-linux-x64 --smoke-test
 
       - name: Upload verified Linux packages
         uses: actions/upload-artifact@v7
