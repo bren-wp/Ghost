@@ -13,31 +13,37 @@ public sealed class TransferQueueService : IAsyncDisposable
 
     private readonly Func<CancellationToken, Task<(IFtpSession Session, bool DisposeAfter)>> _sessionFactory;
     private const int MaxQueuedTransfers = 4096;
+    private const int MaxParallelTransfers = 8;
     private readonly Channel<Queued> _channel = Channel.CreateBounded<Queued>(new BoundedChannelOptions(MaxQueuedTransfers)
     {
-        SingleReader = true,
+        SingleReader = false,
         SingleWriter = false,
         FullMode = BoundedChannelFullMode.Wait
     });
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Dictionary<Guid, CancellationTokenSource> _cancellations = new();
     private readonly object _sync = new();
-    private readonly Task _worker;
+    private readonly Task[] _workers;
     private readonly SynchronizationContext? _uiContext;
     private readonly int _maxAutomaticRetries;
 
     public ObservableCollection<TransferJob> Jobs { get; } = [];
     public event EventHandler<TransferJob>? JobUpdated;
+    public int ConcurrentTransferLimit { get; }
 
     public TransferQueueService(
         Func<CancellationToken, Task<(IFtpSession Session, bool DisposeAfter)>> sessionFactory,
         SynchronizationContext? uiContext = null,
-        int maxAutomaticRetries = 2)
+        int maxAutomaticRetries = 2,
+        int concurrentTransferLimit = 3)
     {
         _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
         _uiContext = uiContext;
         _maxAutomaticRetries = Math.Clamp(maxAutomaticRetries, 0, 5);
-        _worker = Task.Run(WorkerAsync);
+        ConcurrentTransferLimit = Math.Clamp(concurrentTransferLimit, 1, MaxParallelTransfers);
+        _workers = Enumerable.Range(0, ConcurrentTransferLimit)
+            .Select(_ => Task.Run(WorkerAsync))
+            .ToArray();
     }
 
     public TransferJob EnqueueUpload(string source, string destination, bool isDirectory)
@@ -290,7 +296,7 @@ public sealed class TransferQueueService : IAsyncDisposable
         {
             foreach (var cts in _cancellations.Values) cts.Cancel();
         }
-        try { await _worker.ConfigureAwait(false); } catch (OperationCanceledException) { }
+        try { await Task.WhenAll(_workers).ConfigureAwait(false); } catch (OperationCanceledException) { }
         lock (_sync)
         {
             foreach (var cts in _cancellations.Values) cts.Dispose();
