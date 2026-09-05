@@ -61,8 +61,8 @@ public sealed partial class MainWindow : Window
     private readonly TextBox _username = GhostTheme.TextBox();
     private readonly PasswordBox _password = GhostTheme.PasswordBox();
     private readonly ComboBox _security = new GhostComboBox();
-    private readonly Button _connectButton = GhostTheme.Button("Connect", primary: true);
-    private readonly Button _disconnectButton = GhostTheme.Button("Disconnect", danger: true);
+    private readonly Button _connectButton = GhostTheme.Button(GhostLocalization.T("Connect"), primary: true);
+    private readonly Button _disconnectButton = GhostTheme.Button(GhostLocalization.T("Disconnect"), danger: true);
     private readonly TextBox _localPathBox = GhostTheme.TextBox();
     private readonly TextBox _remotePathBox = GhostTheme.TextBox("/");
     private readonly TextBox _localFilter = GhostTheme.TextBox();
@@ -71,13 +71,15 @@ public sealed partial class MainWindow : Window
     private readonly ListView _remoteList = new();
     private readonly ListView _queueList = new();
     private readonly Border _statusBadge = new();
-    private readonly TextBlock _statusText = GhostTheme.Text("Offline", 11, muted: true, weight: FontWeights.SemiBold);
-    private readonly TextBlock _queueSummary = GhostTheme.Text("No transfers", 11.5, muted: true);
+    private readonly TextBlock _statusText = GhostTheme.Text(GhostLocalization.T("Offline"), 11, muted: true, weight: FontWeights.SemiBold);
+    private readonly TextBlock _queueSummary = GhostTheme.Text(GhostLocalization.T("NoTransfers"), 11.5, muted: true);
     private readonly TextBlock _localSummary = GhostTheme.Text("0 items", 11, muted: true);
     private readonly TextBlock _remoteSummary = GhostTheme.Text("0 items", 11, muted: true);
 
     private List<LocalItem> _localAll = [];
     private List<RemoteItem> _remoteAll = [];
+
+    private static string L(string key) => GhostLocalization.T(key);
 
     public MainWindow()
     {
@@ -99,6 +101,10 @@ public sealed partial class MainWindow : Window
         _port.MaxLength = 5;
         _host.MaxLength = 253;
         _username.MaxLength = 512;
+        _localPathBox.MaxLength = 32767;
+        _remotePathBox.MaxLength = 4096;
+        _localFilter.MaxLength = 512;
+        _remoteFilter.MaxLength = 512;
 
         Content = BuildLayout();
         ConfigureLists();
