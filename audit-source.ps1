@@ -41,10 +41,11 @@ if ($assemblyVersion -ne $expectedAssembly -or $fileVersion -ne $expectedAssembl
 if ($informationalVersion -ne $version) {
     throw "InformationalVersion must be $version."
 }
-foreach ($metadata in @($authors, $company, $product)) {
-    if ($metadata -ne 'Ghost FTP') {
-        throw 'Authors, Company and Product metadata must all use the Ghost FTP brand.'
-    }
+if ($authors -ne 'BRENDIGO LTD' -or $company -ne 'BRENDIGO LTD') {
+    throw 'Authors and Company metadata must identify BRENDIGO LTD as the Ghost FTP publisher.'
+}
+if ($product -ne 'Ghost FTP') {
+    throw 'Product metadata must use the Ghost FTP product name.'
 }
 
 foreach ($manifest in @('src/GhostFTP.App/app.manifest','src/GhostFTP.Setup/app.manifest')) {
@@ -85,7 +86,8 @@ $requiredDesignFiles = @(
     'src/GhostFTP.Design/GhostTheme.cs',
     'src/GhostFTP.Design/GhostWindowChrome.cs',
     'src/GhostFTP.Design/GhostBrand.cs',
-    'src/GhostFTP.Design/GhostComboBox.cs'
+    'src/GhostFTP.Design/GhostComboBox.cs',
+    'src/GhostFTP.Design/GhostLocalization.cs'
 )
 foreach ($required in $requiredDesignFiles) {
     if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) {
@@ -123,8 +125,6 @@ foreach ($token in $legacyHelperCalls) {
     }
 }
 
-# Native WPF TextBox/PasswordBox editing is intentionally preserved. A local replacement
-# template previously caused focus/caret/input regressions and must not be reintroduced.
 $fragileInputTemplates = @('RoundedTextBoxTemplate', 'RoundedPasswordBoxTemplate')
 foreach ($token in $fragileInputTemplates) {
     $matches = Get-ChildItem $src -Recurse -File -Filter *.cs | Select-String -SimpleMatch $token
@@ -148,11 +148,8 @@ if ($targets -notmatch 'ApplicationIcon' -or $targets -notmatch 'generate-ghostf
     throw 'Ghost FTP executable icon generation must remain connected to the build.'
 }
 
-# Keep every user-visible and repository-visible identity on the Ghost FTP brand only.
-# Tokens are assembled here so the legacy names themselves never become repository text matches.
+# Keep legacy product identities out while allowing the legal BRENDIGO LTD publisher identity.
 $legacyBrandTokens = @(
-    ('Bren' + 'digo'),
-    ('bren' + 'digo.com'),
     ('My' + 'FTP'),
     ('My' + ' FTP')
 )
@@ -167,14 +164,21 @@ foreach ($file in $scanFiles) {
     $relative = $file.FullName.Substring($root.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
     foreach ($token in $legacyBrandTokens) {
         if ($relative.IndexOf($token, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
-            throw "Non-Ghost FTP brand found in repository path: $relative"
+            throw "Legacy product brand found in repository path: $relative"
         }
         $matches = Select-String -Path $file.FullName -SimpleMatch -Pattern $token
         if ($matches) {
-            $matches | ForEach-Object { Write-Error "Non-Ghost FTP brand reference found: $($_.Path):$($_.LineNumber)" }
+            $matches | ForEach-Object { Write-Error "Legacy product brand reference found: $($_.Path):$($_.LineNumber)" }
             exit 1
         }
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: Ghost FTP-only branding, C#-only source, zero PackageReference entries, native editable input path, WPF input smoke tests, shared design/icon/dropdown architecture, no known telemetry/tracking SDK references, version metadata synchronized."
+$brandSource = Get-Content (Join-Path $root 'src/GhostFTP.Design/GhostBrand.cs') -Raw
+foreach ($requiredPublisherToken in @('BRENDIGO LTD','16545639','71–75 Shelton Street','ghostftp.com')) {
+    if ($brandSource -notmatch [regex]::Escape($requiredPublisherToken)) {
+        throw "Ghost FTP publisher identity is incomplete: missing '$requiredPublisherToken'."
+    }
+}
+
+Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata, Ghost FTP product branding, C#-only source, zero PackageReference entries, native editable inputs, localization smoke tests, no known telemetry/tracking SDK references, and synchronized version metadata."
