@@ -11,9 +11,10 @@ public static class Program
         var uninstall = args.Any(x => string.Equals(x, "--uninstall", StringComparison.OrdinalIgnoreCase));
 
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-        var dark = GhostTheme.IsSystemDark();
-        GhostTheme.Apply(dark);
-        GhostReferenceTheme.Apply(dark);
+        // Setup is part of the same product surface as the installed and portable clients.
+        // Keep the approved local dark reference appearance deterministic across host themes.
+        GhostTheme.Apply(dark: true);
+        GhostReferenceTheme.Apply(dark: true);
 
         var window = new SetupWindow(uninstall);
         app.MainWindow = window;
