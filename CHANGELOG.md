@@ -1,5 +1,55 @@
 # Ghost FTP changelog
 
+## 1.6.0 — 2026-09-05
+
+### Connection resilience
+
+- Added configurable FTP/FTPS control-channel keepalive using standard `NOOP` against the already selected server session.
+- Keepalive can be disabled with `0`; enabled intervals are constrained to 15–600 seconds and default to 60 seconds.
+- Demo mode remains fully local and never runs keepalive.
+- A failed keepalive now resets the unusable browser control transport instead of leaving stale connected state behind.
+- Connection Diagnostics applies the same stale-transport reset after a genuine control-channel failure.
+- The Remote pane is cleared and the UI reports **Connection lost** when keepalive proves the server control connection is unusable.
+- Ghost FTP does not silently reconnect with saved credentials after a keepalive failure.
+
+### Transfer controls and observability
+
+- Added a user-configurable concurrent-transfer limit from 1–8; default remains 3.
+- Preserved isolated real FTP/FTPS sessions per queued transfer and a separate browser control connection.
+- Added transferred-byte/known-total display to transfer jobs.
+- Added ETA calculation when total bytes and current speed are known.
+- Added start/finish timestamps and a detailed per-transfer information dialog.
+- Added aggregate live throughput to the Transfers queue summary.
+- Double-clicking a queue item now opens details instead of implicitly retrying failed/cancelled work.
+- Fixed resumed-transfer speed measurement so bytes already present in a partial file are not counted as current-session throughput.
+- Added Core self-test coverage for transferred-byte text, ETA, completion state and unknown-total normalization.
+
+### Keyboard and workstation safety
+
+- Reworked shortcut routing around explicit Local, Remote and Transfers focus state.
+- Fixed a dangerous fallback where `Delete`/`F2` from queue/sidebar focus could previously fall through to Local file actions.
+- `Delete` while Transfers has focus now cancels the selected transfer.
+- Added context-aware `Ctrl+A` for Local, Remote and Transfers lists.
+- Added `Enter` to activate/open the selected Local/Remote item.
+- Added `Backspace` parent-directory navigation in active file panes.
+- `Ctrl+F`, `Ctrl+L`, `F5`, `F2` and `Delete` now require the appropriate active file-pane context.
+
+### Privacy, security and settings
+
+- Added bounded `ConcurrentTransfers` and `KeepAliveSeconds` settings to the existing local settings store.
+- Keepalive changes apply while the app is running; concurrency/retry worker changes apply after restart and timeout changes apply to the next connection.
+- Updated PRIVACY documentation to distinguish selected-server keepalive traffic from product telemetry.
+- Updated SECURITY documentation for stale control-state invalidation, bounded concurrency and focus-safe destructive shortcuts.
+- Expanded the source audit so 1.6.0 reliability/privacy primitives, QueueSelfTest, current release notes and documentation cannot silently disappear.
+- Preserved zero NuGet `PackageReference` entries, no telemetry/tracking SDKs, strict FTPS validation, bounded parsing/traversal and upload/download integrity rules.
+
+### Documentation and version discipline
+
+- Synchronized VERSION, assembly/file/informational metadata and both Windows manifests to 1.6.0.
+- Added `docs/releases/v1.6.0.md` as the authoritative detailed release body.
+- Refreshed README for keepalive, configurable concurrency, transfer metrics, keyboard safety and current quality gates.
+- Expanded `docs/RELEASE-POLICY.md` with explicit keepalive, concurrency, privacy and QueueSelfTest release requirements.
+
 ## 1.5.0 — 2026-09-05
 
 ### Professional resizable workspace
