@@ -1,6 +1,9 @@
 using GhostFTP.Design;
+using GhostFTP.Setup;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace GhostFTP.UiSmoke;
 
@@ -20,6 +23,7 @@ public static class Program
             TestComboBox(failures);
             TestLocalization(failures);
             TestBrandIdentity(failures);
+            TestSetupLanguageSwitchAndWizardRebuild(failures);
         }
         catch (Exception ex)
         {
@@ -37,6 +41,7 @@ public static class Program
             Console.WriteLine($"PASS  Ghost FTP application localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
             Console.WriteLine($"PASS  Ghost FTP Setup localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
             Console.WriteLine("PASS  Ghost FTP / BRENDIGO LTD product and publisher identity");
+            Console.WriteLine("PASS  Ghost FTP Setup live language switching and wizard rebuild");
             return 0;
         }
 
@@ -136,6 +141,107 @@ public static class Program
             "Ghost FTP product website must be an absolute HTTPS URI.", failures);
         Assert(Uri.TryCreate(GhostBrand.PublisherWebsite, UriKind.Absolute, out var publisherUri) && publisherUri.Scheme == Uri.UriSchemeHttps,
             "BRENDIGO LTD publisher website must be an absolute HTTPS URI.", failures);
+    }
+
+    private static void TestSetupLanguageSwitchAndWizardRebuild(List<string> failures)
+    {
+        GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
+        SetupWindow? window = null;
+        try
+        {
+            window = new SetupWindow(uninstallMode: false);
+            window.Show();
+            PumpDispatcher();
+            window.UpdateLayout();
+
+            var language = FindVisualDescendant<GhostComboBox>(window);
+            Assert(language is not null, "Setup language selector was not found in the live visual tree.", failures);
+            if (language is null)
+                return;
+
+            foreach (var code in new[] { "hr", "de", "ja", "en" })
+            {
+                language.IsDropDownOpen = true;
+                PumpDispatcher();
+                language.SelectedItem = GhostLocalization.SupportedLanguages.First(x => x.Code == code);
+                PumpDispatcher();
+                window.UpdateLayout();
+
+                Assert(GhostLocalization.CurrentLanguageCode == code,
+                    $"Setup live language switch did not apply '{code}'.", failures);
+                Assert(language.Parent is not null,
+                    $"Setup language selector became detached after switching to '{code}'.", failures);
+            }
+
+            var next = FindVisualDescendants<Button>(window)
+                .FirstOrDefault(x => x.IsEnabled && x.Visibility == Visibility.Visible &&
+                                     string.Equals(x.Content?.ToString(), GhostSetupLocalization.T("Next"), StringComparison.Ordinal));
+            Assert(next is not null, "Setup Next button was not found after language switching.", failures);
+            if (next is not null)
+            {
+                next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                PumpDispatcher();
+                window.UpdateLayout();
+
+                var back = FindVisualDescendants<Button>(window)
+                    .FirstOrDefault(x => x.IsEnabled && x.Visibility == Visibility.Visible &&
+                                         string.Equals(x.Content?.ToString(), GhostSetupLocalization.T("Back"), StringComparison.Ordinal));
+                Assert(back is not null, "Setup Back button was not found after moving to the License step.", failures);
+                if (back is not null)
+                {
+                    back.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    PumpDispatcher();
+                    window.UpdateLayout();
+                    Assert(FindVisualDescendant<GhostComboBox>(window) is not null,
+                        "Setup did not rebuild the Welcome step after Back navigation.", failures);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            failures.Add("Setup language switch/rebuild crash: " + DescribeException(ex));
+        }
+        finally
+        {
+            if (window is not null)
+            {
+                try
+                {
+                    window.Close();
+                    PumpDispatcher();
+                }
+                catch (Exception ex)
+                {
+                    failures.Add("Setup smoke cleanup: " + DescribeException(ex));
+                }
+            }
+            GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
+        }
+    }
+
+    private static T? FindVisualDescendant<T>(DependencyObject root) where T : DependencyObject
+        => FindVisualDescendants<T>(root).FirstOrDefault();
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+                yield return match;
+            foreach (var nested in FindVisualDescendants<T>(child))
+                yield return nested;
+        }
+    }
+
+    private static void PumpDispatcher()
+    {
+        var frame = new DispatcherFrame();
+        _ = Dispatcher.CurrentDispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
     }
 
     private static string DescribeException(Exception exception)

@@ -38,6 +38,8 @@ public sealed class SetupWindow : Window
     private WizardStep _step = WizardStep.Welcome;
     private bool _busy;
     private bool _rebuilding;
+    private bool _languageRenderPending;
+    private bool _closed;
     private string? _lastError;
 
     public SetupWindow(bool uninstallMode)
@@ -59,6 +61,7 @@ public sealed class SetupWindow : Window
         SnapsToDevicePixels = true;
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Closing += OnClosing;
+        Closed += (_, _) => _closed = true;
 
         var preferredLanguage = _installer.LoadPreferredLanguage();
         GhostLocalization.SetLanguage(preferredLanguage);
@@ -110,8 +113,30 @@ public sealed class SetupWindow : Window
         if (_rebuilding || _busy || _language.SelectedItem is not GhostLanguage language)
             return;
 
+        if (string.Equals(language.Code, GhostLocalization.CurrentLanguageCode, StringComparison.OrdinalIgnoreCase))
+            return;
+
         GhostLocalization.SetLanguage(language.Code);
-        Render();
+
+        // SelectionChanged is raised while the ComboBox popup and old logical tree are still active.
+        // Close the popup and defer the full wizard rebuild until that input event has unwound.
+        _language.IsDropDownOpen = false;
+        QueueLanguageRender();
+    }
+
+    private void QueueLanguageRender()
+    {
+        if (_languageRenderPending)
+            return;
+
+        _languageRenderPending = true;
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            _languageRenderPending = false;
+            if (_closed || _busy)
+                return;
+            Render();
+        }));
     }
 
     private void Render()
@@ -119,6 +144,10 @@ public sealed class SetupWindow : Window
         _rebuilding = true;
         try
         {
+            // Several controls intentionally preserve state across wizard steps. A detached root still
+            // owns its descendants logically, so explicitly remove those controls from the old parent
+            // before adding them to the newly built tree.
+            DetachReusableControls();
             Content = null;
             Title = _uninstallMode
                 ? $"{GhostLocalization.T("Uninstall")} {GhostBrand.DisplayName}"
@@ -132,6 +161,39 @@ public sealed class SetupWindow : Window
         finally
         {
             _rebuilding = false;
+        }
+    }
+
+    private void DetachReusableControls()
+    {
+        DetachFromParent(_language);
+        DetachFromParent(_acceptLicense);
+        DetachFromParent(_desktopShortcut);
+        DetachFromParent(_removeData);
+        DetachFromParent(_back);
+        DetachFromParent(_secondary);
+        DetachFromParent(_primary);
+        DetachFromParent(_status);
+        DetachFromParent(_progress);
+    }
+
+    private static void DetachFromParent(FrameworkElement element)
+    {
+        switch (element.Parent)
+        {
+            case null:
+                return;
+            case Panel panel:
+                panel.Children.Remove(element);
+                return;
+            case Decorator decorator when ReferenceEquals(decorator.Child, element):
+                decorator.Child = null;
+                return;
+            case ContentControl contentControl when ReferenceEquals(contentControl.Content, element):
+                contentControl.Content = null;
+                return;
+            default:
+                throw new InvalidOperationException($"Cannot safely detach {element.GetType().Name} from {element.Parent.GetType().Name}.");
         }
     }
 
