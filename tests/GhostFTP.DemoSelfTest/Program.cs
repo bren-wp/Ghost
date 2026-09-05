@@ -30,7 +30,7 @@ public static class Program
 
     private static async Task RunAsync(string root)
     {
-        await using var session = new DemoFtpSession();
+        await using IFtpSession session = new DemoFtpSession();
         Assert(!session.IsConnected, "Demo session unexpectedly starts connected.");
         Assert(session.Host == "demo.ghostftp.local", "Demo host identity changed unexpectedly.");
 
