@@ -6,36 +6,42 @@ namespace GhostFTP.Linux;
 
 internal sealed partial class LinuxMainWindow
 {
-    private const int MenuHeight = 30;
-    private const int ToolbarHeight = 50;
+    private const int MenuHeight = 38;
+    private const int ToolbarHeight = 70;
     private const int StatusHeight = 28;
-    private const int OuterGap = 8;
+    private const int OuterGap = 10;
+    private const int SidebarWidth = 292;
+    private bool _referencePaletteApplied;
 
     private void Draw()
     {
+        EnsureReferencePalette();
         _hitRegions.Clear();
         SetColor(_cBg);
         X11Native.XFillRectangle(_display, _window, _gc, 0, 0, (uint)Math.Max(1, _width), (uint)Math.Max(1, _height));
 
-        DrawMenu();
-        DrawToolbar();
+        DrawSidebar();
+        DrawMenu(SidebarWidth);
+        DrawToolbar(SidebarWidth);
 
-        var y = MenuHeight + ToolbarHeight + 6;
-        var contentWidth = _width - OuterGap * 2;
-        var logHeight = Math.Clamp((int)(_height * 0.14), 92, 132);
-        DrawConnectionLog(new RectI(OuterGap, y, contentWidth, logHeight));
-        y += logHeight + 7;
+        var mainX = SidebarWidth + OuterGap;
+        var y = MenuHeight + ToolbarHeight + OuterGap;
+        var contentWidth = Math.Max(700, _width - mainX - OuterGap);
+        var topHeight = Math.Clamp((int)(_height * 0.23), 180, 215);
+        var topGap = 8;
+        var logWidth = Math.Max(330, (contentWidth - topGap) * 48 / 100);
+        var quickWidth = Math.Max(370, contentWidth - topGap - logWidth);
 
-        const int quickHeight = 126;
-        DrawQuickConnect(new RectI(OuterGap, y, contentWidth, quickHeight));
-        y += quickHeight + 7;
+        DrawConnectionLog(new RectI(mainX, y, logWidth, topHeight));
+        DrawQuickConnect(new RectI(mainX + logWidth + topGap, y, quickWidth, topHeight));
+        y += topHeight + 8;
 
         var transferHeight = Math.Clamp((int)_settings.TransferPanelHeight, 128, 220);
         var available = _height - StatusHeight - y - OuterGap;
         var panesHeight = Math.Max(240, available - transferHeight - 7);
-        DrawFilePanes(new RectI(OuterGap, y, contentWidth, panesHeight));
+        DrawFilePanes(new RectI(mainX, y, contentWidth, panesHeight));
         y += panesHeight + 7;
-        DrawTransfers(new RectI(OuterGap, y, contentWidth, Math.Max(110, _height - StatusHeight - y)));
+        DrawTransfers(new RectI(mainX, y, contentWidth, Math.Max(110, _height - StatusHeight - y)));
 
         DrawStatusBar();
 
@@ -45,38 +51,120 @@ internal sealed partial class LinuxMainWindow
         X11Native.XFlush(_display);
     }
 
-    private void DrawMenu()
+    private void EnsureReferencePalette()
     {
-        Fill(new RectI(0, 0, _width, MenuHeight), _cSurface);
-        DrawLine(0, MenuHeight - 1, _width, MenuHeight - 1, _cBorder);
-        var x = 12;
-        foreach (var label in new[] { "File", "View", "Sites", "Transfers", "Tools", "Help" })
-        {
-            DrawText(label, x, 20, _cText);
-            x += label.Length * 9 + 22;
-        }
-        DrawText($"{GhostProduct.DisplayName} {GhostProduct.InformationalVersion}", Math.Max(10, _width - 235), 20, _cMuted);
+        if (_referencePaletteApplied)
+            return;
+
+        _cBg = Color(GhostReferencePalette.Background);
+        _cSurface = Color(GhostReferencePalette.Surface);
+        _cSurface2 = Color(GhostReferencePalette.Surface2);
+        _cBorder = Color(GhostReferencePalette.Border);
+        _cText = Color(GhostReferencePalette.Text);
+        _cMuted = Color(GhostReferencePalette.Muted);
+        _cAccent = Color(GhostReferencePalette.Accent);
+        _cAccentSoft = Color(GhostReferencePalette.AccentSoft);
+        _cDanger = Color(GhostReferencePalette.Danger);
+        _cSuccess = Color(GhostReferencePalette.Success);
+        _referencePaletteApplied = true;
     }
 
-    private void DrawToolbar()
+    private void DrawSidebar()
+    {
+        Fill(new RectI(0, 0, SidebarWidth, _height), _cSurface);
+        DrawLine(SidebarWidth - 1, 0, SidebarWidth - 1, _height, _cBorder);
+
+        DrawText("G", 20, 43, _cAccent);
+        DrawText(GhostProduct.DisplayName, 47, 37, _cText);
+        DrawText("PRIVATE FILE CLIENT", 47, 51, _cMuted);
+        DrawText("Private file transfers, simply.", 20, 79, _cMuted);
+        DrawLine(0, 108, SidebarWidth - 1, 108, _cBorder);
+
+        DrawText(L("SavedServers"), 20, 142, _cText);
+        DrawButton(new RectI(SidebarWidth - 49, 122, 34, 34), "+", OpenSiteManager);
+        DrawButton(new RectI(14, 169, SidebarWidth - 28, 34), "⌂  Home", RefreshAll);
+
+        DrawText($"▣  This tab                                      {_profiles.Count}", 20, 235, _cText);
+        var sy = 252;
+        foreach (var pair in _profiles.Take(5).Select((profile, index) => (profile, index)))
+        {
+            var row = new RectI(20, sy, SidebarWidth - 40, 28);
+            if (pair.index == _siteSelected) Fill(row, _cAccentSoft);
+            DrawText(Ellipsize(pair.profile.Name, 27), row.X + 8, row.Y + 19, pair.index == _siteSelected ? _cText : _cMuted);
+            var captured = pair.index;
+            Register(row, () =>
+            {
+                _siteSelected = captured;
+                LoadProfileIntoFields(_profiles[captured]);
+                RequestRedraw();
+            });
+            sy += 30;
+        }
+        if (_profiles.Count == 0)
+            DrawText("No saved connection in this tab.", 36, sy + 18, _cMuted);
+
+        sy += _profiles.Count == 0 ? 42 : 12;
+        DrawButton(new RectI(14, sy, SidebarWidth - 28, 34), "☆  Favorites in this tab", OpenSiteManager);
+        DrawButton(new RectI(14, sy + 40, SidebarWidth - 28, 34), "◷  Recent connections in this tab", () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
+
+        var privacyY = Math.Max(sy + 88, _height - 164);
+        var privacy = new RectI(12, privacyY, SidebarWidth - 24, 104);
+        Fill(privacy, _cSurface2);
+        Border(privacy, _cBorder);
+        DrawText("◇  Account not required", privacy.X + 14, privacy.Y + 25, _cText);
+        DrawText("Profiles and settings stay local.", privacy.X + 14, privacy.Y + 48, _cMuted);
+        DrawText("No telemetry · no tracking.", privacy.X + 14, privacy.Y + 65, _cMuted);
+        DrawText("No Ghost FTP cloud account.", privacy.X + 14, privacy.Y + 82, _cMuted);
+
+        var footerY = _height - 50;
+        Fill(new RectI(0, footerY, SidebarWidth, 50), _cSurface);
+        DrawLine(0, footerY, SidebarWidth - 1, footerY, _cBorder);
+        DrawButton(new RectI(12, footerY + 8, 120, 32), "⚙ " + L("Settings"), OpenSettings);
+        DrawButton(new RectI(142, footerY + 8, 138, 32), "ⓘ " + L("About"), () =>
+        {
+            _modalKind = ModalKind.Confirm;
+            _modalTitle = GhostProduct.DisplayName;
+            _modalText = $"{GhostProduct.InformationalVersion} · BRENDIGO LTD · No telemetry · No tracking";
+            _modalCallback = _ => { };
+            RequestRedraw();
+        });
+    }
+
+    private void DrawMenu(int left)
+    {
+        Fill(new RectI(left, 0, _width - left, MenuHeight), Color(GhostReferencePalette.Menu));
+        DrawLine(left, MenuHeight - 1, _width, MenuHeight - 1, _cBorder);
+        var x = left + 16;
+        foreach (var label in new[] { "File", "View", "Sites", "Transfers", "Tools", "Help" })
+        {
+            DrawText(label, x, 25, _cText);
+            x += label.Length * 9 + 22;
+        }
+
+        var language = GhostLocalization.SupportedLanguages.ElementAtOrDefault(_languageIndex)?.NativeName ?? "English";
+        DrawButton(new RectI(Math.Max(left + 650, _width - 126), 4, 112, 30), "☆ " + Ellipsize(language, 10), OpenSettings);
+    }
+
+    private void DrawToolbar(int left)
     {
         var top = MenuHeight;
-        Fill(new RectI(0, top, _width, ToolbarHeight), _cSurface);
-        DrawLine(0, top + ToolbarHeight - 1, _width, top + ToolbarHeight - 1, _cBorder);
+        Fill(new RectI(left, top, _width - left, ToolbarHeight), Color(GhostReferencePalette.Toolbar));
+        DrawLine(left, top + ToolbarHeight - 1, _width, top + ToolbarHeight - 1, _cBorder);
 
-        DrawText("G", 14, top + 31, _cAccent);
-        DrawText(GhostProduct.DisplayName, 34, top + 22, _cText);
-        DrawText($"{GhostProduct.ReleaseChannelDisplay} · Linux", 34, top + 38, _cMuted);
+        var x = left + 12;
+        x += DrawButton(new RectI(x, top + 14, 92, 42), "⚡ " + L("Connect"), () => _ = RunBackground(ConnectCoreAsync), primary: true).Width + 5;
+        x += DrawButton(new RectI(x, top + 14, 100, 42), "⏻ " + L("Disconnect"), () => _ = RunBackground(() => DisconnectCoreAsync()), enabled: _connected).Width + 5;
+        x += DrawButton(new RectI(x, top + 14, 86, 42), "↑ " + L("Upload"), QueueUploadSelected, enabled: _connected).Width + 5;
+        x += DrawButton(new RectI(x, top + 14, 96, 42), "↓ " + L("Download"), QueueDownloadSelected, enabled: _connected).Width + 5;
+        x += DrawButton(new RectI(x, top + 14, 88, 42), "↻ " + L("Refresh"), RefreshAll).Width + 5;
+        x += DrawButton(new RectI(x, top + 14, 108, 42), "▣ Site Manager", OpenSiteManager).Width + 5;
+        x += DrawButton(new RectI(x, top + 14, 92, 42), "⚙ " + L("Settings"), OpenSettings).Width + 5;
+        _ = DrawButton(new RectI(x, top + 14, 100, 42), "◉ Diagnostics", () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
 
-        var x = 170;
-        x += DrawButton(new RectI(x, top + 9, 92, 32), "⚡ " + L("Connect"), () => _ = RunBackground(ConnectCoreAsync), primary: true).Width + 5;
-        x += DrawButton(new RectI(x, top + 9, 100, 32), "⏻ " + L("Disconnect"), () => _ = RunBackground(() => DisconnectCoreAsync()), enabled: _connected).Width + 5;
-        x += DrawButton(new RectI(x, top + 9, 86, 32), "↑ " + L("Upload"), QueueUploadSelected, enabled: _connected).Width + 5;
-        x += DrawButton(new RectI(x, top + 9, 96, 32), "↓ " + L("Download"), QueueDownloadSelected, enabled: _connected).Width + 5;
-        x += DrawButton(new RectI(x, top + 9, 88, 32), "↻ " + L("Refresh"), RefreshAll).Width + 5;
-        x += DrawButton(new RectI(x, top + 9, 108, 32), "▣ Site Manager", () => OpenSiteManager()).Width + 5;
-        x += DrawButton(new RectI(x, top + 9, 92, 32), "⚙ " + L("Settings"), OpenSettings).Width + 5;
-        _ = DrawButton(new RectI(x, top + 9, 100, 32), "◉ Diagnostics", () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
+        var searchWidth = Math.Clamp((_width - left) / 4, 250, 342);
+        var searchX = _width - searchWidth - 14;
+        DrawText("⌕", searchX + 9, top + 39, _cMuted);
+        DrawField("remoteFilter", new RectI(searchX + 30, top + 14, searchWidth - 30, 42));
     }
 
     private void DrawConnectionLog(RectI rect)
@@ -112,19 +200,26 @@ internal sealed partial class LinuxMainWindow
         DrawText("FTPS Explicit recommended", x + 110, y + 15, _cMuted);
 
         var profileText = _profiles.ElementAtOrDefault(_siteSelected)?.Name ?? L("SavedServers");
-        DrawButton(new RectI(rect.X + rect.Width - 390, y, 210, 26), Ellipsize(profileText, 23), CycleSavedSite);
-        DrawButton(new RectI(rect.X + rect.Width - 174, y, 162, 26), "▣ Site Manager", OpenSiteManager);
+        DrawButton(new RectI(rect.X + rect.Width - 290, y, 130, 26), Ellipsize(profileText, 13), CycleSavedSite);
+        DrawButton(new RectI(rect.X + rect.Width - 154, y, 142, 26), "▣ Site Manager", OpenSiteManager);
 
-        y += 34;
-        var hostWidth = Math.Max(280, rect.Width - 390);
-        DrawLabeledField("host", L("Host"), new RectI(x, y, hostWidth, 32));
-        DrawLabeledField("port", L("Port"), new RectI(x + hostWidth + 8, y, 78, 32));
-        DrawSecurityField(new RectI(x + hostWidth + 94, y, 170, 32));
+        y += 42;
+        var available = Math.Max(320, rect.Width - 20);
+        var hostWidth = Math.Max(150, available * 33 / 100);
+        var portWidth = 74;
+        var securityWidth = Math.Max(125, available * 22 / 100);
+        var usernameWidth = Math.Max(130, (available - hostWidth - portWidth - securityWidth - 24) / 2);
+        var passwordWidth = Math.Max(130, available - hostWidth - portWidth - securityWidth - usernameWidth - 32);
 
-        y += 44;
-        var half = Math.Max(260, (rect.Width - 160) / 2 - 12);
-        DrawLabeledField("username", L("Username"), new RectI(x, y, half, 32));
-        DrawLabeledField("password", L("Password"), new RectI(x + half + 8, y, half, 32));
+        DrawLabeledField("host", L("Host"), new RectI(x, y, hostWidth, 34));
+        DrawLabeledField("port", L("Port"), new RectI(x + hostWidth + 8, y, portWidth, 34));
+        DrawSecurityField(new RectI(x + hostWidth + portWidth + 16, y, securityWidth, 34));
+        var ux = x + hostWidth + portWidth + securityWidth + 24;
+        DrawLabeledField("username", L("Username"), new RectI(ux, y, usernameWidth, 34));
+        DrawLabeledField("password", L("Password"), new RectI(ux + usernameWidth + 8, y, passwordWidth, 34));
+
+        y += 52;
+        DrawText("Credentials remain local. FTPS Explicit is recommended.", x, y + 18, _cMuted);
         DrawButton(new RectI(rect.X + rect.Width - 126, y, 114, 32), _connected ? L("Disconnect") : L("Connect"),
             _connected ? () => _ = RunBackground(() => DisconnectCoreAsync()) : () => _ = RunBackground(ConnectCoreAsync),
             primary: !_connected,
@@ -277,10 +372,10 @@ internal sealed partial class LinuxMainWindow
     private void DrawStatusBar()
     {
         var y = _height - StatusHeight;
-        Fill(new RectI(0, y, _width, StatusHeight), _cSurface);
-        DrawLine(0, y, _width, y, _cBorder);
-        DrawText($"{GhostProduct.DisplayName} {GhostProduct.InformationalVersion} · No telemetry · No tracking", 10, y + 19, _cMuted);
-        DrawText(_status, Math.Max(10, _width - 190), y + 19, _connected ? _cSuccess : _cMuted);
+        Fill(new RectI(SidebarWidth, y, _width - SidebarWidth, StatusHeight), _cSurface);
+        DrawLine(SidebarWidth, y, _width, y, _cBorder);
+        DrawText($"{GhostProduct.DisplayName} {GhostProduct.InformationalVersion} · No telemetry · No tracking", SidebarWidth + 10, y + 19, _cMuted);
+        DrawText(_status, Math.Max(SidebarWidth + 10, _width - 190), y + 19, _connected ? _cSuccess : _cMuted);
     }
 
     private void DrawModal()
@@ -319,7 +414,7 @@ internal sealed partial class LinuxMainWindow
         }
 
         DrawButton(new RectI(rect.X + rect.Width - 196, rect.Y + rect.Height - 48, 82, 32), L("Cancel"), CloseModal);
-        DrawButton(new RectI(rect.X + rect.Width - 104, rect.Y + rect.Height - 48, 84, 32), _modalKind == ModalKind.Confirm ? L("Delete") : L("Save"), AcceptModal, primary: _modalKind != ModalKind.Confirm, danger: _modalKind == ModalKind.Confirm);
+        DrawButton(new RectI(rect.X + rect.Width - 104, rect.Y + rect.Height - 48, 84, 32), _modalKind == ModalKind.Confirm ? L("Close") : L("Save"), AcceptModal, primary: _modalKind != ModalKind.Confirm);
     }
 
     private void DrawSiteManagerModal(RectI rect)
