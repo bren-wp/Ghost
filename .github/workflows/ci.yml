@@ -26,27 +26,61 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+
       - name: Restore
         run: dotnet restore GhostFTP.sln
+
       - name: Build
         run: dotnet build GhostFTP.sln -c Release --no-restore
+
       - name: Dependency, version, privacy and brand audit
         shell: pwsh
         run: ./audit-source.ps1
+
       - name: Core self-test
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
+
       - name: Parallel transfer queue self-test
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-build
+
       - name: WPF editable input smoke-test
         run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
+
+      - name: Capture authentic production UI
+        shell: pwsh
+        run: |
+          $output = Join-Path $PWD 'artifacts/ui'
+          New-Item -ItemType Directory -Force $output | Out-Null
+          dotnet run --project src/GhostFTP.App/GhostFTP.App.csproj -c Release --no-build -- --capture-ui $output
+
+          foreach ($name in @('ghostftp-client.png', 'ghostftp-site-manager.png')) {
+            $path = Join-Path $output $name
+            if (!(Test-Path $path -PathType Leaf)) {
+              throw "Required authentic UI capture is missing: $path"
+            }
+            if ((Get-Item $path).Length -lt 10000) {
+              throw "Required authentic UI capture is unexpectedly small: $path"
+            }
+          }
+
+      - name: Upload authentic UI captures
+        uses: actions/upload-artifact@v7
+        with:
+          name: GhostFTP-Authentic-UI
+          path: artifacts/ui/*.png
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Build portable and setup packages
         if: github.event_name == 'push'
         shell: pwsh
         run: ./build-release.ps1
+
       - name: Verify canonical release executables
         if: github.event_name == 'push'
         shell: pwsh
@@ -56,6 +90,7 @@ jobs:
               throw "Required release executable is missing or empty: $name"
             }
           }
+
       - name: Upload verified Windows packages
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v7

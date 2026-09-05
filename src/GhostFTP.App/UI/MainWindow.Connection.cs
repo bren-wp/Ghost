@@ -14,6 +14,7 @@ public sealed partial class MainWindow
     {
         try
         {
+            AppendConnectionLog("Ghost FTP started. Telemetry and tracking are disabled.");
             _profileStore = new ProfileStore(_paths.ProfilesFile, _secrets);
             _settingsStore = new AppSettingsStore(_paths.SettingsFile);
             _settings = await _settingsStore.LoadAsync();
@@ -33,13 +34,19 @@ public sealed partial class MainWindow
             var profiles = await _profileStore.LoadAsync();
             foreach (var profile in profiles) _profiles.Add(profile);
             if (_profiles.Count > 0) _profilesList.SelectedIndex = 0;
+            AppendConnectionLog($"Loaded {_profiles.Count} local saved-site profile(s).");
 
             RefreshLocal();
             UpdatePaneSummaries();
             UpdateConnectionUi();
+            AppendConnectionLog($"Local workspace ready: {_localPath}");
+
+            if (_captureDirectory is not null)
+                await RunDocumentationCaptureAsync();
         }
         catch (Exception ex)
         {
+            AppendConnectionLog($"Startup failed: {ex.Message}", "ERROR");
             GhostMessageDialog.Error(this, "Ghost FTP could not finish startup.", ex.Message, "Startup error");
         }
     }
@@ -108,6 +115,7 @@ public sealed partial class MainWindow
             FtpConnectionOptions? newOptions = null;
             if (selected?.IsDemo == true)
             {
+                AppendConnectionLog("Opening built-in Ghost FTP Demo session. No network connection is created.", "DEMO");
                 _session = new DemoFtpSession();
             }
             else
@@ -129,6 +137,7 @@ public sealed partial class MainWindow
                         warning: true))
                     throw new OperationCanceledException(ct);
 
+                AppendConnectionLog($"Connecting to {host}:{port} using {securityMode}.");
                 newOptions = new FtpConnectionOptions
                 {
                     Host = host,
@@ -145,6 +154,13 @@ public sealed partial class MainWindow
 
             await _session.ConnectAsync(ct);
             _activeOptions = newOptions;
+            AppendConnectionLog(
+                _session.IsEncrypted
+                    ? "Control connection established with TLS protection."
+                    : selected?.IsDemo == true
+                        ? "Demo session ready."
+                        : "Control connection established without TLS.",
+                _session.IsEncrypted ? "TLS" : "INFO");
 
             var initial = selected?.InitialPath;
             if (!string.IsNullOrWhiteSpace(initial) && initial != "/")
@@ -155,7 +171,7 @@ public sealed partial class MainWindow
                 }
                 catch
                 {
-                    // A stale initial path must not make the whole connection fail.
+                    AppendConnectionLog($"Saved initial path '{initial}' was unavailable; using the server working directory.", "WARN");
                 }
             }
 
@@ -166,18 +182,21 @@ public sealed partial class MainWindow
                 _session.IsEncrypted ? "Connected · TLS" : selected?.IsDemo == true ? "Demo · local" : "Connected · FTP",
                 _session.IsEncrypted ? "Success" : "AccentSoft");
             _statusBadge.ToolTip = "Connection status · click for local diagnostics";
+            AppendConnectionLog($"Ready in remote directory {_remotePath}.", "OK");
         }
         catch (OperationCanceledException)
         {
             await DisconnectCoreAsync();
             SetStatus(GhostLocalization.T("Offline"), "Surface2");
             _statusBadge.ToolTip = "Connection status · click for local diagnostics";
+            AppendConnectionLog("Connection attempt cancelled.", "WARN");
         }
         catch (Exception ex)
         {
             await DisconnectCoreAsync();
             SetStatus("Connection failed", "Danger");
             _statusBadge.ToolTip = "Connection status · click for local diagnostics";
+            AppendConnectionLog($"Connection failed: {ex.Message}", "ERROR");
             GhostMessageDialog.Error(this, "Ghost FTP could not connect to the server.", ex.Message, "Connection failed");
         }
         finally
@@ -207,6 +226,7 @@ public sealed partial class MainWindow
         {
             _connectionCts?.Cancel();
             CancelAllTransfers();
+            var wasConnected = IsConnected;
             await DisconnectCoreAsync();
             _remoteAll.Clear();
             _remoteItems.Clear();
@@ -214,6 +234,8 @@ public sealed partial class MainWindow
             _remotePathBox.Text = "/";
             SetStatus(GhostLocalization.T("Offline"), "Surface2");
             _statusBadge.ToolTip = "Connection status · click for local diagnostics";
+            if (wasConnected)
+                AppendConnectionLog("Disconnected from the active server.");
         }
         finally
         {
@@ -272,9 +294,11 @@ public sealed partial class MainWindow
                 .ToList();
             ApplyRemoteFilter();
             _remotePathBox.Text = _remotePath;
+            AppendConnectionLog($"Directory listing completed: {_remoteAll.Count} item(s) in {_remotePath}.", "LIST");
         }
         catch (Exception ex)
         {
+            AppendConnectionLog($"Remote refresh failed: {ex.Message}", "ERROR");
             ShowOperationError("Could not refresh the remote folder.", ex);
         }
     }

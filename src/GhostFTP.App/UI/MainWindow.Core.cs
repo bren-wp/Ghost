@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
         public string Type => Entry.Type;
         public string SizeText => Entry.IsDirectory ? string.Empty : FormatBytes(Entry.Size);
         public string ModifiedText => Entry.ModifiedUtc?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
+        public string Permissions => Entry.Permissions ?? string.Empty;
     }
 
     private readonly AppPaths _paths = new();
@@ -41,6 +42,7 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<ServerProfile> _profiles = [];
     private readonly ObservableCollection<LocalItem> _localItems = [];
     private readonly ObservableCollection<RemoteItem> _remoteItems = [];
+    private readonly ObservableCollection<string> _connectionLog = [];
     private readonly HashSet<Guid> _completedHandled = [];
 
     private ProfileStore? _profileStore;
@@ -54,8 +56,10 @@ public sealed partial class MainWindow : Window
     private string _remotePath = "/";
     private bool _busy;
     private bool _allowClose;
+    private readonly string? _captureDirectory;
 
     private readonly ListBox _profilesList = new();
+    private readonly ListBox _connectionLogList = new();
     private readonly TextBox _host = GhostTheme.TextBox();
     private readonly TextBox _port = GhostTheme.TextBox("21");
     private readonly TextBox _username = GhostTheme.TextBox();
@@ -76,19 +80,25 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock _localSummary = GhostTheme.Text("0 items", 11, muted: true);
     private readonly TextBlock _remoteSummary = GhostTheme.Text("0 items", 11, muted: true);
 
+    private Grid? _workspaceBody;
+    private Grid? _workspaceContent;
+    private Grid? _filePanesGrid;
+
     private List<LocalItem> _localAll = [];
     private List<RemoteItem> _remoteAll = [];
 
     private static string L(string key) => GhostLocalization.T(key);
 
-    public MainWindow()
+    public MainWindow(string? captureDirectory = null)
     {
+        _captureDirectory = string.IsNullOrWhiteSpace(captureDirectory) ? null : Path.GetFullPath(captureDirectory);
+
         Title = GhostBrand.DisplayName;
         Icon = GhostBrand.IconSource;
-        Width = 1520;
-        Height = 920;
-        MinWidth = 980;
-        MinHeight = 640;
+        Width = 1560;
+        Height = 940;
+        MinWidth = 1080;
+        MinHeight = 700;
         ResizeMode = ResizeMode.CanResizeWithGrip;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = GhostTheme.R("Bg");

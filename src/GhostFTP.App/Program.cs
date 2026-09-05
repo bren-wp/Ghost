@@ -9,8 +9,9 @@ namespace GhostFTP;
 public static class Program
 {
     [STAThread]
-    public static int Main()
+    public static int Main(string[] args)
     {
+        var captureDirectory = ParseCaptureDirectory(args);
         var app = new Application
         {
             ShutdownMode = ShutdownMode.OnMainWindowClose
@@ -30,6 +31,12 @@ public static class Program
             // Safe defaults. No crash report, telemetry or remote lookup is emitted.
         }
 
+        if (captureDirectory is not null)
+        {
+            configuredTheme = AppTheme.Dark;
+            configuredLanguage = GhostLocalization.DefaultLanguageCode;
+        }
+
         GhostLocalization.SetLanguage(configuredLanguage);
         var dark = configuredTheme switch
         {
@@ -40,9 +47,23 @@ public static class Program
         GhostTheme.Apply(dark);
 
         app.DispatcherUnhandledException += OnDispatcherUnhandledException;
-        var window = new MainWindow();
+        var window = new MainWindow(captureDirectory);
         app.MainWindow = window;
         return app.Run(window);
+    }
+
+    private static string? ParseCaptureDirectory(IReadOnlyList<string> args)
+    {
+        for (var index = 0; index < args.Count; index++)
+        {
+            if (!string.Equals(args[index], "--capture-ui", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (index + 1 >= args.Count || string.IsNullOrWhiteSpace(args[index + 1]))
+                throw new ArgumentException("--capture-ui requires an output directory path.");
+            return Path.GetFullPath(args[index + 1]);
+        }
+
+        return null;
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

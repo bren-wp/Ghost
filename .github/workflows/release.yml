@@ -83,6 +83,31 @@ jobs:
       - name: WPF editable input and localization smoke-test
         run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
 
+      - name: Capture authentic production UI
+        shell: pwsh
+        run: |
+          $output = Join-Path $PWD 'artifacts/ui'
+          New-Item -ItemType Directory -Force $output | Out-Null
+          dotnet run --project src/GhostFTP.App/GhostFTP.App.csproj -c Release --no-build -- --capture-ui $output
+
+          foreach ($name in @('ghostftp-client.png', 'ghostftp-site-manager.png')) {
+            $path = Join-Path $output $name
+            if (!(Test-Path $path -PathType Leaf)) {
+              throw "Required authentic UI capture is missing: $path"
+            }
+            if ((Get-Item $path).Length -lt 10000) {
+              throw "Required authentic UI capture is unexpectedly small: $path"
+            }
+          }
+
+      - name: Upload authentic release UI captures
+        uses: actions/upload-artifact@v7
+        with:
+          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-Authentic-UI
+          path: artifacts/ui/*.png
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Build release packages
         shell: pwsh
         run: ./build-release.ps1

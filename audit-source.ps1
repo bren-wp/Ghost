@@ -8,8 +8,6 @@ if ($packageRefs) {
     exit 1
 }
 
-# Match telemetry SDK identifiers/namespaces, not arbitrary substrings. For example,
-# WPF ScrollBarVisibility must never be mistaken for the Rollbar SDK.
 $forbiddenTelemetryPatterns = @(
     '\bMicrosoft\.ApplicationInsights\b',
     '\bTelemetryClient\b',
@@ -71,8 +69,6 @@ foreach ($pattern in $forbiddenSourceExtensions) {
     if ($matches) { throw "Forbidden/non-C# source exists under src/: $($matches.FullName -join ', ')" }
 }
 
-# Ghost FTP is currently a Windows + future Linux desktop product. Do not allow stale
-# Android/iOS application trees or mobile TargetFrameworks to re-enter shipping source.
 $mobilePaths = Get-ChildItem $src -Recurse -Force | Where-Object {
     $relative = $_.FullName.Substring($src.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
     $relative -match '(^|[\\/])(android|ios)([\\/]|$)'
@@ -101,8 +97,14 @@ $requiredFiles = @(
     'src/GhostFTP.Design/GhostLocalization.cs',
     'src/GhostFTP.Design/GhostSetupLocalization.cs',
     'src/GhostFTP.App/UI/MainWindow.KeepAlive.cs',
+    'src/GhostFTP.App/UI/MainWindow.WorkspaceActions.cs',
+    'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs',
+    'src/GhostFTP.App/UI/SiteManagerDialog.cs',
     'assets/brand/ghostftp-icon.svg',
     'assets/readme/ghostftp-hero.svg',
+    'assets/readme/ghostftp-client.png',
+    'assets/readme/ghostftp-site-manager.png',
+    '.github/workflows/capture-ui.yml',
     'Directory.Build.targets',
     'tools/generate-ghostftp-icon.ps1',
     'LICENSE',
@@ -118,6 +120,11 @@ foreach ($required in $requiredFiles) {
     if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) { throw "Required Ghost FTP source/asset is missing: $required" }
 }
 
+foreach ($image in @('assets/readme/ghostftp-client.png','assets/readme/ghostftp-site-manager.png')) {
+    $info = Get-Item (Join-Path $root $image)
+    if ($info.Length -lt 10000) { throw "Authentic UI screenshot is unexpectedly small: $image" }
+}
+
 $releaseNotes = Join-Path $root "docs/releases/v$version.md"
 if (!(Test-Path $releaseNotes -PathType Leaf)) {
     throw "Current version $version must have detailed release notes at docs/releases/v$version.md."
@@ -128,14 +135,19 @@ if ($releaseText -notmatch [regex]::Escape("Ghost FTP $version")) {
 }
 
 $readme = Get-Content (Join-Path $root 'README.md') -Raw
-if ($readme -notmatch [regex]::Escape('assets/readme/ghostftp-hero.svg')) {
-    throw 'README.md must reference the official Ghost FTP hero asset.'
+foreach ($requiredReadmeText in @(
+    'assets/readme/ghostftp-hero.svg',
+    'assets/readme/ghostftp-client.png',
+    'assets/readme/ghostftp-site-manager.png',
+    'docs/PLATFORM-SUPPORT.md',
+    '--capture-ui'
+)) {
+    if ($readme -notmatch [regex]::Escape($requiredReadmeText)) {
+        throw "README.md is missing required 1.7 documentation reference: $requiredReadmeText"
+    }
 }
 if ($readme -notmatch [regex]::Escape("Current source version: **$version**")) {
     throw "README.md current source version must be synchronized to $version."
-}
-if ($readme -notmatch [regex]::Escape('docs/PLATFORM-SUPPORT.md')) {
-    throw 'README.md must link the authoritative platform-support contract.'
 }
 
 $privacy = Get-Content (Join-Path $root 'PRIVACY.md') -Raw
@@ -211,8 +223,6 @@ if ($targets -notmatch 'ApplicationIcon' -or $targets -notmatch 'generate-ghostf
     throw 'Ghost FTP executable icon generation must remain connected to the build.'
 }
 
-# Reliability architecture introduced in 1.6.0 is intentionally explicit so later UI work
-# cannot silently remove its privacy/safety properties.
 $settingsSource = Get-Content (Join-Path $root 'src/GhostFTP.App/Services/AppSettings.cs') -Raw
 if ($settingsSource -notmatch 'ConcurrentTransfers' -or $settingsSource -notmatch 'KeepAliveSeconds') {
     throw 'Ghost FTP settings must retain bounded concurrency and configurable keepalive values.'
@@ -227,12 +237,35 @@ if ($transferModel -notmatch 'TransferredText' -or $transferModel -notmatch 'Eta
     throw 'Transfer observability model must retain byte-summary and ETA state.'
 }
 $helpers = Get-Content (Join-Path $root 'src/GhostFTP.App/UI/MainWindow.Helpers.cs') -Raw
-if ($helpers -notmatch 'queueActive' -or $helpers -notmatch 'CancelSelectedTransfer') {
-    throw 'Keyboard routing must retain queue-focus isolation for destructive actions.'
+if ($helpers -notmatch 'queueActive' -or $helpers -notmatch 'CancelSelectedTransfer' -or $helpers -notmatch 'Permissions') {
+    throw 'Workspace helpers must retain focus-safe destructive actions and the remote permissions column.'
 }
 
-# Ban actual contiguous legacy product identifiers. Do not ban ordinary language such as
-# "created by FTP/FTPS actions", which is not a product identity.
+$layout = Get-Content (Join-Path $root 'src/GhostFTP.App/UI/MainWindow.Layout.cs') -Raw
+foreach ($requiredLayoutToken in @('BuildTopMenu','BuildMainToolbar','BuildConnectionLog','Site Manager','BuildFilePanes','BuildTransfers')) {
+    if ($layout -notmatch [regex]::Escape($requiredLayoutToken)) {
+        throw "Professional 1.7 workspace structure is incomplete: $requiredLayoutToken"
+    }
+}
+
+$siteManager = Get-Content (Join-Path $root 'src/GhostFTP.App/UI/SiteManagerDialog.cs') -Raw
+foreach ($requiredSiteToken in @('Site name','Host / IP / URL','FTPS explicit TLS','RememberPassword','Default remote path')) {
+    if ($siteManager -notmatch [regex]::Escape($requiredSiteToken)) {
+        throw "Site Manager is missing required supported connection field: $requiredSiteToken"
+    }
+}
+
+$captureSource = Get-Content (Join-Path $root 'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs') -Raw
+$programSource = Get-Content (Join-Path $root 'src/GhostFTP.App/Program.cs') -Raw
+$captureWorkflow = Get-Content (Join-Path $root '.github/workflows/capture-ui.yml') -Raw
+if ($programSource -notmatch [regex]::Escape('--capture-ui') -or
+    $captureSource -notmatch 'RenderTargetBitmap' -or
+    $captureSource -notmatch 'ghostftp-client\.png' -or
+    $captureSource -notmatch 'ghostftp-site-manager\.png' -or
+    $captureWorkflow -notmatch 'Capture production WPF client and Site Manager') {
+    throw 'Authentic UI documentation must be generated from the real compiled WPF client.'
+}
+
 $forbiddenProductTokens = @(
     ('My' + 'FTP'),
     ('By' + 'FTP')
@@ -258,4 +291,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD identity, Ghost FTP-only product naming, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF production target, configurable server-only keepalive with stale-state reset, bounded parallel transfer settings, focus-safe destructive shortcuts, transfer observability tests, native editable inputs, embedded-license Setup, same-Setup uninstall, detailed current release notes and synchronized version metadata."
+Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD identity, Ghost FTP-only naming, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF GUI, professional Site Manager + Connection Log workspace, authentic real-WPF repository screenshots, strict server-only keepalive, bounded parallel transfers, focus-safe destructive shortcuts, native editable controls, embedded-license Setup and synchronized release documentation."

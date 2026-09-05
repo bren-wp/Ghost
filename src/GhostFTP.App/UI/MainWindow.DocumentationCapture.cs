@@ -1,0 +1,108 @@
+using GhostFTP.Core.Models;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+
+namespace GhostFTP.UI;
+
+public sealed partial class MainWindow
+{
+    private const double DocumentationCaptureScale = 1.5;
+
+    private async Task RunDocumentationCaptureAsync()
+    {
+        if (_captureDirectory is null)
+            return;
+
+        Directory.CreateDirectory(_captureDirectory);
+        WindowState = WindowState.Normal;
+        Width = 1600;
+        Height = 960;
+        Left = 20;
+        Top = 20;
+
+        var demo = _profiles.FirstOrDefault(x => x.IsDemo);
+        if (demo is not null)
+        {
+            _profilesList.SelectedItem = demo;
+            ProfileSelected();
+            await ConnectAsync();
+        }
+
+        PrepareDeterministicDocumentationState();
+
+        await Dispatcher.InvokeAsync(() =>
+        {
+            UpdateLayout();
+            ResizeAllColumns();
+        }, DispatcherPriority.ApplicationIdle);
+
+        var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
+        CaptureElementToPng(this, clientPath, DocumentationCaptureScale);
+
+        if (_profileStore is not null)
+        {
+            var manager = new SiteManagerDialog(
+                this,
+                _profiles,
+                profile => profile.IsDemo ? string.Empty : _profileStore.GetPassword(profile));
+            manager.Show();
+            await Dispatcher.InvokeAsync(manager.UpdateLayout, DispatcherPriority.ApplicationIdle);
+            var managerPath = Path.Combine(_captureDirectory, "ghostftp-site-manager.png");
+            CaptureElementToPng(manager, managerPath, DocumentationCaptureScale);
+            manager.Close();
+        }
+
+        if (_queue is not null)
+        {
+            _queue.JobUpdated -= QueueJobUpdated;
+            await _queue.DisposeAsync();
+            _queue = null;
+        }
+
+        if (_session is not null)
+            await DisconnectCoreAsync();
+
+        _allowClose = true;
+        Application.Current.Shutdown(0);
+    }
+
+    private void PrepareDeterministicDocumentationState()
+    {
+        // Canonical repository screenshots must not change merely because a CI runner started
+        // at a different wall-clock time. These rows describe the real Demo state that was
+        // established above, but use stable documentation timestamps and contain no secrets.
+        _connectionLog.Clear();
+        _connectionLog.Add("09:41:00  [INFO]  Ghost FTP documentation workspace ready.");
+        _connectionLog.Add("09:41:01  [DEMO]  Built-in Ghost FTP Demo session opened locally.");
+        _connectionLog.Add("09:41:01  [INFO]  No network connection is used by Demo mode.");
+        _connectionLog.Add($"09:41:02  [LIST]  Directory listing completed: {_remoteAll.Count} item(s) in {_remotePath}.");
+        _connectionLog.Add("09:41:02  [OK]  Local/Remote workstation ready for documentation capture.");
+        _connectionLogList.SelectedIndex = -1;
+        if (_connectionLog.Count > 0)
+            _connectionLogList.ScrollIntoView(_connectionLog[^1]);
+    }
+
+    private static void CaptureElementToPng(FrameworkElement element, string path, double scale)
+    {
+        element.UpdateLayout();
+        var dpi = VisualTreeHelper.GetDpi(element);
+        scale = Math.Clamp(scale, 1d, 2d);
+
+        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX * scale));
+        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY * scale));
+        var bitmap = new RenderTargetBitmap(
+            width,
+            height,
+            96d * dpi.DpiScaleX * scale,
+            96d * dpi.DpiScaleY * scale,
+            PixelFormats.Pbgra32);
+        bitmap.Render(element);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        encoder.Save(stream);
+    }
+}

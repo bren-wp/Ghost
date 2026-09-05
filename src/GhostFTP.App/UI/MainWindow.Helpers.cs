@@ -53,9 +53,11 @@ public sealed partial class MainWindow
     {
         var grid = new GridView { AllowsColumnReorder = true };
         grid.Columns.Add(Column(L("Name"), "Name", local ? 230 : 205));
-        grid.Columns.Add(Column(L("Type"), "Type", 70));
-        grid.Columns.Add(Column(L("Size"), "SizeText", 78));
-        grid.Columns.Add(Column(L("Modified"), "ModifiedText", 124));
+        grid.Columns.Add(Column(L("Type"), "Type", 72));
+        grid.Columns.Add(Column(L("Size"), "SizeText", 80));
+        grid.Columns.Add(Column(L("Modified"), "ModifiedText", 128));
+        if (!local)
+            grid.Columns.Add(Column("Permissions", "Permissions", 104));
         return grid;
     }
 
@@ -84,18 +86,21 @@ public sealed partial class MainWindow
 
     private void ResizeFileColumns(ListView list)
     {
-        if (list.View is not GridView grid || grid.Columns.Count != 4 || list.ActualWidth <= 0) return;
+        if (list.View is not GridView grid || grid.Columns.Count is < 4 or > 5 || list.ActualWidth <= 0) return;
 
-        var available = Math.Max(360, list.ActualWidth - 22);
-        var type = 68d;
-        var size = 76d;
-        var modified = 120d;
-        var name = Math.Max(120d, available - type - size - modified);
+        var available = Math.Max(420, list.ActualWidth - 22);
+        var type = 70d;
+        var size = 78d;
+        var modified = 126d;
+        var permissions = grid.Columns.Count == 5 ? 102d : 0d;
+        var name = Math.Max(130d, available - type - size - modified - permissions);
 
         grid.Columns[0].Width = name;
         grid.Columns[1].Width = type;
         grid.Columns[2].Width = size;
         grid.Columns[3].Width = modified;
+        if (grid.Columns.Count == 5)
+            grid.Columns[4].Width = permissions;
     }
 
     private void ResizeQueueColumns()
@@ -260,8 +265,6 @@ public sealed partial class MainWindow
             return;
         }
 
-        // Queue focus is intentionally isolated from file-operation shortcuts. In previous
-        // versions Delete/F2 while the queue had focus could fall through to Local actions.
         if (queueActive)
         {
             if (e.Key == Key.Delete)
