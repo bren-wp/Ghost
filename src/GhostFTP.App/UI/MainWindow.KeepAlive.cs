@@ -1,5 +1,4 @@
 using GhostFTP.Core.Protocol;
-using System.Windows;
 
 namespace GhostFTP.UI;
 
@@ -10,7 +9,6 @@ public sealed partial class MainWindow
 
     private void ConfigureKeepAliveLoop()
     {
-        Loaded += (_, _) => StartKeepAliveLoop();
         Closing += (_, _) => StopKeepAliveLoop();
     }
 
@@ -39,6 +37,9 @@ public sealed partial class MainWindow
                 var delaySeconds = configuredSeconds == 0 ? 15 : Math.Clamp(configuredSeconds, 15, 600);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken).ConfigureAwait(false);
 
+                // Re-read the setting after the wait so a live settings change to 0 disables
+                // keepalive before any subsequent NOOP can be sent.
+                configuredSeconds = _settings.KeepAliveSeconds;
                 if (configuredSeconds == 0 || _busy)
                     continue;
 
