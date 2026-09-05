@@ -2,7 +2,7 @@
 
 Ghost FTP is designed to operate without application telemetry, user tracking or hidden background product network activity.
 
-Ghost FTP is developed and published by **BRENDIGO LTD**. The privacy model below describes the official Ghost FTP application and Setup behavior in version 1.6.0.
+Ghost FTP is developed and published by **BRENDIGO LTD**. This privacy model describes the official Ghost FTP application and Setup behavior in version 1.7.0.
 
 ## What Ghost FTP does not do
 
@@ -29,27 +29,25 @@ Examples:
 2. browsing, uploading, downloading, renaming or deleting data on that server;
 3. running Connection Diagnostics against the server that is already connected;
 4. optional FTP control-channel keepalive (`NOOP`) while a real server session remains connected;
-5. manually opening a Ghost FTP or BRENDIGO LTD website link from the application.
+5. manually opening a Ghost FTP or BRENDIGO LTD website link.
 
-The keepalive interval is configurable from Settings. `0` disables it. When enabled, Ghost FTP sends `NOOP` only to the FTP/FTPS server the user already selected; it does not create a connection to Ghost FTP, BRENDIGO LTD, GitHub, an analytics provider or any unrelated endpoint.
+The keepalive interval is configurable from Settings. `0` disables it. When enabled, Ghost FTP sends `NOOP` only to the FTP/FTPS server already selected by the user; it does not create a connection to Ghost FTP, BRENDIGO LTD, GitHub, analytics or an unrelated endpoint.
 
-Ghost FTP does not send connection diagnostics, server metadata, file lists, transfer details, transfer speed/ETA information or error details to BRENDIGO LTD.
+Ghost FTP does not send connection diagnostics, server metadata, file lists, transfer details, speed/ETA values, Connection Log entries or error details to BRENDIGO LTD.
 
 ## FTPS certificate revocation privacy
 
-FTPS uses normal Windows/.NET certificate-chain and hostname validation. Revocation checking is configured to use the Windows offline revocation cache, avoiding hidden online CRL/OCSP requests initiated by Ghost FTP during certificate validation.
-
-This is a privacy-oriented tradeoff: Ghost FTP does not silently contact certificate-authority revocation services in the background.
+FTPS uses normal Windows/.NET certificate-chain and hostname validation. Revocation checking uses the Windows offline revocation cache so Ghost FTP does not initiate hidden online CRL/OCSP requests during certificate validation.
 
 ## Demo mode
 
-Demo mode is fully local. It does not open an FTP socket, call ghostftp.com, contact a repository endpoint or send any data elsewhere. Keepalive is not used in Demo mode.
+Demo mode is fully local. It does not open an FTP socket, call ghostftp.com, contact a repository endpoint or send data elsewhere. Keepalive is not used in Demo mode.
 
-Its folders, files and transfer behavior are simulated in memory/local application state.
+Its folders, files and transfer behavior are simulated locally for product testing, demonstrations and authentic documentation capture.
 
 ## Local data
 
-Installed Ghost FTP stores local settings and saved profiles under the current user's local application-data area. Portable builds use a local `Data` directory next to the portable executable when operating in portable mode.
+Installed Ghost FTP stores settings and saved profiles under the current user's local application-data area. Portable builds use a local `Data` directory next to the portable executable.
 
 Local configuration can include:
 
@@ -70,73 +68,106 @@ These values are not synchronized by Ghost FTP.
 
 ## Password handling
 
-Passwords are not persisted unless **Remember password** is enabled for a saved server profile.
+Passwords are not persisted unless **Remember password** is enabled for a saved profile.
 
-When enabled, the password is protected with Windows DPAPI using the current-user scope. Ghost FTP does not upload saved credentials or provide a cloud credential synchronization service.
+When enabled, the password is protected with Windows DPAPI using current-user scope. Ghost FTP does not upload saved credentials or provide cloud credential synchronization.
+
+The 1.7 Site Manager uses the same existing protection path; it does not introduce a new credential store.
+
+## Connection Log privacy
+
+Ghost FTP 1.7 adds an in-memory Connection Log for user-visible session activity.
+
+The log may contain:
+
+- local timestamps;
+- startup/profile-loading status;
+- selected host/port/security connection attempts;
+- TLS/plain connection state;
+- remote directory-listing counts;
+- disconnect/lost-session information;
+- user-visible error summaries.
+
+The Connection Log does **not** intentionally record passwords, protected DPAPI blobs or file contents. It is bounded in memory, can be cleared by the user and is not uploaded automatically.
 
 ## Localization privacy
 
-All 29 supported languages are compiled into the application/Setup C# source. Changing language does not contact an online translation provider, download a language pack or report the selected language to BRENDIGO LTD.
+All 29 supported languages are compiled into local application/Setup C# source. Changing language does not contact a translation provider, download a language pack or report the selected language.
 
 English is the default/fallback language.
 
 ## Connection Diagnostics privacy
 
-Connection Diagnostics runs only on demand against the user's active FTP/FTPS connection. It can execute server commands such as `NOOP`, `SYST` and `PWD`, and display capabilities already known from `FEAT`.
+Connection Diagnostics runs only on demand against the active FTP/FTPS connection. It can execute `NOOP`, `SYST` and `PWD` and display capabilities already known from `FEAT`.
 
-Results stay inside the application. No diagnostic bundle is generated or uploaded automatically.
+Results stay inside the application. No diagnostic bundle is uploaded automatically.
 
 ## Connection keepalive privacy
 
-Keepalive is a connection-resilience feature, not product telemetry.
+Keepalive is connection resilience, not product telemetry.
 
-- It is disabled by setting the interval to `0`.
-- When enabled, valid intervals are 15–600 seconds.
-- It sends standard FTP `NOOP` commands only over the currently selected server session.
+- It is disabled by setting interval to `0`.
+- Enabled values are 15–600 seconds.
+- It sends standard FTP `NOOP` only over the selected server session.
 - It skips Demo mode.
-- It sends no product identifier, analytics payload, file list, transfer metrics or user profile to BRENDIGO LTD.
-- If the control connection is no longer usable, Ghost FTP marks that server session as lost and requires a reconnect rather than silently opening a replacement connection in the background.
+- It sends no analytics payload, file list, transfer metrics or product profile to BRENDIGO LTD.
+- If the control connection is unusable, Ghost FTP marks the session lost and requires explicit reconnect rather than silently opening a replacement connection.
 
 ## Transfer information privacy
 
-The transfer queue can calculate progress, transferred bytes, current speed, ETA, retry count and timestamps locally. These values exist only to help the user manage the active queue.
+The queue calculates progress, transferred bytes, speed, ETA, retry count and timestamps locally to help the user manage active work.
 
-Ghost FTP does not upload transfer history or queue metrics and does not use them for analytics or profiling.
+Ghost FTP does not upload transfer history or queue metrics and does not use them for analytics/profiling.
+
+## Authentic documentation screenshot privacy
+
+The repository screenshot command `--capture-ui <directory>` is intentionally local-only.
+
+Capture mode:
+
+1. forces deterministic dark theme and English documentation UI;
+2. uses the built-in Demo profile;
+3. renders the actual production MainWindow and Site Manager using WPF;
+4. writes PNG files to the requested local directory;
+5. does not open a real FTP socket;
+6. does not contact an image-generation service, Ghost FTP website, analytics service or telemetry endpoint.
+
+The GitHub Actions workflow that refreshes repository screenshots is build infrastructure. End-user Ghost FTP installations do not contact GitHub Actions.
 
 ## Setup and uninstall privacy
 
-`setup.exe` performs local operations only:
+`setup.exe` performs local operations:
 
-- displays the embedded license;
-- writes the selected language to local settings;
-- validates and installs the embedded Ghost FTP executable;
-- creates local shortcuts;
-- writes per-user Windows Installed Apps registration;
-- updates an existing per-user installation;
-- removes the application/shortcuts/registration during uninstall;
-- optionally removes local Ghost FTP data if the user explicitly chooses that option.
+- display embedded license;
+- store selected language locally;
+- validate/install the embedded application;
+- create shortcuts;
+- register per-user Windows Installed Apps metadata;
+- update an existing per-user installation;
+- remove application/shortcuts/registration during uninstall;
+- optionally remove local Ghost FTP data when explicitly requested.
 
 Setup contains no installation analytics, conversion tracking, crash upload or update-service reporting.
 
 ## Release/build infrastructure
 
-GitHub Actions and Microsoft .NET SDK infrastructure may access their own build services while compiling official releases. That build-time infrastructure is separate from the runtime behavior of Ghost FTP installed on an end-user system.
+GitHub Actions and Microsoft .NET SDK infrastructure may access their own build services while compiling official releases. That build infrastructure is separate from runtime behavior of Ghost FTP installed on an end-user system.
 
-Official Ghost FTP runtime binaries are designed not to call package feeds or GitHub Actions.
+Official runtime binaries do not call package feeds or GitHub Actions.
 
 ## External services selected by the user
 
-When a user connects to an FTP/FTPS server, that server and the surrounding network infrastructure can observe connection data according to their own configuration and policies. Plain FTP does not encrypt credentials or content in transit.
+When a user connects to an FTP/FTPS server, that server and surrounding network infrastructure can observe connection data according to their own configuration and policy. Plain FTP does not encrypt credentials/content in transit.
 
-Those third-party servers, networks, proxies, DNS providers and operating-system services are outside Ghost FTP's control.
+Those servers, networks, proxies, DNS providers and operating-system services are outside Ghost FTP's control.
 
 ## Product website links
 
-Opening ghostftp.com or brendigo.com is a user-initiated action. Ghost FTP does not open either site silently at startup or in the background.
+Opening ghostftp.com or brendigo.com is user-initiated. Ghost FTP does not open either site silently at startup or in the background.
 
 ## Summary
 
-Ghost FTP's privacy rule is simple: local configuration stays local, diagnostics and transfer metrics stay local, and network traffic is limited to the server session the user selected plus links the user explicitly opens. Optional keepalive traffic stays on that selected FTP/FTPS server connection and can be disabled.
+Ghost FTP's privacy rule is simple: configuration stays local, Connection Log/diagnostics/transfer metrics stay local, and network traffic is limited to the server session the user selected plus links the user explicitly opens. Optional keepalive stays on that selected FTP/FTPS connection and can be disabled. Authentic repository screenshots are rendered from Demo mode without a real FTP connection.
 
 Product: https://ghostftp.com  
 Repository: https://github.com/bren-wp/Ghost  
