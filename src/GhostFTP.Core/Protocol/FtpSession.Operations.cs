@@ -131,7 +131,10 @@ public sealed partial class FtpSession
         var total = await TryGetFileSizeAsync(remotePath, cancellationToken).ConfigureAwait(false);
         long offset = File.Exists(partPath) ? new FileInfo(partPath).Length : 0;
         if (total is not null && offset > total.Value)
+        {
             offset = 0;
+            TryDeleteLocal(partPath);
+        }
 
         if (offset > 0)
         {
@@ -143,16 +146,25 @@ public sealed partial class FtpSession
             }
         }
 
-        await using var output = new FileStream(
+        await using (var output = new FileStream(
             partPath,
             offset > 0 ? FileMode.Append : FileMode.Create,
             FileAccess.Write,
             FileShare.None,
             1024 * 128,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await ReceiveDataToStreamAsync("RETR " + remotePath, output, offset, total, progress, cancellationToken).ConfigureAwait(false);
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-        output.Close();
+            FileOptions.Asynchronous | FileOptions.SequentialScan))
+        {
+            await ReceiveDataToStreamAsync("RETR " + remotePath, output, offset, total, progress, cancellationToken).ConfigureAwait(false);
+            await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (total is not null)
+        {
+            var actual = new FileInfo(partPath).Length;
+            if (actual != total.Value)
+                throw new IOException($"Download integrity check failed. Expected {total.Value:N0} bytes but received {actual:N0} bytes. The partial file was kept for a safe resume.");
+        }
+
         File.Move(partPath, localPath, true);
     }
 
@@ -170,6 +182,7 @@ public sealed partial class FtpSession
         var token = Guid.NewGuid().ToString("N");
         var tempRemote = remotePath + ".ghostftp-upload-" + token + ".part";
         string? backupRemote = null;
+        var committedNewDestination = false;
 
         try
         {
@@ -183,6 +196,10 @@ public sealed partial class FtpSession
             {
                 await SendStreamAsDataAsync("STOR " + tempRemote, input, total, progress, cancellationToken).ConfigureAwait(false);
             }
+
+            var tempSize = await TryGetFileSizeAsync(tempRemote, cancellationToken).ConfigureAwait(false);
+            if (tempSize is not null && tempSize.Value != total)
+                throw new IOException($"Upload integrity check failed before commit. Expected {total:N0} bytes but the server reports {tempSize.Value:N0} bytes.");
 
             var existing = await FindRemoteEntryAsync(remotePath, cancellationToken).ConfigureAwait(false);
             if (existing?.IsDirectory == true)
@@ -213,6 +230,11 @@ public sealed partial class FtpSession
                 200,
                 299,
                 "Unable to finalize uploaded file.");
+            committedNewDestination = true;
+
+            var finalSize = await TryGetFileSizeAsync(remotePath, cancellationToken).ConfigureAwait(false);
+            if (finalSize is not null && finalSize.Value != total)
+                throw new IOException($"Upload integrity check failed after commit. Expected {total:N0} bytes but the server reports {finalSize.Value:N0} bytes.");
 
             if (backupRemote is not null)
             {
@@ -222,13 +244,13 @@ public sealed partial class FtpSession
                 }
                 catch
                 {
-                    // New destination is already committed; stale rollback cleanup is best effort.
+                    // New destination is verified and committed; stale rollback cleanup is best effort.
                 }
             }
         }
         catch
         {
-            if (backupRemote is not null)
+            if (committedNewDestination)
             {
                 try
                 {
@@ -236,9 +258,12 @@ public sealed partial class FtpSession
                 }
                 catch
                 {
-                    // Destination may not exist; continue with rollback attempt.
+                    // Continue with rollback/cleanup attempts.
                 }
+            }
 
+            if (backupRemote is not null)
+            {
                 try
                 {
                     var rnfr = await SendCommandAsync("RNFR " + backupRemote, CancellationToken.None).ConfigureAwait(false);

@@ -72,8 +72,7 @@ public sealed partial class MainWindow
         if (_remoteList.SelectedItem is not RemoteItem item || !IsConnected) return;
         if (item.IsDirectory)
         {
-            _remotePath = item.FullPath;
-            await RefreshRemoteAsync();
+            await ChangeRemoteDirectoryAsync(item.FullPath);
         }
         else
         {
@@ -92,8 +91,7 @@ public sealed partial class MainWindow
     private async Task RemoteUpAsync()
     {
         if (!IsConnected) return;
-        _remotePath = FtpListingParser.ParentRemote(_remotePath);
-        await RefreshRemoteAsync();
+        await ChangeRemoteDirectoryAsync(FtpListingParser.ParentRemote(_remotePath));
     }
 
     private void NavigateLocalPathBox()
@@ -116,15 +114,24 @@ public sealed partial class MainWindow
         if (!IsConnected) return;
         try
         {
-            var path = InputGuard.RemotePath(_remotePathBox.Text);
-            await _session!.ChangeDirectoryAsync(path);
-            _remotePath = await _session.GetWorkingDirectoryAsync();
-            await RefreshRemoteAsync();
+            await ChangeRemoteDirectoryAsync(_remotePathBox.Text);
         }
         catch (Exception ex)
         {
             ShowOperationError("Invalid remote path.", ex);
         }
+    }
+
+    private async Task ChangeRemoteDirectoryAsync(string requestedPath)
+    {
+        if (!IsConnected || _session is null)
+            return;
+
+        var path = InputGuard.RemotePath(requestedPath);
+        await _session.ChangeDirectoryAsync(path);
+        _remotePath = await _session.GetWorkingDirectoryAsync();
+        _remotePathBox.Text = _remotePath;
+        await RefreshRemoteAsync();
     }
 
     private void NewLocalFolder()

@@ -166,17 +166,7 @@ public sealed partial class MainWindow
     private async Task NavigateRemoteHomeAsync()
     {
         if (!IsConnected) return;
-        _remotePath = "/";
-        try
-        {
-            await _session!.ChangeDirectoryAsync(_remotePath);
-            _remotePath = await _session.GetWorkingDirectoryAsync();
-        }
-        catch
-        {
-            _remotePath = "/";
-        }
-        await RefreshRemoteAsync();
+        await ChangeRemoteDirectoryAsync("/");
     }
 
     private void RevealLocalSelected()

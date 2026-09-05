@@ -10,7 +10,8 @@ if ($packageRefs) {
 
 $forbiddenTelemetry = @(
     'ApplicationInsights', 'Sentry', 'TelemetryClient', 'GoogleAnalytics',
-    'Segment.Analytics', 'Mixpanel', 'PostHog', 'AppCenter', 'Crashlytics'
+    'Segment.Analytics', 'Mixpanel', 'PostHog', 'AppCenter', 'Crashlytics',
+    'Bugsnag', 'Rollbar', 'Amplitude', 'FirebaseAnalytics'
 )
 foreach ($token in $forbiddenTelemetry) {
     $matches = Get-ChildItem $src -Recurse -Filter *.cs | Select-String -SimpleMatch $token
@@ -30,23 +31,19 @@ $informationalVersion = [string]$propertyGroup.InformationalVersion
 $authors = [string]$propertyGroup.Authors
 $company = [string]$propertyGroup.Company
 $product = [string]$propertyGroup.Product
+$copyright = [string]$propertyGroup.Copyright
 
-if ($version -ne $propsVersion) {
-    throw "VERSION ($version) does not match Directory.Build.props Version ($propsVersion)."
-}
+if ($version -ne $propsVersion) { throw "VERSION ($version) does not match Directory.Build.props Version ($propsVersion)." }
 $expectedAssembly = "$version.0"
 if ($assemblyVersion -ne $expectedAssembly -or $fileVersion -ne $expectedAssembly) {
     throw "AssemblyVersion/FileVersion must both be $expectedAssembly."
 }
-if ($informationalVersion -ne $version) {
-    throw "InformationalVersion must be $version."
-}
+if ($informationalVersion -ne $version) { throw "InformationalVersion must be $version." }
+if ($product -ne 'Ghost FTP') { throw 'Product metadata must be Ghost FTP.' }
 if ($authors -ne 'BRENDIGO LTD' -or $company -ne 'BRENDIGO LTD') {
-    throw 'Authors and Company metadata must identify BRENDIGO LTD as the Ghost FTP publisher.'
+    throw 'Authors and Company metadata must identify BRENDIGO LTD as the publisher/developer.'
 }
-if ($product -ne 'Ghost FTP') {
-    throw 'Product metadata must use the Ghost FTP product name.'
-}
+if ($copyright -notmatch [regex]::Escape('BRENDIGO LTD')) { throw 'Copyright metadata must identify BRENDIGO LTD.' }
 
 foreach ($manifest in @('src/GhostFTP.App/app.manifest','src/GhostFTP.Setup/app.manifest')) {
     $text = Get-Content (Join-Path $root $manifest) -Raw
@@ -58,51 +55,32 @@ foreach ($manifest in @('src/GhostFTP.App/app.manifest','src/GhostFTP.Setup/app.
 $forbiddenSourceExtensions = @('*.xaml','*.axaml','*.go','*.rs','*.cpp','*.c','*.cc','*.java','*.kt','*.swift')
 foreach ($pattern in $forbiddenSourceExtensions) {
     $matches = Get-ChildItem $src -Recurse -File -Filter $pattern
-    if ($matches) {
-        throw "Forbidden/non-C# source exists under src/: $($matches.FullName -join ', ')"
-    }
+    if ($matches) { throw "Forbidden/non-C# source exists under src/: $($matches.FullName -join ', ')" }
 }
 
-$requiredBrandFiles = @(
-    'src/GhostFTP.Design/GhostBrand.cs',
-    'assets/brand/ghostftp-icon.svg',
-    'assets/readme/ghostftp-hero.svg',
-    'Directory.Build.targets',
-    'tools/generate-ghostftp-icon.ps1'
-)
-foreach ($required in $requiredBrandFiles) {
-    if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) {
-        throw "Ghost FTP brand asset/source is missing: $required"
-    }
-}
-
-$readme = Get-Content (Join-Path $root 'README.md') -Raw
-if ($readme -notmatch [regex]::Escape('assets/readme/ghostftp-hero.svg')) {
-    throw 'README.md must reference the official Ghost FTP hero asset.'
-}
-
-$requiredDesignFiles = @(
+$requiredFiles = @(
     'src/GhostFTP.Design/GhostFTP.Design.csproj',
     'src/GhostFTP.Design/GhostTheme.cs',
     'src/GhostFTP.Design/GhostWindowChrome.cs',
     'src/GhostFTP.Design/GhostBrand.cs',
     'src/GhostFTP.Design/GhostComboBox.cs',
-    'src/GhostFTP.Design/GhostLocalization.cs'
-)
-foreach ($required in $requiredDesignFiles) {
-    if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) {
-        throw "Shared design-system file is missing: $required"
-    }
-}
-
-$requiredUiSmokeFiles = @(
+    'src/GhostFTP.Design/GhostLocalization.cs',
+    'src/GhostFTP.Design/GhostSetupLocalization.cs',
+    'assets/brand/ghostftp-icon.svg',
+    'assets/readme/ghostftp-hero.svg',
+    'Directory.Build.targets',
+    'tools/generate-ghostftp-icon.ps1',
+    'LICENSE',
     'tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj',
     'tests/GhostFTP.UiSmoke/Program.cs'
 )
-foreach ($required in $requiredUiSmokeFiles) {
-    if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) {
-        throw "Ghost FTP editable-input regression test is missing: $required"
-    }
+foreach ($required in $requiredFiles) {
+    if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) { throw "Required Ghost FTP source/asset is missing: $required" }
+}
+
+$readme = Get-Content (Join-Path $root 'README.md') -Raw
+if ($readme -notmatch [regex]::Escape('assets/readme/ghostftp-hero.svg')) {
+    throw 'README.md must reference the official Ghost FTP hero asset.'
 }
 
 $legacyUiDuplicates = @(
@@ -111,36 +89,48 @@ $legacyUiDuplicates = @(
     'src/GhostFTP.Setup/Services/Win11Backdrop.cs'
 )
 foreach ($legacy in $legacyUiDuplicates) {
-    if (Test-Path (Join-Path $root $legacy) -PathType Leaf) {
-        throw "Legacy duplicated UI helper must not return: $legacy"
-    }
+    if (Test-Path (Join-Path $root $legacy) -PathType Leaf) { throw "Legacy duplicated UI helper must not return: $legacy" }
 }
 
 $legacyHelperCalls = @('GhostTheme.Logo(', 'GhostTheme.ComboBox(')
 foreach ($token in $legacyHelperCalls) {
     $matches = Get-ChildItem $src -Recurse -File -Filter *.cs | Select-String -SimpleMatch $token
-    if ($matches) {
-        $matches | ForEach-Object { Write-Error "Obsolete shared UI helper reference found: $($_.Path):$($_.LineNumber)" }
-        exit 1
-    }
+    if ($matches) { throw "Obsolete shared UI helper reference found: $token" }
 }
 
 $fragileInputTemplates = @('RoundedTextBoxTemplate', 'RoundedPasswordBoxTemplate')
 foreach ($token in $fragileInputTemplates) {
     $matches = Get-ChildItem $src -Recurse -File -Filter *.cs | Select-String -SimpleMatch $token
-    if ($matches) {
-        $matches | ForEach-Object { Write-Error "Fragile editable-input template returned: $($_.Path):$($_.LineNumber)" }
-        exit 1
-    }
+    if ($matches) { throw "Fragile editable-input template returned: $token" }
 }
 
 $appProject = Get-Content (Join-Path $root 'src/GhostFTP.App/GhostFTP.App.csproj') -Raw
 $setupProject = Get-Content (Join-Path $root 'src/GhostFTP.Setup/GhostFTP.Setup.csproj') -Raw
 if ($appProject -notmatch [regex]::Escape('GhostFTP.Design\GhostFTP.Design.csproj')) {
-    throw 'GhostFTP.App must reference the shared GhostFTP.Design project.'
+    throw 'GhostFTP.App must reference GhostFTP.Design.'
 }
 if ($setupProject -notmatch [regex]::Escape('GhostFTP.Design\GhostFTP.Design.csproj')) {
-    throw 'GhostFTP.Setup must reference the shared GhostFTP.Design project.'
+    throw 'GhostFTP.Setup must reference GhostFTP.Design.'
+}
+if ($setupProject -notmatch [regex]::Escape('GhostFTP.License.txt')) {
+    throw 'GhostFTP.Setup must embed the repository LICENSE as GhostFTP.License.txt.'
+}
+
+$setupWindow = Get-Content (Join-Path $root 'src/GhostFTP.Setup/SetupWindow.cs') -Raw
+if ($setupWindow -notmatch 'WizardStep' -or $setupWindow -notmatch 'AcceptLicenseTerms' -or $setupWindow -notmatch 'LicenseResourceName') {
+    throw 'Ghost FTP Setup must retain the multi-step wizard and mandatory license acceptance flow.'
+}
+$installerService = Get-Content (Join-Path $root 'src/GhostFTP.Setup/Services/InstallerService.cs') -Raw
+if ($installerService -match 'GhostFTP-Uninstall\.exe') {
+    throw 'A separate uninstall executable must not be generated.'
+}
+if ($installerService -notmatch 'InstalledSetupPath' -or $installerService -notmatch '--uninstall') {
+    throw 'Installed Apps uninstall must use the installed GhostFTP-Setup.exe with --uninstall.'
+}
+
+$brandSource = Get-Content (Join-Path $root 'src/GhostFTP.Design/GhostBrand.cs') -Raw
+foreach ($requiredBrandText in @('BRENDIGO LTD','16545639','71–75 Shelton Street')) {
+    if ($brandSource -notmatch [regex]::Escape($requiredBrandText)) { throw "Publisher identity is incomplete: $requiredBrandText" }
 }
 
 $targets = Get-Content (Join-Path $root 'Directory.Build.targets') -Raw
@@ -148,10 +138,11 @@ if ($targets -notmatch 'ApplicationIcon' -or $targets -notmatch 'generate-ghostf
     throw 'Ghost FTP executable icon generation must remain connected to the build.'
 }
 
-# Keep legacy product identities out while allowing the legal BRENDIGO LTD publisher identity.
-$legacyBrandTokens = @(
+$forbiddenProductTokens = @(
     ('My' + 'FTP'),
-    ('My' + ' FTP')
+    ('My' + ' FTP'),
+    ('By' + 'FTP'),
+    ('By' + ' FTP')
 )
 $textExtensions = @('.cs','.csproj','.props','.targets','.md','.txt','.yml','.yaml','.json','.xml','.ps1','.bat','.svg')
 $scanFiles = Get-ChildItem $root -Recurse -File | Where-Object {
@@ -162,23 +153,16 @@ $scanFiles = Get-ChildItem $root -Recurse -File | Where-Object {
 foreach ($file in $scanFiles) {
     if ($file.FullName -eq $MyInvocation.MyCommand.Path) { continue }
     $relative = $file.FullName.Substring($root.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
-    foreach ($token in $legacyBrandTokens) {
+    foreach ($token in $forbiddenProductTokens) {
         if ($relative.IndexOf($token, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
-            throw "Legacy product brand found in repository path: $relative"
+            throw "Non-Ghost FTP product identity found in repository path: $relative"
         }
         $matches = Select-String -Path $file.FullName -SimpleMatch -Pattern $token
         if ($matches) {
-            $matches | ForEach-Object { Write-Error "Legacy product brand reference found: $($_.Path):$($_.LineNumber)" }
+            $matches | ForEach-Object { Write-Error "Non-Ghost FTP product identity found: $($_.Path):$($_.LineNumber)" }
             exit 1
         }
     }
 }
 
-$brandSource = Get-Content (Join-Path $root 'src/GhostFTP.Design/GhostBrand.cs') -Raw
-foreach ($requiredPublisherToken in @('BRENDIGO LTD','16545639','71–75 Shelton Street','ghostftp.com')) {
-    if ($brandSource -notmatch [regex]::Escape($requiredPublisherToken)) {
-        throw "Ghost FTP publisher identity is incomplete: missing '$requiredPublisherToken'."
-    }
-}
-
-Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata, Ghost FTP product branding, C#-only source, zero PackageReference entries, native editable inputs, localization smoke tests, no known telemetry/tracking SDK references, and synchronized version metadata."
+Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata, Ghost FTP-only product identity, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, native editable inputs, embedded license wizard, same-Setup uninstall, shared localization/design/icon architecture and synchronized version metadata."

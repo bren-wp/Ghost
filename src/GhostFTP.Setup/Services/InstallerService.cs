@@ -1,7 +1,6 @@
 using GhostFTP.Design;
 using Microsoft.Win32;
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -46,7 +45,7 @@ internal sealed class InstallerService
         }
         catch
         {
-            // A damaged local settings file must never prevent setup from starting.
+            // Damaged local settings must never prevent Setup from starting.
         }
 
         return GhostLocalization.DefaultLanguageCode;
@@ -62,7 +61,7 @@ internal sealed class InstallerService
         try
         {
             await ExtractPayloadAsync(tempApp, cancellationToken).ConfigureAwait(false);
-            await ValidatePayloadAsync(tempApp, cancellationToken).ConfigureAwait(false);
+            await ValidateExecutableAsync(tempApp, "Ghost FTP application payload", cancellationToken).ConfigureAwait(false);
 
             if (File.Exists(AppPath))
             {
@@ -73,7 +72,7 @@ internal sealed class InstallerService
                 }
                 catch (IOException ex)
                 {
-                    throw new IOException($"{GhostBrand.DisplayName} appears to be running or the existing installation is locked. Close the app and run setup again.", ex);
+                    throw new IOException($"{GhostBrand.DisplayName} appears to be running or the existing installation is locked. Close the app and run Setup again.", ex);
                 }
             }
             else
@@ -83,8 +82,7 @@ internal sealed class InstallerService
 
             var currentSetup = Environment.ProcessPath
                 ?? throw new InvalidOperationException("Setup executable path is unavailable.");
-            if (!string.Equals(currentSetup, InstalledSetupPath, StringComparison.OrdinalIgnoreCase))
-                File.Copy(currentSetup, InstalledSetupPath, overwrite: true);
+            await InstallSetupCopyAsync(currentSetup, cancellationToken).ConfigureAwait(false);
 
             CreateShortcuts(desktopShortcut);
             await WritePreferredLanguageAsync(languageCode, cancellationToken).ConfigureAwait(false);
@@ -119,10 +117,17 @@ internal sealed class InstallerService
             DeleteDirectoryRequired(DataDirectory, "Local Ghost FTP data could not be removed completely.");
 
         var current = Environment.ProcessPath;
-        if (!string.IsNullOrWhiteSpace(current) && File.Exists(current))
-            _ = MoveFileEx(current, null, MoveFileDelayUntilReboot);
+        if (!string.IsNullOrWhiteSpace(current)
+            && string.Equals(Path.GetFullPath(current), Path.GetFullPath(InstalledSetupPath), StringComparison.OrdinalIgnoreCase))
+        {
+            ScheduleSelfDelete(current);
+        }
+        else
+        {
+            DeleteRequiredFile(InstalledSetupPath, "The installed Ghost FTP Setup executable could not be removed.");
+            TryRemoveInstallDirectoryWhenEmpty();
+        }
 
-        TryRemoveInstallDirectoryWhenEmpty();
         return Task.CompletedTask;
     }
 
@@ -136,6 +141,40 @@ internal sealed class InstallerService
             UseShellExecute = true,
             WorkingDirectory = InstallDirectory
         });
+    }
+
+    private async Task InstallSetupCopyAsync(string currentSetup, CancellationToken cancellationToken)
+    {
+        currentSetup = Path.GetFullPath(currentSetup);
+        if (string.Equals(currentSetup, Path.GetFullPath(InstalledSetupPath), StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var tempSetup = Path.Combine(InstallDirectory, $"GhostFTP-Setup.exe.new-{Guid.NewGuid():N}");
+        var backupSetup = Path.Combine(InstallDirectory, $"GhostFTP-Setup.exe.backup-{Guid.NewGuid():N}");
+        try
+        {
+            File.Copy(currentSetup, tempSetup, overwrite: false);
+            await ValidateExecutableAsync(tempSetup, "Ghost FTP Setup payload", cancellationToken).ConfigureAwait(false);
+
+            if (File.Exists(InstalledSetupPath))
+            {
+                File.Replace(tempSetup, InstalledSetupPath, backupSetup, ignoreMetadataErrors: true);
+                TryDelete(backupSetup);
+            }
+            else
+            {
+                File.Move(tempSetup, InstalledSetupPath);
+            }
+        }
+        catch (IOException ex)
+        {
+            throw new IOException("Ghost FTP Setup could not update its installed maintenance copy. Close any running Setup window and try again.", ex);
+        }
+        finally
+        {
+            TryDelete(tempSetup);
+            TryDelete(backupSetup);
+        }
     }
 
     private async Task WritePreferredLanguageAsync(string languageCode, CancellationToken cancellationToken)
@@ -157,6 +196,7 @@ internal sealed class InstallerService
         }
         catch (JsonException)
         {
+            QuarantineCorruptSettings();
             root = new JsonObject();
         }
 
@@ -178,6 +218,9 @@ internal sealed class InstallerService
                 await output.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
+            if (new FileInfo(temp).Length > MaxSettingsFileBytes)
+                throw new InvalidDataException("Setup-generated settings exceeded the supported size limit.");
+
             if (File.Exists(SettingsPath))
                 File.Replace(temp, SettingsPath, SettingsPath + ".bak", ignoreMetadataErrors: true);
             else
@@ -189,11 +232,26 @@ internal sealed class InstallerService
         }
     }
 
+    private void QuarantineCorruptSettings()
+    {
+        try
+        {
+            if (!File.Exists(SettingsPath))
+                return;
+            var quarantine = SettingsPath + ".corrupt-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss");
+            File.Move(SettingsPath, quarantine, overwrite: false);
+        }
+        catch
+        {
+            // If quarantine fails, the later atomic replace still decides whether Setup can continue safely.
+        }
+    }
+
     private async Task ExtractPayloadAsync(string targetPath, CancellationToken cancellationToken)
     {
         var assembly = Assembly.GetExecutingAssembly();
         await using var input = assembly.GetManifestResourceStream(PayloadResourceName)
-            ?? throw new InvalidOperationException("Ghost FTP application payload is missing from this setup build.");
+            ?? throw new InvalidOperationException("Ghost FTP application payload is missing from this Setup build.");
 
         await using var output = new FileStream(
             targetPath,
@@ -207,15 +265,15 @@ internal sealed class InstallerService
         await output.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task ValidatePayloadAsync(string payloadPath, CancellationToken cancellationToken)
+    private static async Task ValidateExecutableAsync(string path, string description, CancellationToken cancellationToken)
     {
-        var info = new FileInfo(payloadPath);
+        var info = new FileInfo(path);
         if (!info.Exists || info.Length < MinimumPayloadBytes)
-            throw new InvalidDataException("The embedded Ghost FTP payload is missing, empty or unexpectedly small.");
+            throw new InvalidDataException($"The {description} is missing, empty or unexpectedly small.");
 
         var signature = new byte[2];
         await using var stream = new FileStream(
-            payloadPath,
+            path,
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read,
@@ -223,7 +281,7 @@ internal sealed class InstallerService
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         var read = await stream.ReadAsync(signature, cancellationToken).ConfigureAwait(false);
         if (read != 2 || signature[0] != (byte)'M' || signature[1] != (byte)'Z')
-            throw new InvalidDataException("The embedded Ghost FTP payload is not a valid Windows executable.");
+            throw new InvalidDataException($"The {description} is not a valid Windows executable.");
     }
 
     private void CreateShortcuts(bool desktopShortcut)
@@ -263,22 +321,39 @@ internal sealed class InstallerService
         }
     }
 
+    private void ScheduleSelfDelete(string currentSetup)
+    {
+        try
+        {
+            var command = $"ping 127.0.0.1 -n 3 >nul & del /f /q \"{currentSetup}\" >nul 2>&1 & rmdir \"{InstallDirectory}\" >nul 2>&1";
+            var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"))
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            start.ArgumentList.Add("/d");
+            start.ArgumentList.Add("/s");
+            start.ArgumentList.Add("/c");
+            start.ArgumentList.Add(command);
+            _ = Process.Start(start);
+        }
+        catch
+        {
+            _ = MoveFileEx(currentSetup, null, MoveFileDelayUntilReboot);
+        }
+    }
+
     private void TryRemoveInstallDirectoryWhenEmpty()
     {
         try
         {
-            if (!Directory.Exists(InstallDirectory))
-                return;
-            var current = Environment.ProcessPath;
-            var remaining = Directory.EnumerateFileSystemEntries(InstallDirectory)
-                .Where(path => !string.Equals(path, current, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            if (remaining.Length == 0 && (string.IsNullOrWhiteSpace(current) || !current.StartsWith(InstallDirectory, StringComparison.OrdinalIgnoreCase)))
+            if (Directory.Exists(InstallDirectory) && !Directory.EnumerateFileSystemEntries(InstallDirectory).Any())
                 Directory.Delete(InstallDirectory);
         }
         catch
         {
-            // The running installed setup may keep the directory non-empty until reboot/self-delete.
+            // Non-critical cleanup only.
         }
     }
 

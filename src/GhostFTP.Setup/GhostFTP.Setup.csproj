@@ -21,6 +21,9 @@
   <ItemGroup>
     <ProjectReference Include="..\GhostFTP.Design\GhostFTP.Design.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\LICENSE" LogicalName="GhostFTP.License.txt" />
+  </ItemGroup>
   <ItemGroup Condition="Exists('$(GhostFtpPayloadPath)')">
     <EmbeddedResource Include="$(GhostFtpPayloadPath)" LogicalName="GhostFTP.PortablePayload.exe" />
   </ItemGroup>
