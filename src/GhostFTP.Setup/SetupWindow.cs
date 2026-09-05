@@ -15,17 +15,18 @@ public sealed class SetupWindow : Window
     private readonly Button _secondary;
     private readonly TextBlock _status;
     private readonly ProgressBar _progress;
+    private readonly ComboBox _language;
     private bool _completed;
+    private bool _rebuilding;
 
     public SetupWindow(bool uninstallMode)
     {
         _uninstallMode = uninstallMode;
-        Title = uninstallMode ? $"Uninstall {GhostBrand.DisplayName}" : $"{GhostBrand.DisplayName} Setup";
         Icon = GhostBrand.IconSource;
-        Width = 760;
-        Height = 570;
-        MinWidth = 720;
-        MinHeight = 540;
+        Width = 820;
+        Height = 620;
+        MinWidth = 760;
+        MinHeight = 570;
         ResizeMode = ResizeMode.CanResizeWithGrip;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = GhostTheme.R("Bg");
@@ -35,16 +36,14 @@ public sealed class SetupWindow : Window
         SnapsToDevicePixels = true;
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
 
-        _desktopShortcut = Check("Create a desktop shortcut", true);
-        _removeData = Check("Also remove local settings and saved server profiles", false);
-        _status = GhostTheme.Text(
-            uninstallMode
-                ? "Ready to uninstall."
-                : _installer.IsInstalled
-                    ? "An existing installation will be updated safely."
-                    : "Ready to install.",
-            11.5,
-            muted: true);
+        GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
+        _language = new GhostComboBox { ItemsSource = GhostLocalization.SupportedLanguages, MinWidth = 250 };
+        _language.SelectedItem = GhostLocalization.SupportedLanguages.First(x => x.Code == GhostLocalization.DefaultLanguageCode);
+        _language.SelectionChanged += (_, _) => LanguageChanged();
+
+        _desktopShortcut = Check(string.Empty, true);
+        _removeData = Check(string.Empty, false);
+        _status = GhostTheme.Text(string.Empty, 11.5, muted: true);
 
         _progress = new ProgressBar
         {
@@ -57,21 +56,67 @@ public sealed class SetupWindow : Window
             Background = GhostTheme.R("Surface3")
         };
 
-        _secondary = GhostTheme.Button("Cancel");
+        _secondary = GhostTheme.Button(string.Empty);
         _secondary.Click += (_, _) => Close();
-        _primary = GhostTheme.Button(
-            uninstallMode ? "Uninstall" : _installer.IsInstalled ? $"Update {GhostBrand.DisplayName}" : $"Install {GhostBrand.DisplayName}",
-            primary: !uninstallMode,
-            danger: uninstallMode);
+        _primary = GhostTheme.Button(string.Empty, primary: !uninstallMode, danger: uninstallMode);
         _primary.Click += async (_, _) => await ExecuteAsync();
 
+        ApplyLocalizedControlText(resetStatus: true);
         Content = BuildLayout();
+    }
+
+    private void LanguageChanged()
+    {
+        if (_rebuilding || _completed || _language.SelectedItem is not GhostLanguage language)
+            return;
+
+        GhostLocalization.SetLanguage(language.Code);
+        RebuildLocalizedLayout();
+    }
+
+    private void RebuildLocalizedLayout()
+    {
+        _rebuilding = true;
+        try
+        {
+            Content = null;
+            ApplyLocalizedControlText(resetStatus: true);
+            Content = BuildLayout();
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
+    }
+
+    private void ApplyLocalizedControlText(bool resetStatus)
+    {
+        Title = _uninstallMode
+            ? $"{GhostLocalization.T("Uninstall")} {GhostBrand.DisplayName}"
+            : $"{GhostBrand.DisplayName} {GhostLocalization.T("Setup")}";
+        _desktopShortcut.Content = GhostLocalization.T("CreateDesktopShortcut");
+        _removeData.Content = GhostLocalization.T("RemoveLocalData");
+        _secondary.Content = GhostLocalization.T("Cancel");
+        _primary.Content = _uninstallMode
+            ? GhostLocalization.T("Uninstall")
+            : _installer.IsInstalled
+                ? $"{GhostLocalization.T("Update")} {GhostBrand.DisplayName}"
+                : $"{GhostLocalization.T("Install")} {GhostBrand.DisplayName}";
+
+        if (resetStatus)
+        {
+            _status.Text = _uninstallMode
+                ? GhostLocalization.T("ReadyUninstall")
+                : _installer.IsInstalled
+                    ? GhostLocalization.T("ExistingInstallUpdate")
+                    : GhostLocalization.T("ReadyInstall");
+        }
     }
 
     private UIElement BuildLayout()
     {
         var root = new Grid { Margin = new Thickness(16) };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
@@ -94,10 +139,10 @@ public sealed class SetupWindow : Window
         stack.Children.Add(GhostTheme.Text(GhostBrand.PrivacyTagline, 11, muted: true));
         stack.Children.Add(new Border { Height = 24 });
 
-        stack.Children.Add(Feature("TLS certificate validation"));
-        stack.Children.Add(Feature("No telemetry or tracking"));
-        stack.Children.Add(Feature("Per-user installation"));
-        stack.Children.Add(Feature("Self-contained runtime"));
+        stack.Children.Add(Feature(GhostLocalization.T("TlsValidation")));
+        stack.Children.Add(Feature(GhostLocalization.T("NoTelemetryOrTracking")));
+        stack.Children.Add(Feature(GhostLocalization.T("PerUserInstallation")));
+        stack.Children.Add(Feature(GhostLocalization.T("SelfContainedRuntime")));
 
         var identity = GhostTheme.Text("ghostftp.com", 10.5, muted: true);
         identity.Margin = new Thickness(0, 24, 0, 0);
@@ -124,20 +169,26 @@ public sealed class SetupWindow : Window
         var body = new StackPanel();
         var version = typeof(SetupWindow).Assembly.GetName().Version?.ToString(3) ?? "Unknown";
         body.Children.Add(GhostTheme.Text(
-            _uninstallMode ? $"Uninstall {GhostBrand.DisplayName}" : _installer.IsInstalled ? $"Update {GhostBrand.DisplayName}" : $"Install {GhostBrand.DisplayName}",
+            _uninstallMode
+                ? $"{GhostLocalization.T("Uninstall")} {GhostBrand.DisplayName}"
+                : _installer.IsInstalled
+                    ? $"{GhostLocalization.T("Update")} {GhostBrand.DisplayName}"
+                    : $"{GhostLocalization.T("Install")} {GhostBrand.DisplayName}",
             26,
             weight: FontWeights.SemiBold));
         body.Children.Add(GhostTheme.Text(
             _uninstallMode
                 ? "Remove the application from this Windows account."
-                : $"Version {version} · Windows 10/11 x64 and ARM64 builds are published separately.",
+                : $"Version {version} · Windows x64 and ARM64 builds are published separately.",
             11.5,
             muted: true));
-        body.Children.Add(new Border { Height = 22 });
+        body.Children.Add(new Border { Height = 16 });
+        body.Children.Add(GhostTheme.Field(GhostLocalization.T("Language"), _language, GhostLocalization.T("EnglishFallback")));
+        body.Children.Add(new Border { Height = 18 });
 
         if (!_uninstallMode)
         {
-            body.Children.Add(GhostTheme.Text("Install location", 11.5, weight: FontWeights.SemiBold));
+            body.Children.Add(GhostTheme.Text(GhostLocalization.T("InstallLocation"), 11.5, weight: FontWeights.SemiBold));
             var path = GhostTheme.Surface(GhostTheme.Text(_installer.InstallDirectory, 11.5), new Thickness(12, 10, 12, 10), 10);
             path.Margin = new Thickness(0, 7, 0, 14);
             body.Children.Add(path);
@@ -147,7 +198,7 @@ public sealed class SetupWindow : Window
             {
                 Children =
                 {
-                    GhostTheme.Text("Privacy by design", 12, weight: FontWeights.SemiBold),
+                    GhostTheme.Text(GhostLocalization.T("PrivacyByDesign"), 12, weight: FontWeights.SemiBold),
                     GhostTheme.Text("Ghost FTP contains no telemetry, analytics, ads, tracking SDK or background update checker. Network access happens only when you explicitly connect to a server or open the Ghost FTP website.", 11, muted: true)
                 }
             }, new Thickness(12), 10);
@@ -173,7 +224,7 @@ public sealed class SetupWindow : Window
         {
             Children =
             {
-                GhostTheme.Text("Status", 11, weight: FontWeights.SemiBold),
+                GhostTheme.Text(GhostLocalization.T("Status"), 11, weight: FontWeights.SemiBold),
                 _status,
                 _progress
             }
@@ -199,25 +250,26 @@ public sealed class SetupWindow : Window
         {
             if (_uninstallMode)
             {
-                _status.Text = $"Removing {GhostBrand.DisplayName}…";
+                _status.Text = GhostLocalization.T("Removing");
                 await _installer.UninstallAsync(_removeData.IsChecked == true, CancellationToken.None);
-                _status.Text = $"{GhostBrand.DisplayName} has been removed successfully.";
-                _primary.Content = "Close";
+                _status.Text = GhostLocalization.T("RemovedSuccessfully");
+                _primary.Content = GhostLocalization.T("Close");
                 _secondary.Visibility = Visibility.Collapsed;
             }
             else
             {
-                _status.Text = _installer.IsInstalled ? $"Updating {GhostBrand.DisplayName}…" : $"Installing {GhostBrand.DisplayName}…";
+                _status.Text = _installer.IsInstalled ? GhostLocalization.T("Updating") : GhostLocalization.T("Installing");
                 await _installer.InstallAsync(_desktopShortcut.IsChecked == true, CancellationToken.None);
-                _status.Text = $"{GhostBrand.DisplayName} is installed and ready to use.";
-                _primary.Content = $"Launch {GhostBrand.DisplayName}";
-                _secondary.Content = "Close";
+                _status.Text = GhostLocalization.T("InstalledReady");
+                _primary.Content = $"{GhostLocalization.T("Launch")} {GhostBrand.DisplayName}";
+                _secondary.Content = GhostLocalization.T("Close");
             }
             _completed = true;
+            _language.IsEnabled = false;
         }
         catch (Exception ex)
         {
-            _status.Text = "The operation could not be completed: " + ex.Message;
+            _status.Text = GhostLocalization.F("OperationCouldNotComplete", ex.Message);
         }
         finally
         {
@@ -229,6 +281,7 @@ public sealed class SetupWindow : Window
     {
         _primary.IsEnabled = !busy;
         _secondary.IsEnabled = !busy;
+        _language.IsEnabled = !busy && !_completed;
         _progress.IsIndeterminate = busy;
         _progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
