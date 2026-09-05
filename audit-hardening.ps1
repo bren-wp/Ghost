@@ -17,6 +17,13 @@ function Require-Tokens([string]$relative, [string[]]$tokens) {
     return $text
 }
 
+$version = (Read-Source 'VERSION').Trim()
+$channel = (Read-Source 'RELEASE_CHANNEL').Trim().ToLowerInvariant()
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION for hardening audit: $version" }
+if ($channel -notin @('beta','stable')) { throw "Invalid RELEASE_CHANNEL for hardening audit: $channel" }
+$expectedTag = if ($channel -eq 'beta') { "v$version-beta" } else { "v$version" }
+$currentReleaseTrigger = ".github/release-trigger-$version"
+
 $core = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Core.cs' @(
     'Enum.IsDefined(options.Security)',
     'throw new ArgumentOutOfRangeException',
@@ -93,7 +100,7 @@ foreach ($relative in @(
     'tests/GhostFTP.LiveSmoke/Program.cs',
     '.github/workflows/live-smoke.yml',
     'docs/LIVE-SMOKE-TEST.md',
-    '.github/release-trigger-0.1.0'
+    $currentReleaseTrigger
 )) {
     if (!(Test-Path (Join-Path $root $relative) -PathType Leaf)) { throw "Missing final release file: $relative" }
 }
@@ -174,7 +181,7 @@ $releasePolicy = Require-Tokens 'docs/RELEASE-POLICY.md' @(
     'portable.exe',
     'GhostFTP-linux-x64',
     'GitHub Release requirement',
-    'v0.1.0-beta'
+    $expectedTag
 )
 
 $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
@@ -183,4 +190,4 @@ $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
     '(FtpSecurityMode)999'
 )
 
-Write-Host 'Ghost FTP hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, transactional Windows application/Setup rollback with downgrade protection, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets.'
+Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, transactional Windows application/Setup rollback with downgrade protection, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets."
