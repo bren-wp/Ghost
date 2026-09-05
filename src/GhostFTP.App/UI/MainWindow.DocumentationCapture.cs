@@ -1,5 +1,6 @@
 using GhostFTP.Core.Models;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -58,13 +59,14 @@ public sealed partial class MainWindow
         var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
         if (Content is FrameworkElement captureRoot)
         {
-            // GitHub-hosted Windows runners expose a desktop smaller than the canonical
-            // 1914×907 reference. A live Window is constrained by that virtual work area,
-            // so rendering its attached Content can leave a large empty right/bottom region.
-            // Detach the real compiled visual tree once, arrange that exact tree at the
-            // canonical viewport, render it, and leave it detached because capture mode exits
-            // immediately afterwards. No mock, duplicate shell or generated image is used.
+            // Hosted Windows runners expose a desktop smaller than the canonical 1914x907
+            // workstation viewport. A live Window is therefore constrained to the runner's
+            // work area. Detach the exact compiled production visual tree, allow WPF to finish
+            // the detach, then place that same tree in a non-window staging Grid whose layout
+            // size is the canonical viewport. This performs a real WPF measure/arrange pass at
+            // 1914x907; it does not scale a smaller screenshot and does not create a mock UI.
             Content = null;
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             CaptureReferenceRootToPng(captureRoot, clientPath);
         }
         else
@@ -104,17 +106,41 @@ public sealed partial class MainWindow
 
     private static void CaptureReferenceRootToPng(FrameworkElement element, string path)
     {
-        element.Width = ReferenceCaptureWidth;
-        element.Height = ReferenceCaptureHeight;
-        element.Measure(new Size(ReferenceCaptureWidth, ReferenceCaptureHeight));
-        element.Arrange(new Rect(0, 0, ReferenceCaptureWidth, ReferenceCaptureHeight));
-        element.UpdateLayout();
+        if (VisualTreeHelper.GetParent(element) is not null)
+            throw new InvalidOperationException("Reference visual must be detached before canonical capture.");
 
-        if (Math.Abs(element.ActualWidth - ReferenceCaptureWidth) > 0.5
+        // Remove only viewport constraints inherited from the previous Window layout. The
+        // production child controls, styles, bindings, commands and data remain untouched.
+        element.Width = double.NaN;
+        element.Height = double.NaN;
+        element.MinWidth = 0;
+        element.MinHeight = 0;
+        element.MaxWidth = double.PositiveInfinity;
+        element.MaxHeight = double.PositiveInfinity;
+        element.HorizontalAlignment = HorizontalAlignment.Stretch;
+        element.VerticalAlignment = VerticalAlignment.Stretch;
+
+        var stagingRoot = new Grid
+        {
+            Width = ReferenceCaptureWidth,
+            Height = ReferenceCaptureHeight,
+            ClipToBounds = true
+        };
+        stagingRoot.Children.Add(element);
+
+        stagingRoot.Measure(new Size(ReferenceCaptureWidth, ReferenceCaptureHeight));
+        stagingRoot.Arrange(new Rect(0, 0, ReferenceCaptureWidth, ReferenceCaptureHeight));
+        stagingRoot.UpdateLayout();
+
+        if (Math.Abs(stagingRoot.ActualWidth - ReferenceCaptureWidth) > 0.5
+            || Math.Abs(stagingRoot.ActualHeight - ReferenceCaptureHeight) > 0.5
+            || Math.Abs(element.ActualWidth - ReferenceCaptureWidth) > 0.5
             || Math.Abs(element.ActualHeight - ReferenceCaptureHeight) > 0.5)
         {
             throw new InvalidOperationException(
-                $"Reference visual did not arrange to {ReferenceCaptureWidth}x{ReferenceCaptureHeight}; actual {element.ActualWidth:0.#}x{element.ActualHeight:0.#}.");
+                $"Reference visual did not arrange to {ReferenceCaptureWidth}x{ReferenceCaptureHeight}; " +
+                $"host {stagingRoot.ActualWidth:0.#}x{stagingRoot.ActualHeight:0.#}, " +
+                $"content {element.ActualWidth:0.#}x{element.ActualHeight:0.#}.");
         }
 
         var bitmap = new RenderTargetBitmap(
@@ -123,8 +149,10 @@ public sealed partial class MainWindow
             96d,
             96d,
             PixelFormats.Pbgra32);
-        bitmap.Render(element);
+        bitmap.Render(stagingRoot);
         SavePng(bitmap, path);
+
+        stagingRoot.Children.Remove(element);
     }
 
     private static void CaptureElementToPng(FrameworkElement element, string path)
