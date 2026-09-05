@@ -25,6 +25,7 @@ public static class Program
             ("Local filename safety follows host semantics", TestLocalName),
             ("Local destination remains under selected root", TestLocalRootBoundary),
             ("Saved profiles normalize untrusted JSON", TestProfileNormalization),
+            ("Session-only profiles never persist", TestSessionOnlyProfilePersistence),
             ("Saved-password input remains command-safe", TestSavedPasswordGuard),
             ("AES file secret protection round-trips and rejects tampering", TestAesFileSecretProtector),
             ("Transfer progress exposes bytes and ETA safely", TestTransferProgressModel)
@@ -211,6 +212,52 @@ public static class Program
             Assert(user.Port == 21, "Invalid port was not restored to the default for the normalized security mode.");
             Assert(user.InitialPath == "/root", "Stored remote path was not canonicalized.");
             Assert(user.ProtectedPassword is null, "Oversized protected-password data was not discarded.");
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    private static void TestSessionOnlyProfilePersistence()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ghostftp-session-selftest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var profilePath = Path.Combine(root, "profiles.json");
+            var store = new ProfileStore(profilePath, new TestSecretProtector());
+            var persistent = new ServerProfile
+            {
+                Name = "Persistent",
+                Host = "ftp.example.test",
+                Port = 21,
+                Username = "user",
+                Security = FtpSecurityMode.ExplicitTls,
+                InitialPath = "/public"
+            };
+            var sessionOnly = new ServerProfile
+            {
+                Name = "Session only",
+                Host = "session-only.example.test",
+                Port = 21,
+                Username = "temporary",
+                Security = FtpSecurityMode.ExplicitTls,
+                InitialPath = "/private",
+                RememberPassword = false,
+                ProtectedPassword = null,
+                IsSessionOnly = true
+            };
+
+            store.SaveAsync([persistent, sessionOnly]).GetAwaiter().GetResult();
+            var raw = File.ReadAllText(profilePath);
+            Assert(!raw.Contains("session-only.example.test", StringComparison.Ordinal), "Session-only host was written to disk.");
+            Assert(!raw.Contains("isSessionOnly", StringComparison.OrdinalIgnoreCase), "Session-only runtime flag was serialized.");
+
+            var reloaded = store.LoadAsync().GetAwaiter().GetResult();
+            Assert(reloaded.Any(x => x.Host == "ftp.example.test"), "Persistent profile was not saved.");
+            Assert(reloaded.All(x => x.Host != "session-only.example.test"), "Session-only profile survived reload.");
+            Assert(reloaded.All(x => !x.IsSessionOnly), "Reloaded profiles must never be marked session-only from disk.");
         }
         finally
         {
