@@ -125,6 +125,7 @@ $requiredFiles = @(
     'src/GhostFTP.Linux/LinuxMainWindow.Core.cs',
     'src/GhostFTP.Linux/LinuxMainWindow.Draw.cs',
     'src/GhostFTP.Linux/LinuxMainWindow.Input.cs',
+    'src/GhostFTP.Linux/LinuxMainWindow.Testing.cs',
     'src/GhostFTP.Setup/GhostFTP.Setup.csproj',
     'build-release.ps1',
     'build-linux-release.sh',
@@ -165,13 +166,13 @@ if ($appProject -notmatch '<TargetFramework>net10\.0-windows' -or $appProject -n
 
 $linuxProject = Get-Content (Join-Path $root 'src/GhostFTP.Linux/GhostFTP.Linux.csproj') -Raw
 if ($linuxProject -notmatch '<TargetFramework>net10\.0</TargetFramework>' -or
-    $linuxProject -notmatch 'GhostFTP.Core\\GhostFTP.Core.csproj' -or
-    $linuxProject -notmatch 'GhostFTP.Design\\GhostFTP.Design.csproj') {
+    $linuxProject -notmatch 'GhostFTP\.Core\GhostFTP\.Core\.csproj' -or
+    $linuxProject -notmatch 'GhostFTP\.Design\GhostFTP\.Design\.csproj') {
     throw 'GhostFTP.Linux must remain a real net10.0 renderer sharing Core and Design.'
 }
 
 $solution = Get-Content (Join-Path $root 'GhostFTP.sln') -Raw
-if ($solution -notmatch 'GhostFTP\.Linux' -or $solution -notmatch 'src\\GhostFTP\.Linux\\GhostFTP\.Linux\.csproj') {
+if ($solution -notmatch 'GhostFTP\.Linux' -or $solution -notmatch 'src\GhostFTP\.Linux\GhostFTP\.Linux\.csproj') {
     throw 'GhostFTP.Linux must participate in the solution build.'
 }
 
@@ -248,9 +249,11 @@ $linuxInput = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Input.cs' @(
     'DeleteLocal',
     'NewRemoteFolder',
     'RenameRemote',
-    'DeleteRemote'
+    'DeleteRemote',
+    'ServerSystem'
 )
 $x11 = Require-Text 'src/GhostFTP.Linux/X11Native.cs' @('libX11.so.6','XOpenDisplay','Xutf8DrawString')
+$linuxProgram = Require-Text 'src/GhostFTP.Linux/Program.cs' @('--smoke-test','RequestSmokeTestShutdown')
 
 # Signing pipeline: secure secret-based Authenticode with stable-release trust gate.
 $signScript = Require-Text 'tools/Sign-WindowsRelease.ps1' @(
@@ -264,7 +267,8 @@ $releaseWorkflow = Require-Text '.github/workflows/release.yml' @(
     'GHOSTFTP_SIGNING_PFX_BASE64',
     'Sign-WindowsRelease.ps1',
     'RequireTrustedSignature',
-    'SIGNING.txt'
+    'SIGNING.txt',
+    'linux-release'
 )
 $signingDoc = Require-Text 'docs/CODE-SIGNING.md' @(
     'Never commit',
