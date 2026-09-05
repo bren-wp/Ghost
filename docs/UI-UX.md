@@ -1,14 +1,20 @@
 # Ghost FTP UI / UX Guidelines
 
-This document defines the Windows desktop and Setup interaction rules for Ghost FTP 1.7.0. The goal is a clear professional FTP workstation with the information density users expect from mature dual-pane clients, rendered entirely in Ghost FTP's own modern visual language.
+This document defines the Windows desktop and Setup interaction rules for Ghost FTP **0.1.0 Beta**. The goal is a clear professional FTP workstation with the information density users expect from mature dual-pane clients, rendered entirely in Ghost FTP's own modern visual language.
+
+The public numbering reset does not remove or revert the workstation and interaction work completed during the preserved internal development history.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer and publisher shown on legal/publisher surfaces.
 
-## Product identity
+## Product identity and Beta status
 
 User-facing product surfaces use **Ghost FTP** or the compact identifier **GhostFTP**. Legal/publisher surfaces may identify BRENDIGO LTD, but the publisher name must not replace the product name.
 
-Shared identity values live in `GhostBrand`. Shared visual primitives live in `GhostFTP.Design`.
+During the public `0.x.y` line the product is **Beta**. About, Setup and release/download documentation should make the current pre-1.0 status understandable rather than implying a finished stable 1.0 product.
+
+The first stable product version is **1.0.0**. When that transition is made, Beta labeling is removed and `portable.exe` / `setup.exe` carry matching stable 1.0.0 metadata.
+
+Shared identity values live in `GhostBrand`. Shared visual primitives live in `GhostFTP.Design`. Version/channel rules live in `docs/VERSIONING.md` and root `VERSION` / `RELEASE_CHANNEL` files.
 
 ## Visual direction
 
@@ -31,7 +37,7 @@ The visual system prioritizes:
 
 Mica and DWM enhancements are optional. Failure of a Windows visual API must never prevent Ghost FTP from running.
 
-## 1.7 workstation hierarchy
+## Professional workstation hierarchy
 
 The main desktop window has seven predictable layers:
 
@@ -316,6 +322,8 @@ Language → License → Install options → Ready → Install/Update → Finish
 
 The wizard must show Ghost FTP identity, BRENDIGO LTD legal/publisher identity where appropriate, language selection, embedded license, explicit license acceptance, install choices, visible progress/errors and a clear Finish action.
 
+During the 0.x public line, Setup should clearly present the build as Beta in version-oriented surfaces. It must not claim that `setup.exe` or the embedded client is stable 1.0.0 until `VERSION=1.0.0` and `RELEASE_CHANNEL=stable`.
+
 Language switching must not rebuild the WPF logical tree unsafely.
 
 ## Uninstall UX
@@ -343,4 +351,6 @@ Missing non-critical technical text may fall back to English rather than display
 
 ## Release requirement
 
-UI changes are not release-ready until the exact source commit passes compilation, source/privacy/product/publisher/platform audit, Core tests, parallel queue tests, WPF input/localization/Setup tests, authentic production UI capture and required packaging validation.
+UI changes are not release-ready until the exact source commit passes compilation, source/version/channel/privacy/product/publisher/platform audit, Core tests, parallel queue tests, WPF input/localization/Setup tests, authentic production UI capture and required packaging validation.
+
+Passing those gates keeps a 0.x build eligible for Beta release; it does not make the product stable. Stable status begins only at the explicit **1.0.0** transition defined in `docs/VERSIONING.md`.
