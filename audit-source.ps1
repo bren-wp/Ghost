@@ -71,6 +71,27 @@ foreach ($pattern in $forbiddenSourceExtensions) {
     if ($matches) { throw "Forbidden/non-C# source exists under src/: $($matches.FullName -join ', ')" }
 }
 
+# Ghost FTP is currently a Windows + future Linux desktop product. Do not allow stale
+# Android/iOS application trees or mobile TargetFrameworks to re-enter shipping source.
+$mobilePaths = Get-ChildItem $src -Recurse -Force | Where-Object {
+    $relative = $_.FullName.Substring($src.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
+    $relative -match '(^|[\\/])(android|ios)([\\/]|$)'
+}
+if ($mobilePaths) {
+    throw "Android/iOS shipping source is outside the current Ghost FTP desktop scope: $($mobilePaths.FullName -join ', ')"
+}
+
+$mobileTfms = Get-ChildItem $src -Recurse -Filter *.csproj | Select-String -Pattern 'net[0-9.]+-(android|ios|maccatalyst)|<SupportedOSPlatformVersion>.*(android|ios)'
+if ($mobileTfms) {
+    $mobileTfms | ForEach-Object { Write-Error "Mobile target framework found in shipping source: $($_.Path):$($_.LineNumber)" }
+    exit 1
+}
+
+$coreProject = Get-Content (Join-Path $root 'src/GhostFTP.Core/GhostFTP.Core.csproj') -Raw
+if ($coreProject -notmatch '<TargetFramework>net10\.0</TargetFramework>') {
+    throw 'GhostFTP.Core must remain platform-neutral net10.0 so future desktop renderers share one FTP/FTPS engine.'
+}
+
 $requiredFiles = @(
     'src/GhostFTP.Design/GhostFTP.Design.csproj',
     'src/GhostFTP.Design/GhostTheme.cs',
@@ -84,6 +105,7 @@ $requiredFiles = @(
     'Directory.Build.targets',
     'tools/generate-ghostftp-icon.ps1',
     'LICENSE',
+    'docs/PLATFORM-SUPPORT.md',
     'tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj',
     'tests/GhostFTP.UiSmoke/Program.cs'
 )
@@ -91,9 +113,20 @@ foreach ($required in $requiredFiles) {
     if (!(Test-Path (Join-Path $root $required) -PathType Leaf)) { throw "Required Ghost FTP source/asset is missing: $required" }
 }
 
+$releaseNotes = Join-Path $root "docs/releases/v$version.md"
+if (!(Test-Path $releaseNotes -PathType Leaf)) {
+    throw "Current version $version must have detailed release notes at docs/releases/v$version.md."
+}
+
 $readme = Get-Content (Join-Path $root 'README.md') -Raw
 if ($readme -notmatch [regex]::Escape('assets/readme/ghostftp-hero.svg')) {
     throw 'README.md must reference the official Ghost FTP hero asset.'
+}
+if ($readme -notmatch [regex]::Escape("Current source version: **$version**")) {
+    throw "README.md current source version must be synchronized to $version."
+}
+if ($readme -notmatch [regex]::Escape('docs/PLATFORM-SUPPORT.md')) {
+    throw 'README.md must link the authoritative platform-support contract.'
 }
 
 $legacyUiDuplicates = @(
@@ -121,6 +154,9 @@ $appProject = Get-Content (Join-Path $root 'src/GhostFTP.App/GhostFTP.App.csproj
 $setupProject = Get-Content (Join-Path $root 'src/GhostFTP.Setup/GhostFTP.Setup.csproj') -Raw
 if ($appProject -notmatch [regex]::Escape('GhostFTP.Design\GhostFTP.Design.csproj')) {
     throw 'GhostFTP.App must reference GhostFTP.Design.'
+}
+if ($appProject -notmatch '<TargetFramework>net10\.0-windows') {
+    throw 'The current production GhostFTP.App target must remain an explicit Windows WPF target until a real Linux renderer exists.'
 }
 if ($setupProject -notmatch [regex]::Escape('GhostFTP.Design\GhostFTP.Design.csproj')) {
     throw 'GhostFTP.Setup must reference GhostFTP.Design.'
@@ -184,4 +220,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata and brendigo.com identity, Ghost FTP-only product identity, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, native editable inputs, embedded license wizard, same-Setup uninstall with bounded self-cleanup, shared localization/design/icon architecture and synchronized version metadata."
+Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD publisher metadata and brendigo.com identity, Ghost FTP-only product identity, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF production target, native editable inputs, embedded license wizard, same-Setup uninstall with bounded self-cleanup, detailed current release notes, shared localization/design/icon architecture and synchronized version metadata."

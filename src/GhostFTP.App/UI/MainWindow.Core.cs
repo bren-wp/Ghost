@@ -87,8 +87,9 @@ public sealed partial class MainWindow : Window
         Icon = GhostBrand.IconSource;
         Width = 1520;
         Height = 920;
-        MinWidth = 1180;
-        MinHeight = 720;
+        MinWidth = 980;
+        MinHeight = 640;
+        ResizeMode = ResizeMode.CanResizeWithGrip;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = GhostTheme.R("Bg");
         Foreground = GhostTheme.R("Text");
@@ -107,9 +108,11 @@ public sealed partial class MainWindow : Window
         _remoteFilter.MaxLength = 512;
 
         Content = BuildLayout();
+        ConfigureWorkspaceResizing();
         ConfigureLists();
         ConfigureEvents();
         ConfigureQueueUx();
+        ConfigureResponsiveColumns();
 
         SourceInitialized += (_, _) => GhostWindowChrome.Apply(this, GhostTheme.IsDark);
         Loaded += OnLoadedAsync;
