@@ -1,13 +1,13 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.0 Beta** public line. Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
+This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.1 Beta** public line. Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
 
 ## Release identity
 
 The active release identity is defined by the root `VERSION` and `RELEASE_CHANNEL` files:
 
 ```text
-VERSION=0.1.0
+VERSION=0.1.1
 RELEASE_CHANNEL=beta
 ```
 
@@ -19,7 +19,7 @@ Official GitHub Releases contain SHA-256 manifests. Verify the downloaded file a
 
 Windows uses `SHA256SUMS.txt`; Linux uses `SHA256SUMS-linux.txt`.
 
-The current 0.1.0 Beta Windows executables are not Authenticode-signed when the release signing secrets are not configured. In that case Windows can display an Unknown Publisher or SmartScreen warning. This is not hidden by Setup. A trusted publisher experience requires a valid CA-issued code-signing certificate for **BRENDIGO LTD** and a release that passes the repository signing gate. Never disable Windows security checks merely to suppress such a warning.
+The current 0.1.1 Beta Windows executables are not Authenticode-signed when the release signing secrets are not configured. In that case Windows can display an Unknown Publisher or SmartScreen warning. This is not hidden by Setup. A trusted publisher experience requires a valid CA-issued code-signing certificate for **BRENDIGO LTD** and a release that passes the repository signing gate. Never disable Windows security checks merely to suppress such a warning.
 
 ## Windows
 
@@ -59,7 +59,7 @@ GhostFTP-Setup-win-arm64.exe
 GhostFTP-Portable-win-arm64.exe
 ```
 
-All executables from one release must carry the same active numeric file version. For Ghost FTP 0.1.0 Beta that version is `0.1.0.0`.
+All executables from one release must carry the same active numeric file version. For Ghost FTP 0.1.1 Beta that version is `0.1.1.0`.
 
 ### Windows Setup flow
 
@@ -104,9 +104,11 @@ This includes local settings and saved server profiles. A password is persisted 
 
 ### Windows update safety
 
-Running a newer matching-architecture Setup over an existing installation performs an in-place per-user update. Setup validates that the embedded executable is a plausible Windows PE image and that its version resources identify **Ghost FTP**, **BRENDIGO LTD**, and the exact Setup version before committing the client replacement.
+Running a newer matching-architecture Setup over an existing installation performs an in-place per-user update. Setup stages and validates both the application payload and the maintenance Setup copy **before** changing the active installation. Validation checks minimum payload size, Windows executable identity, ProductName **Ghost FTP**, CompanyName **BRENDIGO LTD** and the exact candidate file version.
 
-The client replacement uses temporary-file and rollback semantics rather than overwriting the active executable directly. Close Ghost FTP before updating so Windows can replace the file. A locked application causes a visible failure rather than a false successful update.
+Setup compares installed and candidate file versions and refuses to install an older Ghost FTP binary over a newer one. Both the existing application executable and installed maintenance Setup copy keep rollback material until all later install stages have completed. If a later stage fails, Setup attempts to restore both previous binaries rather than intentionally leaving a mixed-version installation. On a first installation, a failure after a binary commit removes the incomplete binary during rollback.
+
+Close Ghost FTP before updating so Windows can replace the active file. A locked application or Setup copy causes a visible failure rather than a false successful update. Stale transaction files are also cleaned during uninstall.
 
 Setup preserves local settings and saved profiles. Invalid or oversized settings are treated as untrusted input and can be quarantined before Setup writes the selected language.
 
@@ -160,11 +162,11 @@ GhostFTP-linux-arm64
 GhostFTP-linux-arm64.tar.gz
 ```
 
-Version/channel-explicit tarballs are also published, for example:
+Version/channel-explicit tarballs are also published:
 
 ```text
-GhostFTP-0.1.0-beta-linux-x64.tar.gz
-GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+GhostFTP-0.1.1-beta-linux-x64.tar.gz
+GhostFTP-0.1.1-beta-linux-arm64.tar.gz
 ```
 
 Do not try to run Windows `.exe` packages on Linux as the supported Linux distribution method. Use the Linux artifacts from the same GitHub Release.
@@ -224,6 +226,8 @@ Review the helper from the exact release before execution if the package was obt
 
 The built-in **GhostFTP Demo** profile is local-only on Windows and Linux. It provides deterministic sample directories, files and transfer operations without opening an FTP socket. Demo mode is used by automated regression tests and authentic Windows documentation capture.
 
+The 0.1.1 regression harness exercises connect, diagnostics, PWD/CWD, listing, keepalive, download, upload/download byte round-trip, rename, directory creation/removal, recursive directory round-trip, conflict protection, root-delete protection, disconnect reset and rejection of post-disconnect operations on both Windows and Linux CI.
+
 Demo mode is not evidence that an arbitrary external FTP server is reachable. Real-server interoperability is tested separately with the credential-safe, non-destructive workflow documented in `docs/LIVE-SMOKE-TEST.md`.
 
 ## Language selection
@@ -241,6 +245,10 @@ Normal runtime network activity is limited to FTP/FTPS servers selected by the u
 ### Windows Setup says Ghost FTP is running or locked
 
 Close Ghost FTP and wait for the application process to exit, then run Setup again. Setup deliberately refuses to claim a successful executable replacement while Windows still holds the installed binary open.
+
+### Windows Setup refuses to downgrade
+
+This is intentional. A package with an older file version cannot overwrite a newer installed Ghost FTP application or maintenance Setup copy. Use the same or a newer official release package.
 
 ### Windows reports Unknown Publisher / SmartScreen
 

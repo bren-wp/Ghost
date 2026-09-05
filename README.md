@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.0 Beta — authentic production Windows desktop client" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.1 Beta — authentic production Windows desktop client" width="100%">
 </p>
 
 <p align="center"><strong>Authentic application capture generated from the compiled Ghost FTP desktop client — not a mockup, illustration or generated UI.</strong></p>
@@ -13,9 +13,9 @@ Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545
 - Product: https://ghostftp.com
 - Publisher: https://brendigo.com
 - GitHub Releases: https://github.com/bren-wp/Ghost/releases
-- Current source version: **0.1.0**
+- Current source version: **0.1.1**
 - Current release channel: **Beta**
-- Informational version: **0.1.0-beta**
+- Informational version: **0.1.1-beta**
 - First stable target: **1.0.0**
 - Runtime baseline: **.NET 10 / C# 14**
 - Desktop targets: **Windows x64 / ARM64 and Linux x64 / ARM64**
@@ -86,8 +86,8 @@ GhostFTP-linux-x64
 GhostFTP-linux-arm64
 GhostFTP-linux-x64.tar.gz
 GhostFTP-linux-arm64.tar.gz
-GhostFTP-0.1.0-beta-linux-x64.tar.gz
-GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+GhostFTP-0.1.1-beta-linux-x64.tar.gz
+GhostFTP-0.1.1-beta-linux-arm64.tar.gz
 SHA256SUMS-linux.txt
 BUILD-INFO.txt
 ```
@@ -176,7 +176,7 @@ See [PRIVACY.md](PRIVACY.md).
 
 ## Installer hardening
 
-The Windows Setup path is per-user and validates an embedded application payload before committing it. Current validation checks minimum size, Windows executable signature, Ghost FTP product identity, **BRENDIGO LTD** publisher identity and exact file version. Existing application replacement keeps a rollback copy until all install stages finish so a later Setup failure does not intentionally strand a half-updated app.
+Windows Setup stages and validates both the application payload and the installed maintenance Setup copy before changing the active installation. Validation checks minimum size, Windows executable signature, Ghost FTP product identity, **BRENDIGO LTD** publisher identity and exact file version. Existing application and Setup binaries keep rollback copies until all install stages finish; a later failure attempts to restore both binaries instead of intentionally leaving a mixed-version or half-updated installation. Setup also rejects downgrade attempts by comparing installed and candidate file versions.
 
 The Installed Apps entry exposes the real interactive uninstall command only. Ghost FTP does not claim a `QuietUninstallString` until a genuine non-interactive uninstall mode exists.
 
@@ -224,7 +224,7 @@ CI additionally launches the real Linux renderer under Xvfb and smoke-tests the 
 
 All `0.x.y` builds remain **Beta**. The first stable release is **1.0.0** and must satisfy the stable quality/signing gates. The release workflow publishes Windows x64/ARM64 and Linux x64/ARM64 artifacts only after the required build, audit, self-test, packaging and checksum gates pass.
 
-Current notes: [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md). See also [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md), [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md) and [docs/VERSIONING.md](docs/VERSIONING.md).
+Current notes: [docs/releases/v0.1.1.md](docs/releases/v0.1.1.md). See also [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md), [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md) and [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## Security reports
 

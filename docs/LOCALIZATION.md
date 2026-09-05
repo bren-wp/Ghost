@@ -1,6 +1,6 @@
 # Ghost FTP Localization Architecture
 
-The current **Ghost FTP 0.1.0 Beta** line includes the shared dependency-free localization layer developed during the preserved internal-development history. The public version-number reset does not remove or reduce localization coverage.
+The current **Ghost FTP 0.1.1 Beta** line includes the shared dependency-free localization layer developed during the preserved internal-development history. Public patch releases do not remove or reduce localization coverage.
 
 ## Primary language and fallback
 
@@ -12,7 +12,7 @@ Unknown or malformed stored language codes normalize to English.
 
 ## Supported languages
 
-Ghost FTP 0.1.0 Beta validates 29 selectable languages:
+Ghost FTP 0.1.1 Beta validates 29 selectable languages:
 
 | Code | Language |
 |---|---|
@@ -82,7 +82,7 @@ Localization must not translate or mutate:
 
 - the product proper name **Ghost FTP**;
 - the publisher proper name **BRENDIGO LTD**;
-- numeric semantic versions such as `0.1.0` or `1.0.0`;
+- numeric semantic versions such as `0.1.1` or `1.0.0`;
 - protocol tokens such as FTP, FTPS, TLS, EPSV, PASV, `NOOP`, `PWD`, `CWD` and `SIZE` where translation would alter their technical meaning.
 
 When Ghost FTP reaches the explicit stable **1.0.0** gate, Beta labeling is removed from version-oriented product surfaces. The supported language catalog remains independent of that release-channel transition.
@@ -161,7 +161,7 @@ Do not add a language to the selector with an empty translation set merely to in
 
 ## Historical note
 
-The localization architecture was originally developed and documented under the preserved internal 1.x development numbering. Those historical release notes remain in `docs/releases/` for engineering traceability. The active public release sequence now starts at 0.1.0 Beta, but the localization implementation and tests are retained.
+The localization architecture was originally developed and documented under the preserved internal 1.x development numbering. Those historical release notes remain in `docs/releases/` for engineering traceability. The active public release sequence started at 0.1.0 Beta and now continues with 0.1.1 Beta; the localization implementation and tests are retained.
 
 ## Translation quality rule
 

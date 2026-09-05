@@ -18,7 +18,7 @@ Official unmodified Ghost FTP binaries are distributed through official Ghost FT
 
 ## Current public release status
 
-The current public development line begins at **Ghost FTP 0.1.0 Beta**. The earlier 1.x files retained in this repository are preserved internal-development history and do not override the current public version sequence.
+The current public development version is **Ghost FTP 0.1.1 Beta**. The public sequence began at 0.1.0 Beta; earlier 1.x files retained in this repository are preserved internal-development history and do not override the current public version sequence.
 
 All public `0.x.y` builds are Beta. The first release intended to be presented as fully stable is **Ghost FTP 1.0.0**. Canonical `portable.exe` and `setup.exe` filenames remain unchanged across the Beta line, while their internal file version follows the active numeric release.
 
