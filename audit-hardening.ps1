@@ -88,7 +88,7 @@ foreach ($relative in @(
     'docs/LIVE-SMOKE-TEST.md',
     '.github/release-trigger-0.1.0'
 )) {
-    if (!(Test-Path (Join-Path $root $relative) -PathType Leaf) { throw "Missing final release file: $relative" }
+    if (!(Test-Path (Join-Path $root $relative) -PathType Leaf)) { throw "Missing final release file: $relative" }
 }
 
 $live = Require-Tokens 'tests/GhostFTP.LiveSmoke/Program.cs' @(
