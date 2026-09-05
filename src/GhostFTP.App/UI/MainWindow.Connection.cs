@@ -178,6 +178,7 @@ public sealed partial class MainWindow
             _remotePath = await _session.GetWorkingDirectoryAsync(ct);
             _remotePathBox.Text = _remotePath;
             await RefreshRemoteAsync();
+            KeepQuickConnectionInTabIfRequested();
             SetStatus(
                 _session.IsEncrypted ? "Connected · TLS" : selected?.IsDemo == true ? "Demo · local" : "Connected · FTP",
                 _session.IsEncrypted ? "Success" : "AccentSoft");
