@@ -64,6 +64,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
     private bool _connected;
     private bool _closing;
     private bool _needsRedraw = true;
+    private bool _plainFtpApproved;
     private string _status = "Offline";
     private string? _focusedFieldId;
     private DateTimeOffset _lastClickUtc;
@@ -334,6 +335,24 @@ internal sealed partial class LinuxMainWindow : IDisposable
     private async Task ConnectCoreAsync()
     {
         if (_busy) return;
+
+        var selected = _profiles.ElementAtOrDefault(_siteSelected);
+        var isDemo = selected?.IsDemo == true
+            && string.Equals(_fields["host"].Value, "demo.ghostftp.local", StringComparison.OrdinalIgnoreCase);
+        if (_securityMode == FtpSecurityMode.Plain && !isDemo && !_plainFtpApproved)
+        {
+            Post(() => ShowConfirm(
+                "Plain FTP is not encrypted",
+                "Plain FTP sends usernames, passwords and file data without TLS encryption. Continue only for an intentionally trusted server or isolated network.",
+                () =>
+                {
+                    _plainFtpApproved = true;
+                    _ = RunBackground(ConnectCoreAsync);
+                }));
+            return;
+        }
+
+        _plainFtpApproved = false;
         _busy = true;
         Post(() =>
         {
@@ -341,15 +360,14 @@ internal sealed partial class LinuxMainWindow : IDisposable
             Log($"Connecting to {_fields["host"].Value}:{_fields["port"].Value}…");
         });
 
+        IFtpSession? candidateSession = null;
         try
         {
             await DisconnectCoreAsync(silent: true).ConfigureAwait(false);
-            var selected = _profiles.ElementAtOrDefault(_siteSelected);
-            IFtpSession session;
-            if (selected?.IsDemo == true && string.Equals(_fields["host"].Value, "demo.ghostftp.local", StringComparison.OrdinalIgnoreCase))
+            FtpConnectionOptions? newOptions = null;
+            if (isDemo)
             {
-                session = new DemoFtpSession();
-                _activeOptions = null;
+                candidateSession = new DemoFtpSession();
             }
             else
             {
@@ -357,7 +375,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
                 if (!int.TryParse(_fields["port"].Value, out var port) || port is < 1 or > 65535)
                     port = defaultPort;
 
-                _activeOptions = new FtpConnectionOptions
+                newOptions = new FtpConnectionOptions
                 {
                     Host = _fields["host"].Value,
                     Port = port,
@@ -368,30 +386,50 @@ internal sealed partial class LinuxMainWindow : IDisposable
                     CommandTimeout = TimeSpan.FromSeconds(_settings.CommandTimeoutSeconds),
                     TransferTimeout = TimeSpan.FromSeconds(_settings.TransferIdleTimeoutSeconds)
                 };
-                session = new FtpSession(_activeOptions);
+                candidateSession = new FtpSession(newOptions);
             }
 
             _connectionCts = new CancellationTokenSource();
-            await session.ConnectAsync(_connectionCts.Token).ConfigureAwait(false);
-            _session = session;
+            await candidateSession.ConnectAsync(_connectionCts.Token).ConfigureAwait(false);
+            _session = candidateSession;
+            candidateSession = null;
+            _activeOptions = newOptions;
             _connected = true;
             _remotePath = string.IsNullOrWhiteSpace(_fields["remotePath"].Value) ? "/" : _fields["remotePath"].Value;
             try
             {
-                await session.ChangeDirectoryAsync(_remotePath, _connectionCts.Token).ConfigureAwait(false);
+                await _session.ChangeDirectoryAsync(_remotePath, _connectionCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_connectionCts.IsCancellationRequested)
+            {
+                throw;
             }
             catch
             {
-                _remotePath = session.WorkingDirectory;
+                _remotePath = _session.WorkingDirectory;
             }
             await RefreshRemoteCoreAsync().ConfigureAwait(false);
             RecreateTransferQueue();
+            EnsureKeepAliveLoopStarted();
 
             Post(() =>
             {
                 KeepQuickConnectionInTabIfRequested();
-                _status = session.IsEncrypted ? "Connected · TLS" : "Connected · FTP";
-                Log(session.IsEncrypted ? "Connected with encrypted FTP control/data channels." : "Connected using plain FTP.");
+                _status = _session.IsEncrypted ? "Connected · TLS" : isDemo ? "Demo · local" : "Connected · FTP";
+                Log(_session.IsEncrypted
+                    ? "Connected with encrypted FTP control/data channels."
+                    : isDemo
+                        ? "Built-in Demo session opened locally; no network connection is used."
+                        : "Connected using plain FTP.");
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            Post(() =>
+            {
+                _connected = false;
+                _status = "Offline";
+                Log("Connection attempt cancelled.");
             });
         }
         catch (Exception ex)
@@ -402,14 +440,24 @@ internal sealed partial class LinuxMainWindow : IDisposable
                 _status = "Offline";
                 Log("Connection failed: " + ex.Message);
             });
-            if (_session is not null)
-            {
-                try { await _session.DisposeAsync().ConfigureAwait(false); } catch { }
-                _session = null;
-            }
         }
         finally
         {
+            if (candidateSession is not null)
+            {
+                try { await candidateSession.DisposeAsync().ConfigureAwait(false); } catch { }
+            }
+
+            if (!_connected)
+            {
+                if (_session is not null)
+                {
+                    try { await _session.DisposeAsync().ConfigureAwait(false); } catch { }
+                    _session = null;
+                }
+                _activeOptions = null;
+            }
+
             _busy = false;
             RequestRedraw();
         }
@@ -434,6 +482,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
             _session = null;
         }
 
+        _activeOptions = null;
         _connected = false;
         _remoteItems.Clear();
         if (!silent)
@@ -466,25 +515,36 @@ internal sealed partial class LinuxMainWindow : IDisposable
 
     private async Task<(IFtpSession Session, bool DisposeAfter)> CreateTransferSessionAsync(CancellationToken cancellationToken)
     {
-        if (_session is DemoFtpSession)
-            return (_session, false);
-        if (_activeOptions is null)
+        if (_session is DemoFtpSession demo && demo.IsConnected)
+            return (demo, false);
+        if (_activeOptions is null || !_connected)
             throw new InvalidOperationException("No active FTP connection options are available.");
 
         var session = new FtpSession(_activeOptions);
-        await session.ConnectAsync(cancellationToken).ConfigureAwait(false);
-        return (session, true);
+        try
+        {
+            await session.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return (session, true);
+        }
+        catch
+        {
+            await session.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     private async Task RefreshRemoteCoreAsync()
     {
-        if (_session is null || !_session.IsConnected) return;
-        var items = await _session.ListAsync(_remotePath, _connectionCts?.Token ?? CancellationToken.None).ConfigureAwait(false);
+        var session = _session;
+        if (session is null || !session.IsConnected) return;
+        var items = await session.ListAsync(_remotePath, _connectionCts?.Token ?? CancellationToken.None).ConfigureAwait(false);
         Post(() =>
         {
+            if (!ReferenceEquals(_session, session))
+                return;
             _remoteItems.Clear();
             _remoteItems.AddRange(items.OrderByDescending(x => x.IsDirectory).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase));
-            _remotePath = _session?.WorkingDirectory ?? _remotePath;
+            _remotePath = session.WorkingDirectory;
             _fields["remotePath"].Value = _remotePath;
             _remoteSelected = Math.Clamp(_remoteSelected, -1, _remoteItems.Count - 1);
             Log($"Remote directory loaded: {_remotePath} ({_remoteItems.Count} items).");
@@ -493,9 +553,10 @@ internal sealed partial class LinuxMainWindow : IDisposable
 
     private async Task NavigateRemoteAsync(string path)
     {
-        if (_session is null || !_session.IsConnected) return;
-        await _session.ChangeDirectoryAsync(path, _connectionCts?.Token ?? CancellationToken.None).ConfigureAwait(false);
-        _remotePath = _session.WorkingDirectory;
+        var session = _session;
+        if (session is null || !session.IsConnected) return;
+        await session.ChangeDirectoryAsync(path, _connectionCts?.Token ?? CancellationToken.None).ConfigureAwait(false);
+        _remotePath = session.WorkingDirectory;
         await RefreshRemoteCoreAsync().ConfigureAwait(false);
     }
 
