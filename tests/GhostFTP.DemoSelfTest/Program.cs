@@ -40,6 +40,7 @@ public static class Program
 
         var server = await session.GetServerInfoAsync().ConfigureAwait(false);
         Assert(server.ServerSystem.Contains("demo", StringComparison.OrdinalIgnoreCase), "Demo diagnostics do not identify local Demo mode.");
+        Assert(server.Features.Contains("LOCAL-ONLY", StringComparer.Ordinal), "Demo diagnostics do not expose the local-only invariant.");
 
         var rootItems = await session.ListAsync("/").ConfigureAwait(false);
         Assert(rootItems.Any(x => x.IsDirectory && x.Name == "public_html"), "Demo public_html folder is missing.");
@@ -64,6 +65,19 @@ public static class Program
         var uploadSource = Path.Combine(root, "roundtrip-source.txt");
         const string roundtripText = "Ghost FTP Demo round-trip payload\nUTF-8: čćžšđ ✓\n";
         await File.WriteAllTextAsync(uploadSource, roundtripText, Encoding.UTF8).ConfigureAwait(false);
+
+        var directoryReplacementBlocked = false;
+        try
+        {
+            await session.UploadFileAsync(uploadSource, "/public_html/assets").ConfigureAwait(false);
+        }
+        catch (FtpException)
+        {
+            directoryReplacementBlocked = true;
+        }
+        Assert(directoryReplacementBlocked, "Demo file upload replaced an existing directory.");
+        Assert((await session.ListAsync("/public_html/assets").ConfigureAwait(false)).Any(x => x.Name == "app.css"), "Blocked Demo upload damaged the existing assets directory.");
+
         await session.UploadFileAsync(uploadSource, "/public_html/roundtrip.txt").ConfigureAwait(false);
 
         var roundtripDownload = Path.Combine(root, "roundtrip-download.txt");
@@ -86,6 +100,17 @@ public static class Program
         Directory.CreateDirectory(nestedSource);
         await File.WriteAllTextAsync(Path.Combine(directorySource, "alpha.txt"), "alpha\n", Encoding.UTF8).ConfigureAwait(false);
         await File.WriteAllBytesAsync(Path.Combine(nestedSource, "beta.bin"), Enumerable.Range(0, 4096).Select(i => (byte)(i % 251)).ToArray()).ConfigureAwait(false);
+
+        var fileReplacementBlocked = false;
+        try
+        {
+            await session.UploadDirectoryAsync(directorySource, "/public_html/index.html").ConfigureAwait(false);
+        }
+        catch (FtpException)
+        {
+            fileReplacementBlocked = true;
+        }
+        Assert(fileReplacementBlocked, "Demo directory upload replaced an existing file.");
 
         await session.UploadDirectoryAsync(directorySource, "/public_html/uploaded-folder").ConfigureAwait(false);
         var directoryDownload = Path.Combine(root, "directory-download");
@@ -111,6 +136,7 @@ public static class Program
 
         await session.DisconnectAsync().ConfigureAwait(false);
         Assert(!session.IsConnected, "Demo session did not disconnect.");
+        Assert(session.WorkingDirectory == "/", "Demo disconnect did not reset the working directory.");
 
         var disconnectedOperationBlocked = false;
         try
