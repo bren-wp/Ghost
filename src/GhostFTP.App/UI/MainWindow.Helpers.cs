@@ -62,14 +62,16 @@ public sealed partial class MainWindow
     private static GridView CreateQueueGrid()
     {
         var grid = new GridView { AllowsColumnReorder = true };
-        grid.Columns.Add(Column(L("Item"), "DisplayName", 150));
-        grid.Columns.Add(Column(L("Direction"), "Direction", 76));
-        grid.Columns.Add(Column(L("State"), "State", 76));
-        grid.Columns.Add(Column(L("Progress"), "ProgressText", 70));
-        grid.Columns.Add(Column("Retry", "RetryText", 48));
-        grid.Columns.Add(Column(L("Speed"), "SpeedText", 82));
-        grid.Columns.Add(Column(L("Source"), "Source", 210));
-        grid.Columns.Add(Column(L("Destination"), "Destination", 210));
+        grid.Columns.Add(Column(L("Item"), "DisplayName", 140));
+        grid.Columns.Add(Column(L("Direction"), "Direction", 70));
+        grid.Columns.Add(Column(L("State"), "State", 72));
+        grid.Columns.Add(Column(L("Progress"), "ProgressText", 62));
+        grid.Columns.Add(Column("Transferred", "TransferredText", 120));
+        grid.Columns.Add(Column(L("Speed"), "SpeedText", 78));
+        grid.Columns.Add(Column("ETA", "EtaText", 58));
+        grid.Columns.Add(Column("Retry", "RetryText", 44));
+        grid.Columns.Add(Column(L("Source"), "Source", 190));
+        grid.Columns.Add(Column(L("Destination"), "Destination", 190));
         return grid;
     }
 
@@ -98,26 +100,30 @@ public sealed partial class MainWindow
 
     private void ResizeQueueColumns()
     {
-        if (_queueList.View is not GridView grid || grid.Columns.Count != 8 || _queueList.ActualWidth <= 0) return;
+        if (_queueList.View is not GridView grid || grid.Columns.Count != 10 || _queueList.ActualWidth <= 0) return;
 
-        var available = Math.Max(820, _queueList.ActualWidth - 22);
-        var item = Math.Clamp(available * 0.15, 125, 190);
-        var direction = 76d;
-        var state = 76d;
-        var progress = 70d;
-        var retry = 48d;
-        var speed = 82d;
-        var remaining = Math.Max(260, available - item - direction - state - progress - retry - speed);
+        var available = Math.Max(700, _queueList.ActualWidth - 22);
+        var item = Math.Clamp(available * 0.12, 100, 170);
+        var direction = 62d;
+        var state = 68d;
+        var progress = 58d;
+        var transferred = Math.Clamp(available * 0.11, 96, 140);
+        var speed = 74d;
+        var eta = 52d;
+        var retry = 42d;
+        var remaining = Math.Max(180, available - item - direction - state - progress - transferred - speed - eta - retry);
         var source = remaining / 2;
 
         grid.Columns[0].Width = item;
         grid.Columns[1].Width = direction;
         grid.Columns[2].Width = state;
         grid.Columns[3].Width = progress;
-        grid.Columns[4].Width = retry;
+        grid.Columns[4].Width = transferred;
         grid.Columns[5].Width = speed;
-        grid.Columns[6].Width = source;
-        grid.Columns[7].Width = source;
+        grid.Columns[6].Width = eta;
+        grid.Columns[7].Width = retry;
+        grid.Columns[8].Width = source;
+        grid.Columns[9].Width = source;
     }
 
     private static ContextMenu CreateContextMenu(params (string text, RoutedEventHandler handler)[] items)
