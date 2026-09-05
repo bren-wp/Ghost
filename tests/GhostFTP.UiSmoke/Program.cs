@@ -18,6 +18,7 @@ public static class Program
             TestTextBox(failures);
             TestPasswordBox(failures);
             TestComboBox(failures);
+            TestLocalization(failures);
         }
         catch (Exception ex)
         {
@@ -32,6 +33,7 @@ public static class Program
             Console.WriteLine("PASS  Ghost FTP editable input controls");
             Console.WriteLine("PASS  Ghost FTP password input control");
             Console.WriteLine("PASS  Ghost FTP security selector");
+            Console.WriteLine($"PASS  Ghost FTP localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
             return 0;
         }
 
@@ -81,6 +83,28 @@ public static class Program
         Assert(combo.IsTabStop, "GhostComboBox must participate in tab navigation.", failures);
         Assert(combo.SelectedIndex == 1, "GhostComboBox selection failed.", failures);
         Assert((string?)combo.SelectedItem == "FTPS Explicit", "GhostComboBox selected value is incorrect.", failures);
+    }
+
+    private static void TestLocalization(List<string> failures)
+    {
+        var languages = GhostLocalization.SupportedLanguages;
+        Assert(languages.Count >= 21, "Ghost FTP must ship with more than 20 selectable languages.", failures);
+        Assert(languages[0].Code == GhostLocalization.DefaultLanguageCode,
+            "English must remain the primary/default language.", failures);
+        Assert(languages.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() == languages.Count,
+            "Localization language codes must be unique.", failures);
+
+        foreach (var language in languages)
+            Assert(GhostLocalization.HasCoreCoverage(language.Code),
+                $"Language '{language.Code}' is missing one or more required core translations.", failures);
+
+        GhostLocalization.SetLanguage("hr");
+        Assert(GhostLocalization.T("Settings") != "Settings", "Croatian core translation was not applied.", failures);
+        GhostLocalization.SetLanguage("not-a-real-language");
+        Assert(GhostLocalization.CurrentLanguageCode == GhostLocalization.DefaultLanguageCode,
+            "Unknown language did not fall back to English.", failures);
+        Assert(GhostLocalization.T("Settings") == "Settings", "English fallback text is incorrect.", failures);
+        GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
     }
 
     private static void Assert(bool condition, string message, List<string> failures)
