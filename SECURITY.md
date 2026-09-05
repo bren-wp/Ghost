@@ -136,7 +136,7 @@ A dedicated Core self-test checks that a session-only host and runtime flag do n
 
 ## Installer integrity and rollback
 
-Windows Setup no longer treats an `MZ` header as sufficient payload identity. Before committing an embedded/copied executable it checks:
+Windows Setup does not treat an `MZ` header as sufficient payload identity. Before committing an embedded/copied executable it checks:
 
 - minimum expected payload size;
 - Windows `MZ` executable signature;
@@ -144,7 +144,11 @@ Windows Setup no longer treats an `MZ` header as sufficient payload identity. Be
 - CompanyName = **BRENDIGO LTD**;
 - exact file version matching the Setup assembly.
 
-When updating an existing application, Setup keeps the previous executable as a rollback copy until subsequent install stages finish. If a later stage fails, Setup attempts to restore the previous application rather than intentionally leaving a partially updated executable.
+The application payload and, when applicable, the maintenance `GhostFTP-Setup.exe` copy are staged and validated **before** the active installation is modified. Existing client and maintenance-Setup binaries keep independent rollback copies until shortcuts, local language settings and Installed Apps registration have completed. If a later install stage fails, Setup attempts to restore both previous binaries; a first-time installation removes newly committed binaries instead of intentionally leaving a half-installed pair.
+
+Setup also compares the installed and candidate file versions and refuses an older candidate. This prevents a newer local installation from being silently replaced with an older package while still allowing same-version repair/update execution.
+
+Temporary application and Setup staging/rollback files are cleaned after success or failure and stale transaction files are removed during uninstall.
 
 The installed-app registry entry advertises the real interactive uninstall command only. `QuietUninstallString` is removed until a genuine non-interactive uninstall implementation exists.
 

@@ -59,9 +59,29 @@ public sealed class DemoFtpSession : IFtpSession
     public Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
         IsConnected = false;
+        WorkingDirectory = "/";
         return Task.CompletedTask;
     }
+
+    public Task KeepAliveAsync(CancellationToken cancellationToken = default) => LockedAsync(ct =>
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }, cancellationToken);
+
+    public Task<FtpServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default) => LockedAsync(ct =>
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(new FtpServerInfo(
+            Host,
+            IsEncrypted,
+            WorkingDirectory,
+            "Ghost FTP local demo",
+            ["DEMO", "LOCAL-ONLY"],
+            DateTimeOffset.UtcNow));
+    }, cancellationToken);
 
     public Task<IReadOnlyList<FtpEntry>> ListAsync(string remotePath, CancellationToken cancellationToken = default) => LockedAsync(ct =>
     {
@@ -80,6 +100,7 @@ public sealed class DemoFtpSession : IFtpSession
     public Task<string> GetWorkingDirectoryAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfDisposed();
         EnsureConnected();
         return Task.FromResult(WorkingDirectory);
     }
@@ -162,6 +183,8 @@ public sealed class DemoFtpSession : IFtpSession
         if (length > MaxStoredBytes) throw new IOException("Demo mode accepts files up to 64 MB.");
         var data = await ReadFileAsync(source, progress, ct).ConfigureAwait(false);
         var (parent, name) = ResolveParent(InputGuard.RemotePath(remotePath));
+        if (parent.Children.TryGetValue(name, out var existing) && existing.IsDirectory)
+            throw new FtpException("A demo directory already exists at the requested file destination.", 550);
         parent.Children[name] = new Node { Name = name, IsDirectory = false, Data = data, ModifiedUtc = DateTimeOffset.UtcNow };
     }, cancellationToken);
 
@@ -209,6 +232,8 @@ public sealed class DemoFtpSession : IFtpSession
             var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
             var destination = FtpListingParser.CombineRemote(remoteRoot, relative);
             var (parent, name) = ResolveParent(destination);
+            if (parent.Children.TryGetValue(name, out var existing) && existing.IsDirectory)
+                throw new FtpException("A demo directory already exists at the requested file destination.", 550);
             var size = new FileInfo(file).Length;
             var baseTransferred = transferred;
             var fileProgress = new Progress<(long transferred, long? total)>(p => progress?.Report((baseTransferred + p.transferred, total)));
@@ -356,6 +381,7 @@ public sealed class DemoFtpSession : IFtpSession
         if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
         IsConnected = false;
+        WorkingDirectory = "/";
         _gate.Dispose();
         return ValueTask.CompletedTask;
     }

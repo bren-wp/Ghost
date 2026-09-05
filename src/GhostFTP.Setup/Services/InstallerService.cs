@@ -55,22 +55,44 @@ internal sealed class InstallerService
     {
         languageCode = GhostLocalization.NormalizeLanguageCode(languageCode);
         Directory.CreateDirectory(InstallDirectory);
+
         var tempApp = Path.Combine(InstallDirectory, $"GhostFTP.exe.new-{Guid.NewGuid():N}");
         var backupApp = Path.Combine(InstallDirectory, $"GhostFTP.exe.backup-{Guid.NewGuid():N}");
+        var tempSetup = Path.Combine(InstallDirectory, $"GhostFTP-Setup.exe.new-{Guid.NewGuid():N}");
+        var backupSetup = Path.Combine(InstallDirectory, $"GhostFTP-Setup.exe.backup-{Guid.NewGuid():N}");
+
         var previousAppExisted = File.Exists(AppPath);
+        var previousSetupExisted = File.Exists(InstalledSetupPath);
         var appCommitted = false;
+        var setupCommitted = false;
 
         try
         {
+            // Stage and validate every binary before changing the active installation. This keeps
+            // a failed Setup copy or invalid payload from modifying a previously working client.
             await ExtractPayloadAsync(tempApp, cancellationToken).ConfigureAwait(false);
             await ValidateExecutableAsync(tempApp, "Ghost FTP application payload", cancellationToken).ConfigureAwait(false);
+            EnsureNotDowngrade(AppPath, tempApp);
+
+            var currentSetup = Environment.ProcessPath
+                ?? throw new InvalidOperationException("Setup executable path is unavailable.");
+            currentSetup = Path.GetFullPath(currentSetup);
+            var replaceSetup = !string.Equals(
+                currentSetup,
+                Path.GetFullPath(InstalledSetupPath),
+                StringComparison.OrdinalIgnoreCase);
+
+            if (replaceSetup)
+            {
+                File.Copy(currentSetup, tempSetup, overwrite: false);
+                await ValidateExecutableAsync(tempSetup, "Ghost FTP Setup payload", cancellationToken).ConfigureAwait(false);
+                EnsureNotDowngrade(InstalledSetupPath, tempSetup);
+            }
 
             if (previousAppExisted)
             {
                 try
                 {
-                    // Keep the rollback copy until every install step succeeds. A later failure
-                    // must not strand the user with a half-updated application.
                     File.Replace(tempApp, AppPath, backupApp, ignoreMetadataErrors: true);
                     appCommitted = true;
                 }
@@ -85,50 +107,82 @@ internal sealed class InstallerService
                 appCommitted = true;
             }
 
-            var currentSetup = Environment.ProcessPath
-                ?? throw new InvalidOperationException("Setup executable path is unavailable.");
-            await InstallSetupCopyAsync(currentSetup, cancellationToken).ConfigureAwait(false);
+            if (replaceSetup)
+            {
+                try
+                {
+                    if (previousSetupExisted)
+                        File.Replace(tempSetup, InstalledSetupPath, backupSetup, ignoreMetadataErrors: true);
+                    else
+                        File.Move(tempSetup, InstalledSetupPath);
+                    setupCommitted = true;
+                }
+                catch (IOException ex)
+                {
+                    throw new IOException("Ghost FTP Setup could not update its installed maintenance copy. Close any running Setup window and try again.", ex);
+                }
+            }
 
             CreateShortcuts(desktopShortcut);
             await WritePreferredLanguageAsync(languageCode, cancellationToken).ConfigureAwait(false);
             WriteUninstallRegistry();
 
-            // Only now is the application replacement fully committed.
+            // Both binary replacements remain rollback-capable until every install stage succeeds.
+            TryDelete(backupSetup);
             TryDelete(backupApp);
         }
         catch (Exception installError)
         {
-            Exception? rollbackError = null;
+            var rollbackErrors = new List<Exception>();
+
+            if (setupCommitted)
+            {
+                try
+                {
+                    RollbackFile(
+                        InstalledSetupPath,
+                        backupSetup,
+                        previousSetupExisted,
+                        "The incomplete Ghost FTP Setup update could not be rolled back.");
+                }
+                catch (Exception ex)
+                {
+                    rollbackErrors.Add(ex);
+                }
+            }
+
             if (appCommitted)
             {
                 try
                 {
-                    if (previousAppExisted && File.Exists(backupApp))
-                    {
-                        if (File.Exists(AppPath))
-                            File.Replace(backupApp, AppPath, null, ignoreMetadataErrors: true);
-                        else
-                            File.Move(backupApp, AppPath);
-                    }
-                    else if (!previousAppExisted)
-                    {
-                        DeleteRequiredFile(AppPath, "The incomplete Ghost FTP installation could not be rolled back.");
-                    }
+                    RollbackFile(
+                        AppPath,
+                        backupApp,
+                        previousAppExisted,
+                        "The incomplete Ghost FTP application update could not be rolled back.");
                 }
                 catch (Exception ex)
                 {
-                    rollbackError = ex;
+                    rollbackErrors.Add(ex);
                 }
             }
 
-            if (rollbackError is not null)
-                throw new AggregateException("Ghost FTP installation failed and automatic rollback was incomplete.", installError, rollbackError);
+            if (rollbackErrors.Count > 0)
+            {
+                rollbackErrors.Insert(0, installError);
+                throw new AggregateException(
+                    "Ghost FTP installation failed and automatic binary rollback was incomplete.",
+                    rollbackErrors);
+            }
+
             throw;
         }
         finally
         {
             TryDelete(tempApp);
+            TryDelete(tempSetup);
             TryDelete(backupApp);
+            TryDelete(backupSetup);
         }
     }
 
@@ -140,11 +194,13 @@ internal sealed class InstallerService
         TryDelete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "GhostFTP.lnk"));
 
         DeleteRequiredFile(AppPath, "The installed application could not be removed. Close Ghost FTP and try again.");
-        foreach (var stale in Directory.Exists(InstallDirectory)
-                     ? Directory.EnumerateFiles(InstallDirectory, "GhostFTP.exe.*", SearchOption.TopDirectoryOnly).ToArray()
-                     : [])
+        if (Directory.Exists(InstallDirectory))
         {
-            TryDelete(stale);
+            foreach (var pattern in new[] { "GhostFTP.exe.*", "GhostFTP-Setup.exe.*" })
+            {
+                foreach (var stale in Directory.EnumerateFiles(InstallDirectory, pattern, SearchOption.TopDirectoryOnly).ToArray())
+                    TryDelete(stale);
+            }
         }
 
         using (var root = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall", writable: true))
@@ -180,37 +236,40 @@ internal sealed class InstallerService
         });
     }
 
-    private async Task InstallSetupCopyAsync(string currentSetup, CancellationToken cancellationToken)
+    private static void RollbackFile(string activePath, string backupPath, bool previousExisted, string failureMessage)
     {
-        currentSetup = Path.GetFullPath(currentSetup);
-        if (string.Equals(currentSetup, Path.GetFullPath(InstalledSetupPath), StringComparison.OrdinalIgnoreCase))
+        if (previousExisted)
+        {
+            if (!File.Exists(backupPath))
+                throw new IOException(failureMessage + " The rollback copy is missing.");
+
+            if (File.Exists(activePath))
+                File.Replace(backupPath, activePath, null, ignoreMetadataErrors: true);
+            else
+                File.Move(backupPath, activePath);
+            return;
+        }
+
+        DeleteRequiredFile(activePath, failureMessage);
+    }
+
+    private static void EnsureNotDowngrade(string installedPath, string candidatePath)
+    {
+        if (!File.Exists(installedPath))
             return;
 
-        var tempSetup = Path.Combine(InstallDirectory, $"GhostFTP-Setup.exe.new-{Guid.NewGuid():N}");
-        var backupSetup = Path.Combine(InstallDirectory, $"GhostFTP-Setup.exe.backup-{Guid.NewGuid():N}");
-        try
+        var installedText = FileVersionInfo.GetVersionInfo(installedPath).FileVersion;
+        var candidateText = FileVersionInfo.GetVersionInfo(candidatePath).FileVersion;
+        if (!Version.TryParse(installedText, out var installedVersion)
+            || !Version.TryParse(candidateText, out var candidateVersion))
         {
-            File.Copy(currentSetup, tempSetup, overwrite: false);
-            await ValidateExecutableAsync(tempSetup, "Ghost FTP Setup payload", cancellationToken).ConfigureAwait(false);
+            throw new InvalidDataException("Ghost FTP could not compare installed and candidate executable versions safely.");
+        }
 
-            if (File.Exists(InstalledSetupPath))
-            {
-                File.Replace(tempSetup, InstalledSetupPath, backupSetup, ignoreMetadataErrors: true);
-                TryDelete(backupSetup);
-            }
-            else
-            {
-                File.Move(tempSetup, InstalledSetupPath);
-            }
-        }
-        catch (IOException ex)
+        if (candidateVersion < installedVersion)
         {
-            throw new IOException("Ghost FTP Setup could not update its installed maintenance copy. Close any running Setup window and try again.", ex);
-        }
-        finally
-        {
-            TryDelete(tempSetup);
-            TryDelete(backupSetup);
+            throw new InvalidOperationException(
+                $"Ghost FTP Setup refuses to downgrade from {installedVersion} to {candidateVersion}. Use a package with the same or newer version.");
         }
     }
 

@@ -68,6 +68,9 @@ jobs:
       - name: Core self-test
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
 
+      - name: Complete local Demo workflow self-test
+        run: dotnet run --project tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj -c Release --no-build
+
       - name: Parallel transfer queue self-test
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-build
 
@@ -175,6 +178,7 @@ jobs:
         run: |
           dotnet restore src/GhostFTP.Linux/GhostFTP.Linux.csproj
           dotnet restore tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj
+          dotnet restore tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj
           dotnet restore tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj
           dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
 
@@ -193,6 +197,9 @@ jobs:
 
       - name: Core self-test on Linux
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-restore
+
+      - name: Complete local Demo workflow self-test on Linux
+        run: dotnet run --project tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj -c Release --no-restore
 
       - name: Parallel transfer queue self-test on Linux
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-restore
