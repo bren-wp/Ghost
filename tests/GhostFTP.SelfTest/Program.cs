@@ -23,7 +23,8 @@ public static class Program
             ("Remote parent path", TestParent),
             ("Windows local filename safety", TestLocalName),
             ("Saved profiles normalize untrusted JSON", TestProfileNormalization),
-            ("Saved-password input remains command-safe", TestSavedPasswordGuard)
+            ("Saved-password input remains command-safe", TestSavedPasswordGuard),
+            ("Transfer progress exposes bytes and ETA safely", TestTransferProgressModel)
         };
 
         var failures = new List<string>();
@@ -206,6 +207,32 @@ public static class Program
         {
             try { Directory.Delete(root, recursive: true); } catch { }
         }
+    }
+
+    private static void TestTransferProgressModel()
+    {
+        var job = new TransferJob
+        {
+            Direction = TransferDirection.Download,
+            Source = "/large.bin",
+            Destination = "large.bin",
+            TotalBytes = 10L * 1024 * 1024,
+            State = TransferState.Running
+        };
+
+        job.BytesTransferred = 5L * 1024 * 1024;
+        job.SpeedBytesPerSecond = 1024 * 1024;
+        job.Progress = 50;
+
+        Assert(job.TransferredText == "5 MB / 10 MB", "Transferred byte summary is incorrect.");
+        Assert(job.EtaText == "5s", "ETA calculation is incorrect.");
+        Assert(job.ProgressText == "50%", "Progress text is incorrect.");
+
+        job.State = TransferState.Completed;
+        Assert(job.EtaText == "Done", "Completed transfer must report a completed ETA state.");
+
+        job.TotalBytes = 0;
+        Assert(job.TotalBytes is null, "Non-positive totals must normalize to unknown.");
     }
 
     private static void Assert(bool condition, string message)
