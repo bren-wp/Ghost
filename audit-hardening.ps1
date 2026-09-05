@@ -109,8 +109,9 @@ $demo = Require-Tokens 'tests/GhostFTP.DemoSelfTest/Program.cs' @(
     'DeleteDirectoryAsync',
     'KeepAliveAsync',
     'Ghost FTP Demo round-trip payload',
-    'Existing Demo directory was replaced by file upload',
-    'Directory upload overwrote an existing Demo file'
+    'Demo file upload replaced an existing directory.',
+    'Demo directory upload replaced an existing file.',
+    'Demo disconnect did not reset the working directory.'
 )
 $ci = Require-Tokens '.github/workflows/ci.yml' @(
     'Complete local Demo workflow self-test',
