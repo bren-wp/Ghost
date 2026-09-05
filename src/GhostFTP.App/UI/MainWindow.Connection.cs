@@ -28,6 +28,7 @@ public sealed partial class MainWindow
                 _settings.ConcurrentTransfers);
             _queueList.ItemsSource = _queue.Jobs;
             _queue.JobUpdated += QueueJobUpdated;
+            StartKeepAliveLoop();
 
             var profiles = await _profileStore.LoadAsync();
             foreach (var profile in profiles) _profiles.Add(profile);
