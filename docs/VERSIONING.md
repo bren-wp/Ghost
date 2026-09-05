@@ -1,6 +1,6 @@
 # Ghost FTP versioning policy
 
-Ghost FTP now uses a clean public pre-1.0 version line. The current public development version is **0.1.0 Beta**.
+Ghost FTP uses a clean public pre-1.0 version line. The current public development version is **0.1.1 Beta**.
 
 This numbering reset does **not** remove, revert or discard any previously implemented application, protocol, UI, setup, security, privacy, localization, testing or release-pipeline work. The earlier 1.x development documents remain in the repository as historical engineering snapshots. They are preserved for traceability, but they no longer define the public release number.
 
@@ -8,16 +8,16 @@ This numbering reset does **not** remove, revert or discard any previously imple
 
 Two root files define the release identity:
 
-- `VERSION` contains the numeric `MAJOR.MINOR.PATCH` value, currently `0.1.0`.
+- `VERSION` contains the numeric `MAJOR.MINOR.PATCH` value, currently `0.1.1`.
 - `RELEASE_CHANNEL` contains `beta` or `stable`, currently `beta`.
 
-For a Beta build, .NET metadata uses:
+For the current Beta build, .NET metadata uses:
 
 ```text
-Version:              0.1.0
-AssemblyVersion:      0.1.0.0
-FileVersion:          0.1.0.0
-InformationalVersion: 0.1.0-beta
+Version:              0.1.1
+AssemblyVersion:      0.1.1.0
+FileVersion:          0.1.1.0
+InformationalVersion: 0.1.1-beta
 ```
 
 The Windows application and Setup manifests use the matching four-part numeric assembly version.
@@ -30,6 +30,7 @@ Normal progression can therefore use versions such as:
 
 ```text
 0.1.0 Beta
+0.1.1 Beta
 0.2.0 Beta
 0.3.0 Beta
 ...
@@ -59,7 +60,7 @@ Until that stable gate is reached, `portable.exe` and `setup.exe` are Beta packa
 
 ## Canonical package filenames
 
-The download filenames are deliberately stable and do not encode the version number:
+The Windows download filenames are deliberately stable and do not encode the version number:
 
 ```text
 portable.exe
@@ -75,12 +76,14 @@ SHA256SUMS.txt
 
 Their internal version metadata comes from the current release version. Keeping stable filenames allows the website and automation to point to predictable download URLs while the internal product version advances.
 
+Linux additionally publishes version-explicit tarballs such as `GhostFTP-0.1.1-beta-linux-x64.tar.gz` alongside stable architecture aliases.
+
 ## Git tags and GitHub Releases
 
-Beta releases use a tag that makes the prerelease state explicit:
+Beta releases use a tag that makes the prerelease state explicit. The current release tag is:
 
 ```text
-v0.1.0-beta
+v0.1.1-beta
 ```
 
 Stable releases use the normal version tag:
@@ -91,16 +94,20 @@ v1.0.0
 
 The release workflow must mark Beta releases as GitHub prereleases. A stable `1.0.0` release is allowed only after the complete release validation suite passes for the exact source commit.
 
+Published tags are version identities. A hardening change after a published Beta must advance the patch/minor version rather than silently presenting different source under the same public version.
+
 ## Historical 1.x development records
 
 The repository already contains detailed `v1.1.0` through `v1.7.0` development-era notes and changelog entries created before this numbering reset. Those files are intentionally retained.
 
 They should be interpreted as **historical internal development milestones**, not as the current public version sequence. The features and fixes described there remain part of the codebase unless a later change explicitly supersedes them.
 
-No historical file should be deleted merely to make the numbering look clean. New public release documentation starts from `docs/releases/v0.1.0.md` and continues forward from the new Beta line.
+No historical release-note file should be deleted merely to make the numbering look clean. New public release documentation starts from `docs/releases/v0.1.0.md` and continues forward through `docs/releases/v0.1.1.md` and later Beta releases.
+
+Obsolete workflow trigger marker files are not historical engineering documentation and may be removed once their release has been published.
 
 ## Release gates
 
-A version number alone does not make a build stable. Every Beta and stable package must continue to pass the repository's build, source audit, security/correctness tests, transfer queue tests, WPF UI smoke tests, authentic UI capture checks and packaging checks required by `docs/RELEASE-POLICY.md`.
+A version number alone does not make a build stable. Every Beta and stable package must continue to pass the repository's build, source audit, security/correctness tests, complete local Demo workflow tests, transfer queue tests, WPF UI smoke tests, authentic UI capture checks, native Linux X11/XWayland smoke tests and packaging/checksum checks required by `docs/RELEASE-POLICY.md`.
 
 The **stable** label is reserved for a build that satisfies the 1.0.0 readiness criteria and is intended for production use without the Beta qualification.
