@@ -67,12 +67,12 @@ internal sealed partial class LinuxMainWindow
             return;
 
         var mainX = SidebarWidth + OuterGap;
-        var contentWidth = Math.Max(700, _width - mainX - OuterGap);
+        var contentWidth = Math.Max(1, _width - mainX - OuterGap);
         var contentTop = MenuHeight + ToolbarHeight + OuterGap;
         var topHeight = Math.Clamp((int)(_height * 0.23), 180, 215);
         var panesTop = contentTop + topHeight + 8;
         var transferHeight = Math.Clamp((int)_settings.TransferPanelHeight, 128, 220);
-        var panesHeight = Math.Max(240, _height - StatusHeight - panesTop - OuterGap - transferHeight - 7);
+        var panesHeight = Math.Max(190, _height - StatusHeight - panesTop - OuterGap - transferHeight - 7);
         var transferTop = panesTop + panesHeight + 7;
 
         if (y >= transferTop)
