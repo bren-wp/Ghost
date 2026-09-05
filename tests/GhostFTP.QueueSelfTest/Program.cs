@@ -13,8 +13,10 @@ public static class Program
         {
             await TestParallelWorkersAsync();
             await TestConcurrencyClampAsync();
+            await TestCancellationIsolationAsync();
             Console.WriteLine("PASS  Transfer queue runs bounded parallel jobs with isolated sessions");
             Console.WriteLine("PASS  Transfer queue concurrency limits are clamped safely");
+            Console.WriteLine("PASS  Cancelling one transfer does not terminate unrelated queue work");
             return 0;
         }
         catch (Exception ex)
@@ -36,16 +38,16 @@ public static class Program
         for (var index = 0; index < 9; index++)
             queue.EnqueueUpload($"source-{index}", $"/destination-{index}", isDirectory: false);
 
-        var timeout = Stopwatch.StartNew();
-        while (queue.Jobs.Any(job => job.State is TransferState.Queued or TransferState.Running or TransferState.Retrying))
-        {
-            if (timeout.Elapsed > TimeSpan.FromSeconds(10))
-                throw new InvalidOperationException("Parallel transfer queue did not settle within the test timeout.");
-            await Task.Delay(20);
-        }
+        await WaitForSettledAsync(queue, TimeSpan.FromSeconds(10));
 
         if (queue.Jobs.Any(job => job.State != TransferState.Completed))
             throw new InvalidOperationException("One or more synthetic queue jobs did not complete successfully.");
+        if (queue.Jobs.Any(job => job.Progress < 99.999))
+            throw new InvalidOperationException("One or more completed synthetic jobs did not finish at 100% progress.");
+        if (queue.Jobs.Any(job => job.StartedUtc is null || job.FinishedUtc is null))
+            throw new InvalidOperationException("Completed synthetic jobs did not record transfer lifecycle timestamps.");
+        if (queue.Jobs.Any(job => job.FinishedUtc < job.StartedUtc))
+            throw new InvalidOperationException("A transfer finish timestamp occurred before its start timestamp.");
         if (queue.ConcurrentTransferLimit != 3)
             throw new InvalidOperationException("Configured queue concurrency limit was not retained.");
         if (probe.MaxActive < 2)
@@ -75,12 +77,58 @@ public static class Program
         }
     }
 
+    private static async Task TestCancellationIsolationAsync()
+    {
+        var probe = new ConcurrencyProbe(delayMilliseconds: 220);
+        await using var queue = new TransferQueueService(
+            _ => Task.FromResult<(IFtpSession Session, bool DisposeAfter)>((new ProbeSession(probe), true)),
+            uiContext: null,
+            maxAutomaticRetries: 0,
+            concurrentTransferLimit: 2);
+
+        var cancelled = queue.EnqueueUpload("cancel-me", "/cancel-me", isDirectory: false);
+        var survivorA = queue.EnqueueUpload("survivor-a", "/survivor-a", isDirectory: false);
+        var survivorB = queue.EnqueueUpload("survivor-b", "/survivor-b", isDirectory: false);
+        var survivorC = queue.EnqueueUpload("survivor-c", "/survivor-c", isDirectory: false);
+
+        queue.Cancel(cancelled.Id);
+        await WaitForSettledAsync(queue, TimeSpan.FromSeconds(10));
+
+        if (cancelled.State != TransferState.Cancelled)
+            throw new InvalidOperationException($"Cancelled transfer ended in unexpected state {cancelled.State}.");
+
+        foreach (var survivor in new[] { survivorA, survivorB, survivorC })
+        {
+            if (survivor.State != TransferState.Completed)
+                throw new InvalidOperationException("Cancelling one transfer prevented an unrelated transfer from completing.");
+            if (survivor.Progress < 99.999)
+                throw new InvalidOperationException("An unrelated survivor transfer did not reach 100% progress.");
+        }
+    }
+
+    private static async Task WaitForSettledAsync(TransferQueueService queue, TimeSpan timeoutValue)
+    {
+        var timeout = Stopwatch.StartNew();
+        while (queue.Jobs.Any(job => job.State is TransferState.Queued or TransferState.Running or TransferState.Retrying))
+        {
+            if (timeout.Elapsed > timeoutValue)
+                throw new InvalidOperationException("Parallel transfer queue did not settle within the test timeout.");
+            await Task.Delay(20);
+        }
+    }
+
     private sealed class ConcurrencyProbe
     {
         private int _active;
         private int _maxActive;
+        private readonly int _delayMilliseconds;
         private readonly object _sync = new();
         private readonly HashSet<Guid> _sessionIds = [];
+
+        public ConcurrencyProbe(int delayMilliseconds = 140)
+        {
+            _delayMilliseconds = delayMilliseconds;
+        }
 
         public int MaxActive => Volatile.Read(ref _maxActive);
 
@@ -111,7 +159,7 @@ public static class Program
 
             try
             {
-                await Task.Delay(140, cancellationToken);
+                await Task.Delay(_delayMilliseconds, cancellationToken);
             }
             finally
             {
