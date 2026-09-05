@@ -1,6 +1,6 @@
 # Ghost FTP Localization Architecture
 
-Ghost FTP 1.4.0 introduces a shared dependency-free localization layer for the desktop client and Setup.
+The current **Ghost FTP 0.1.0 Beta** line includes the shared dependency-free localization layer developed during the preserved internal-development history. The public version-number reset does not remove or reduce localization coverage.
 
 ## Primary language and fallback
 
@@ -12,7 +12,7 @@ Unknown or malformed stored language codes normalize to English.
 
 ## Supported languages
 
-Ghost FTP 1.4.0 validates 29 selectable languages:
+Ghost FTP 0.1.0 Beta validates 29 selectable languages:
 
 | Code | Language |
 |---|---|
@@ -74,6 +74,19 @@ The shared application catalog covers core user-facing navigation and workflow t
 
 Long technical diagnostics or uncommon error details may intentionally fall back to English. This prevents low-quality partial translations from changing protocol meaning.
 
+## Beta and stable version labels
+
+The active public `0.x.y` line is Beta. Product version surfaces may append **Beta** to the numeric version while keeping product and publisher proper names unchanged.
+
+Localization must not translate or mutate:
+
+- the product proper name **Ghost FTP**;
+- the publisher proper name **BRENDIGO LTD**;
+- numeric semantic versions such as `0.1.0` or `1.0.0`;
+- protocol tokens such as FTP, FTPS, TLS, EPSV, PASV, `NOOP`, `PWD`, `CWD` and `SIZE` where translation would alter their technical meaning.
+
+When Ghost FTP reaches the explicit stable **1.0.0** gate, Beta labeling is removed from version-oriented product surfaces. The supported language catalog remains independent of that release-channel transition.
+
 ## Setup coverage
 
 The Setup-specific catalog validates translations for:
@@ -99,6 +112,8 @@ Setup chooses the current language before rendering its wizard. Selecting anothe
 
 When Setup installs or updates Ghost FTP, the selected Setup language is written as the initial client language while preserving unrelated valid settings.
 
+The selected language does not determine whether a build is Beta or stable. Release status comes only from the version/release-channel contract documented in `docs/VERSIONING.md`.
+
 ## Privacy guarantee
 
 Localization is fully offline.
@@ -117,7 +132,7 @@ The selected language is local configuration only.
 
 `GhostFTP.UiSmoke` runs on a Windows STA thread and validates:
 
-- exactly 29 expected language entries for 1.4.0;
+- exactly 29 expected language entries for the current Beta line;
 - unique language codes;
 - English is the first/default language;
 - core application coverage for every language;
@@ -139,9 +154,14 @@ A localization change should:
 4. provide all Setup wizard strings;
 5. preserve placeholders and product/legal names exactly where they are semantically significant;
 6. keep **Ghost FTP** as the product name and **BRENDIGO LTD** as the legal publisher where those proper names are shown;
-7. pass the Windows WPF localization smoke test.
+7. preserve Beta/stable version meaning without translating numeric versions;
+8. pass the Windows WPF localization smoke test.
 
 Do not add a language to the selector with an empty translation set merely to increase the language count.
+
+## Historical note
+
+The localization architecture was originally developed and documented under the preserved internal 1.x development numbering. Those historical release notes remain in `docs/releases/` for engineering traceability. The active public release sequence now starts at 0.1.0 Beta, but the localization implementation and tests are retained.
 
 ## Translation quality rule
 

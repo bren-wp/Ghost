@@ -1,8 +1,25 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows installation model used by Ghost FTP 1.4.1 and later.
+This document describes the Windows installation model used by the current **Ghost FTP 0.1.0 Beta** public line. The public numbering reset does not remove the installer, updater or uninstall work already completed during the preserved internal-development history.
 
 Ghost FTP is developed and published by **BRENDIGO LTD** (Company number 16545639), registered office 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom. Publisher website: https://brendigo.com.
+
+## Beta and stable package versioning
+
+The active release identity is defined by root `VERSION` and `RELEASE_CHANNEL` files.
+
+Current values:
+
+```text
+VERSION=0.1.0
+RELEASE_CHANNEL=beta
+```
+
+During the public `0.x.y` line, `setup.exe`, `portable.exe` and architecture-specific variants are **Beta packages** whose internal Windows file version matches the numeric product version. For 0.1.0 Beta, the expected Windows file version is `0.1.0.0`.
+
+The first package set that may be presented as fully stable is **Ghost FTP 1.0.0**. At that transition the canonical `setup.exe` and `portable.exe` family must carry `1.0.0.0` file metadata and the release channel becomes `stable`.
+
+Canonical filenames remain unchanged so download URLs stay predictable. See `docs/VERSIONING.md`.
 
 ## Supported Windows environment
 
@@ -21,7 +38,7 @@ The standard `setup.exe` uses a guided wizard. The normal installation sequence 
 2. **License Agreement** — review the embedded BRENDIGO LTD Ghost FTP license.
 3. **Accept license** — the Next action remains disabled until the license is explicitly accepted.
 4. **Install options** — review per-user install location and optional desktop shortcut.
-5. **Ready** — review product, publisher, language and selected options.
+5. **Ready** — review product, publisher, language, Beta/stable version context and selected options.
 6. **Install / Update** — Setup validates and installs the architecture-matching Ghost FTP payload.
 7. **Finish** — launch Ghost FTP or close Setup.
 
@@ -75,7 +92,8 @@ Update safety rules include:
 - fail visibly if the installed Ghost FTP executable is locked by a running process;
 - validate the installed Setup maintenance copy;
 - preserve existing local profiles and settings;
-- update the selected client language without discarding unrelated valid settings.
+- update the selected client language without discarding unrelated valid settings;
+- keep client and Setup version metadata synchronized with the active `VERSION` / `RELEASE_CHANNEL` values.
 
 Close Ghost FTP before updating so Windows can replace the executable safely.
 
@@ -87,7 +105,7 @@ The entry includes:
 
 - Display name: Ghost FTP;
 - Publisher: BRENDIGO LTD;
-- Display version;
+- Display version matching the current numeric release;
 - install location;
 - Ghost FTP executable icon;
 - product/help website;
@@ -98,6 +116,8 @@ The uninstall command points to:
 ```text
 "%LOCALAPPDATA%\Programs\GhostFTP\GhostFTP-Setup.exe" --uninstall
 ```
+
+A 0.x Beta installation must not present itself as stable 1.0.0 in Installed Apps. The first stable display version is reserved for the explicit 1.0.0 release transition.
 
 ## Uninstall flow
 
@@ -136,6 +156,23 @@ No additional uninstaller binary, Windows service or scheduled task is created.
 
 Portable mode stores data in a `Data` directory next to the executable when operating as a portable build. Delete the portable executable and its local `Data` directory manually if you want to remove both the application and its portable data.
 
+During the 0.x development line, `portable.exe` remains a Beta build even though the filename itself does not contain `beta`. Its internal file/product version identifies the exact release. Stable use begins only when the active version is 1.0.0 and the release channel is stable.
+
+## Architecture-specific packages
+
+The release pipeline also emits:
+
+```text
+GhostFTP-Portable-win-x64.exe
+GhostFTP-Setup-win-x64.exe
+GhostFTP-Portable-win-arm64.exe
+GhostFTP-Setup-win-arm64.exe
+portable-arm64.exe
+setup-arm64.exe
+```
+
+All executables from the same release must carry the same active numeric file version. Mixing a 0.x client with a 1.0.0 Setup package is not an accepted release configuration.
+
 ## Troubleshooting
 
 ### Setup says Ghost FTP is running or locked
@@ -157,6 +194,10 @@ Setup does not trust arbitrary local JSON. Invalid/oversized settings can be qua
 ### Installer language does not match the client after an update
 
 The language selected in Setup is written as the client language. The desktop application applies stored language configuration at startup. Restart the client after changing the language.
+
+### Package says Beta
+
+That is expected for every public Ghost FTP version below 1.0.0. Beta status is removed only when the project reaches the explicit stable 1.0.0 gate and all release validation succeeds for that exact source commit.
 
 ## Privacy
 

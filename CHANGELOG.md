@@ -1,5 +1,36 @@
 # Ghost FTP changelog
 
+## 0.1.0 Beta — 2026-09-05
+
+### Public version-line reset
+
+- Restarted the **public** Ghost FTP version sequence at **0.1.0 Beta**.
+- Added root `RELEASE_CHANNEL` metadata and defined `beta` / `stable` release states.
+- Set .NET `Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion` and both Windows manifests to the new 0.1.0 Beta line.
+- Added `docs/VERSIONING.md` as the authoritative contract for progression through the 0.x Beta series and the first stable **1.0.0** release.
+- Canonical package filenames remain `portable.exe`, `setup.exe`, ARM64 variants and architecture-explicit copies. During the 0.x line they are Beta packages; the first fully stable canonical binaries must carry **1.0.0** metadata.
+- Updated source audit and release automation expectations so pre-1.0 builds cannot accidentally present themselves as stable.
+
+### Existing work preserved
+
+- No completed Ghost FTP feature, protocol implementation, UI work, Setup behavior, localization, transfer reliability, security hardening, privacy rule, automated test or authentic screenshot capability was intentionally removed by the version reset.
+- The professional workstation layout, Site Manager, Connection Log, Local/Remote tables, Transfers queue, resizable splitters and Ghost FTP design system remain part of 0.1.0 Beta.
+- FTP, Explicit FTPS, Implicit FTPS, strict certificate validation, EPSV/PASV hardening, bounded parsing/traversal, download/upload integrity checks and server-only keepalive remain intact.
+- Bounded parallel transfers, retry/cancellation isolation, local speed/ETA state, focus-safe destructive shortcuts, 29-language localization and the guided Setup/uninstall architecture remain intact.
+- Canonical repository screenshots continue to be generated from the real compiled WPF application and Site Manager rather than AI mockups.
+
+### Historical development records
+
+- The earlier 1.1.0–1.7.0 changelog entries and matching files under `docs/releases/` are retained below as **historical internal-development milestones**.
+- Those entries document how the current codebase was built and are intentionally not deleted.
+- They no longer define the active public release number. New public release history continues from 0.1.0 Beta.
+
+---
+
+# Preserved internal development history
+
+The entries below predate the public version-line reset. They are kept for engineering traceability and to preserve the record of all completed work.
+
 ## 1.7.0 — 2026-09-05
 
 ### Professional FTP workstation layout

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,7 +12,6 @@ public static class GhostBrand
     public const string ProductName = "GhostFTP";
     public const string Website = "https://ghostftp.com";
     public const string Repository = "https://github.com/bren-wp/Ghost";
-    public const string PrivacyTagline = "Private FTP / FTPS workspace for Windows";
 
     public const string Publisher = "BRENDIGO LTD";
     public const string PublisherWebsite = "https://brendigo.com";
@@ -20,6 +20,19 @@ public static class GhostBrand
     public const string CopyrightNotice = "Copyright © 2026 BRENDIGO LTD. All rights reserved.";
 
     private static readonly Lazy<ImageSource> Icon = new(CreateIconSource, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    public static string InformationalVersion =>
+        typeof(GhostBrand).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(GhostBrand).Assembly.GetName().Version?.ToString(3)
+        ?? "0.0.0";
+
+    public static bool IsBeta => InformationalVersion.Contains("-beta", StringComparison.OrdinalIgnoreCase);
+
+    public static string ReleaseChannelDisplay => IsBeta ? "Beta" : "Stable";
+
+    public static string PrivacyTagline => IsBeta
+        ? "Beta · Private FTP / FTPS workspace for Windows"
+        : "Private FTP / FTPS workspace for Windows";
 
     public static ImageSource IconSource => Icon.Value;
 

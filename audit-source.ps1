@@ -33,6 +33,19 @@ foreach ($pattern in $forbiddenTelemetryPatterns) {
 }
 
 $version = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim()
+$channelPath = Join-Path $root 'RELEASE_CHANNEL'
+if (!(Test-Path $channelPath -PathType Leaf)) { throw 'RELEASE_CHANNEL is required.' }
+$channel = (Get-Content $channelPath -Raw).Trim().ToLowerInvariant()
+if ($channel -notin @('beta','stable')) { throw "RELEASE_CHANNEL must be beta or stable. Got: $channel" }
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "VERSION must use MAJOR.MINOR.PATCH. Got: $version" }
+$major = [int]($version.Split('.')[0])
+if ($major -eq 0 -and $channel -ne 'beta') {
+    throw 'All pre-1.0 Ghost FTP builds must use the beta release channel.'
+}
+if ($channel -eq 'stable' -and $version -eq '1.0.0') {
+    Write-Host 'First stable Ghost FTP release contract satisfied: 1.0.0.'
+}
+
 $props = [xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)
 $propertyGroup = $props.Project.PropertyGroup
 $propsVersion = [string]$propertyGroup.Version
@@ -49,7 +62,10 @@ $expectedAssembly = "$version.0"
 if ($assemblyVersion -ne $expectedAssembly -or $fileVersion -ne $expectedAssembly) {
     throw "AssemblyVersion/FileVersion must both be $expectedAssembly."
 }
-if ($informationalVersion -ne $version) { throw "InformationalVersion must be $version." }
+$expectedInformational = if ($channel -eq 'beta') { "$version-beta" } else { $version }
+if ($informationalVersion -ne $expectedInformational) {
+    throw "InformationalVersion must be $expectedInformational for the $channel channel."
+}
 if ($product -ne 'Ghost FTP') { throw 'Product metadata must be Ghost FTP.' }
 if ($authors -ne 'BRENDIGO LTD' -or $company -ne 'BRENDIGO LTD') {
     throw 'Authors and Company metadata must identify BRENDIGO LTD as the publisher/developer.'
@@ -89,6 +105,7 @@ if ($coreProject -notmatch '<TargetFramework>net10\.0</TargetFramework>') {
 }
 
 $requiredFiles = @(
+    'RELEASE_CHANNEL',
     'src/GhostFTP.Design/GhostFTP.Design.csproj',
     'src/GhostFTP.Design/GhostTheme.cs',
     'src/GhostFTP.Design/GhostWindowChrome.cs',
@@ -108,6 +125,7 @@ $requiredFiles = @(
     'Directory.Build.targets',
     'tools/generate-ghostftp-icon.ps1',
     'LICENSE',
+    'docs/VERSIONING.md',
     'docs/PLATFORM-SUPPORT.md',
     'tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj',
     'tests/GhostFTP.SelfTest/Program.cs',
@@ -133,21 +151,28 @@ $releaseText = Get-Content $releaseNotes -Raw
 if ($releaseText -notmatch [regex]::Escape("Ghost FTP $version")) {
     throw "Current release notes must identify Ghost FTP $version."
 }
+if ($channel -eq 'beta' -and $releaseText -notmatch '(?i)beta') {
+    throw 'Beta release notes must explicitly identify the build as Beta.'
+}
 
 $readme = Get-Content (Join-Path $root 'README.md') -Raw
 foreach ($requiredReadmeText in @(
     'assets/readme/ghostftp-hero.svg',
     'assets/readme/ghostftp-client.png',
     'assets/readme/ghostftp-site-manager.png',
+    'docs/VERSIONING.md',
     'docs/PLATFORM-SUPPORT.md',
     '--capture-ui'
 )) {
     if ($readme -notmatch [regex]::Escape($requiredReadmeText)) {
-        throw "README.md is missing required 1.7 documentation reference: $requiredReadmeText"
+        throw "README.md is missing required current documentation reference: $requiredReadmeText"
     }
 }
 if ($readme -notmatch [regex]::Escape("Current source version: **$version**")) {
     throw "README.md current source version must be synchronized to $version."
+}
+if ($channel -eq 'beta' -and $readme -notmatch '(?i)beta') {
+    throw 'README.md must clearly identify the current pre-1.0 build as Beta.'
 }
 
 $privacy = Get-Content (Join-Path $root 'PRIVACY.md') -Raw
@@ -244,7 +269,7 @@ if ($helpers -notmatch 'queueActive' -or $helpers -notmatch 'CancelSelectedTrans
 $layout = Get-Content (Join-Path $root 'src/GhostFTP.App/UI/MainWindow.Layout.cs') -Raw
 foreach ($requiredLayoutToken in @('BuildTopMenu','BuildMainToolbar','BuildConnectionLog','Site Manager','BuildFilePanes','BuildTransfers')) {
     if ($layout -notmatch [regex]::Escape($requiredLayoutToken)) {
-        throw "Professional 1.7 workspace structure is incomplete: $requiredLayoutToken"
+        throw "Professional workspace structure is incomplete: $requiredLayoutToken"
     }
 }
 
@@ -291,4 +316,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP ${version}: BRENDIGO LTD identity, Ghost FTP-only naming, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF GUI, professional Site Manager + Connection Log workspace, authentic real-WPF repository screenshots, strict server-only keepalive, bounded parallel transfers, focus-safe destructive shortcuts, native editable controls, embedded-license Setup and synchronized release documentation."
+Write-Host "Source audit passed for Ghost FTP ${version} ${channel}: BRENDIGO LTD identity, synchronized beta/stable version metadata, preserved pre-reset history, Ghost FTP-only naming, C#-only source, zero PackageReference entries, no known telemetry/tracking SDKs, no Android/iOS shipping targets, platform-neutral net10.0 core, explicit Windows WPF GUI, professional Site Manager + Connection Log workspace, authentic real-WPF repository screenshots, strict server-only keepalive, bounded parallel transfers, focus-safe destructive shortcuts, native editable controls, embedded-license Setup and synchronized release documentation."

@@ -4,15 +4,40 @@ This document defines the minimum release discipline for official Ghost FTP Wind
 
 Ghost FTP is developed and published by **BRENDIGO LTD**. Product identity remains **Ghost FTP / GhostFTP**.
 
-## Versioning
+## Public versioning and release channel
 
-Ghost FTP uses semantic-style `MAJOR.MINOR.PATCH` versions.
+Ghost FTP now uses a clean public pre-1.0 sequence. The active line starts at **0.1.0 Beta** and progresses through `0.x.y` until the first fully stable production release, which must be **1.0.0**.
 
-- **MAJOR** — incompatible product/platform changes.
+Two root files are authoritative:
+
+```text
+VERSION
+RELEASE_CHANNEL
+```
+
+`VERSION` contains `MAJOR.MINOR.PATCH`. `RELEASE_CHANNEL` contains either `beta` or `stable`.
+
+Rules:
+
+- every `0.x.y` build is **Beta**;
+- Beta builds use `InformationalVersion` `<version>-beta`;
+- Beta GitHub releases are published as prereleases;
+- the first build that may be presented as fully stable is **1.0.0**;
+- when stable 1.0.0 is reached, `portable.exe` and `setup.exe` plus their ARM64/architecture-explicit copies must carry matching 1.0.0 file/product metadata;
+- canonical filenames remain unchanged while the internal version advances;
+- version-number changes must never delete or silently discard completed product work.
+
+See `docs/VERSIONING.md` for the full numbering contract.
+
+## Semantic version scope
+
+Ghost FTP uses semantic-style `MAJOR.MINOR.PATCH` versions within the active public line.
+
+- **MAJOR** — incompatible product/platform changes after the stable line exists.
 - **MINOR** — meaningful capabilities, architecture or substantial UX/protocol improvements.
 - **PATCH** — targeted correctness, security, stability or regression fixes.
 
-`VERSION`, `Directory.Build.props`, assembly/file/informational metadata and both Windows manifests must remain synchronized.
+`VERSION`, `RELEASE_CHANNEL`, `Directory.Build.props`, assembly/file/informational metadata and both Windows manifests must remain synchronized.
 
 ## Mandatory release notes
 
@@ -24,15 +49,19 @@ docs/releases/vMAJOR.MINOR.PATCH.md
 
 Release notes must describe meaningful work rather than generic commit summaries. Relevant sections should cover user-visible features, UI/UX, FTP/FTPS behavior, transfer/connection resilience, security, Setup, localization, privacy/dependency impact, platform scope, known limitations, validation and required assets.
 
-`CHANGELOG.md` is cumulative history. The per-version file is the authoritative detailed GitHub Release body.
+Beta notes must explicitly identify the release as Beta. `CHANGELOG.md` is cumulative history. The per-version file is the authoritative detailed GitHub Release body.
 
-## Historical releases
+## Preserved historical development records
+
+The repository contains 1.x release-note files and changelog entries created before the public version-line reset. They are preserved as historical internal-development records.
+
+These records must not be deleted merely to make the new public numbering look clean. They document features and fixes that remain part of the current codebase unless a later change explicitly supersedes them.
 
 Historical documentation may be expanded for clarity but must not silently replace old binaries, move old tags or imply an older binary contains later fixes.
 
 ## Required Windows release assets
 
-Every release must contain non-empty:
+Every Beta or stable release must contain non-empty:
 
 ```text
 setup.exe
@@ -46,11 +75,13 @@ GhostFTP-Portable-win-arm64.exe
 SHA256SUMS.txt
 ```
 
-Canonical names remain `setup.exe`, `portable.exe`, `setup-arm64.exe` and `portable-arm64.exe`; architecture-explicit copies remain available for clarity/automation.
+Canonical names remain `setup.exe`, `portable.exe`, `setup-arm64.exe` and `portable-arm64.exe`; architecture-explicit copies remain available for clarity and automation.
+
+All executable `FileVersion` values must match the current numeric `VERSION` as a four-part Windows version. For example, `0.1.0` requires `0.1.0.0`; stable `1.0.0` requires `1.0.0.0`.
 
 ## Required repository UI assets
 
-Starting with 1.7.0, repository presentation must contain authentic captures generated from production WPF code:
+Repository presentation must contain authentic captures generated from production WPF code:
 
 ```text
 assets/readme/ghostftp-client.png
@@ -63,13 +94,13 @@ The dedicated screenshot workflow rebuilds the client and refreshes those images
 
 ## Required validation gates
 
-No official release should be published until the exact source commit passes:
+No official Beta or stable release should be published until the exact source commit passes:
 
 1. repository checkout;
 2. .NET SDK setup;
 3. restore;
 4. warning-as-error Release build;
-5. dependency/version/privacy/product/publisher/platform audit;
+5. dependency/version/channel/privacy/product/publisher/platform audit;
 6. Core security and correctness tests;
 7. bounded parallel queue/session-isolation tests;
 8. Windows/WPF editable-input tests;
@@ -77,12 +108,27 @@ No official release should be published until the exact source commit passes:
 10. Setup localization and live language-switch tests;
 11. authentic production MainWindow + Site Manager capture;
 12. product/publisher identity checks;
-13. Windows x64/ARM64 self-contained packaging;
-14. required executable verification;
+13. Windows x64/ARM64 self-contained packaging for release publication;
+14. required executable and executable-version verification;
 15. SHA-256 manifest generation;
 16. verified artifact upload.
 
 The official Release workflow repeats required validation instead of trusting an unrelated prior build.
+
+## Stable 1.0.0 gate
+
+Passing the normal CI suite does not by itself turn a Beta build into a stable release.
+
+The first stable release must be explicitly promoted to **1.0.0** by changing both `VERSION` and `RELEASE_CHANNEL` and then passing the complete release workflow for that exact commit.
+
+Before stable 1.0.0 is published:
+
+- the product must be considered complete enough for normal production use;
+- blocking correctness, data-loss, credential, transport, installer and core UX defects must be resolved;
+- required Windows x64 and ARM64 packages must build successfully;
+- `portable.exe` and `setup.exe` must verify as 1.0.0.0 file-version binaries;
+- release notes must no longer describe the build as Beta;
+- the GitHub Release must be a normal stable release, not a prerelease.
 
 ## Professional-workspace gate
 
@@ -182,9 +228,20 @@ Official Setup must:
 - not generate a separate uninstaller executable;
 - preserve local user data unless removal is explicitly selected.
 
+The Setup executable uses the same active product version as the client package. It must not independently claim stable 1.0.0 while the application remains on a 0.x Beta line.
+
 ## Release publication
 
-The Release workflow derives version from `VERSION`, requires `docs/releases/v<version>.md` and uses that file as the GitHub Release body.
+The Release workflow derives the numeric version from `VERSION`, channel from `RELEASE_CHANNEL`, requires `docs/releases/v<version>.md` and uses that file as the GitHub Release body.
+
+Tag policy:
+
+```text
+Beta:   v0.1.0-beta
+Stable: v1.0.0
+```
+
+The same rule applies to later versions: Beta releases append `-beta`; stable releases use the plain version tag.
 
 If a release already exists, verified assets may be refreshed and notes synchronized without silently retargeting the existing tag to unrelated history.
 
@@ -194,4 +251,4 @@ If a release already exists, verified assets may be refreshed and notes synchron
 
 ## Failed gate policy
 
-A failed build, audit, self-test, UI capture, smoke test, packaging check or required-asset check means the release is not ready. Do not label a release stable while a required gate is red.
+A failed build, audit, self-test, UI capture, smoke test, packaging check, executable-version check or required-asset check means the release is not ready. Do not label a release stable while a required gate is red.

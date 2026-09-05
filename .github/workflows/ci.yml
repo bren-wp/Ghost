@@ -22,7 +22,7 @@ env:
 jobs:
   build-self-test-release:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -32,13 +32,26 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Load version and release channel
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $channel = (Get-Content RELEASE_CHANNEL -Raw).Trim().ToLowerInvariant()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
+          if ($channel -notin @('beta','stable')) { throw "Invalid RELEASE_CHANNEL: $channel" }
+          if ([int]($version.Split('.')[0]) -eq 0 -and $channel -ne 'beta') {
+            throw 'Every Ghost FTP 0.x build must remain Beta.'
+          }
+          "GHOSTFTP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_CHANNEL=$channel" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Restore
         run: dotnet restore GhostFTP.sln
 
       - name: Build
         run: dotnet build GhostFTP.sln -c Release --no-restore
 
-      - name: Dependency, version, privacy and brand audit
+      - name: Dependency, version, channel, privacy and brand audit
         shell: pwsh
         run: ./audit-source.ps1
 
@@ -48,7 +61,7 @@ jobs:
       - name: Parallel transfer queue self-test
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-build
 
-      - name: WPF editable input smoke-test
+      - name: WPF editable input and localization smoke-test
         run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
 
       - name: Capture authentic production UI
@@ -71,31 +84,51 @@ jobs:
       - name: Upload authentic UI captures
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-Authentic-UI
+          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}-Authentic-UI
           path: artifacts/ui/*.png
           if-no-files-found: error
           retention-days: 30
 
       - name: Build portable and setup packages
-        if: github.event_name == 'push'
         shell: pwsh
         run: ./build-release.ps1
 
-      - name: Verify canonical release executables
-        if: github.event_name == 'push'
+      - name: Verify canonical and architecture-specific executables
         shell: pwsh
         run: |
-          foreach ($name in @('release/portable.exe', 'release/setup.exe')) {
+          $expectedFileVersion = "$env:GHOSTFTP_VERSION.0"
+          $required = @(
+            'release/portable.exe',
+            'release/setup.exe',
+            'release/portable-arm64.exe',
+            'release/setup-arm64.exe',
+            'release/GhostFTP-Portable-win-x64.exe',
+            'release/GhostFTP-Setup-win-x64.exe',
+            'release/GhostFTP-Portable-win-arm64.exe',
+            'release/GhostFTP-Setup-win-arm64.exe'
+          )
+
+          foreach ($name in $required) {
             if (!(Test-Path $name -PathType Leaf) -or (Get-Item $name).Length -le 0) {
               throw "Required release executable is missing or empty: $name"
             }
+            $actual = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $name)).FileVersion
+            if ($actual -ne $expectedFileVersion) {
+              throw "$name has FileVersion '$actual' but expected '$expectedFileVersion'."
+            }
+          }
+
+          if ($env:GHOSTFTP_CHANNEL -eq 'stable' -and $env:GHOSTFTP_VERSION -eq '1.0.0') {
+            Write-Host 'Stable 1.0.0 package family verified.'
+          }
+          else {
+            Write-Host "Verified Ghost FTP $env:GHOSTFTP_VERSION $env:GHOSTFTP_CHANNEL package family."
           }
 
       - name: Upload verified Windows packages
-        if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-Windows
+          name: GhostFTP-Windows-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
           path: release/*
           if-no-files-found: error
           retention-days: 30

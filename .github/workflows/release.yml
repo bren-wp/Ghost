@@ -36,18 +36,29 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Validate release version and notes
+      - name: Validate release version, channel and notes
         shell: pwsh
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
+          $channel = (Get-Content RELEASE_CHANNEL -Raw).Trim().ToLowerInvariant()
+
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
             throw "VERSION must use MAJOR.MINOR.PATCH format. Got: $version"
           }
+          if ($channel -notin @('beta', 'stable')) {
+            throw "RELEASE_CHANNEL must be beta or stable. Got: $channel"
+          }
 
+          $major = [int]($version.Split('.')[0])
+          if ($major -eq 0 -and $channel -ne 'beta') {
+            throw 'All Ghost FTP 0.x releases must remain Beta.'
+          }
+
+          $expectedTag = if ($channel -eq 'beta') { "v$version-beta" } else { "v$version" }
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $tag = $env:GITHUB_REF_NAME
-            if ($tag -ne "v$version") {
-              throw "Tag $tag does not match VERSION v$version."
+            if ($tag -ne $expectedTag) {
+              throw "Tag $tag does not match expected $channel tag $expectedTag."
             }
           }
 
@@ -60,8 +71,13 @@ jobs:
           if ($releaseNotes -notmatch [regex]::Escape("Ghost FTP $version")) {
             throw "$notes must identify Ghost FTP $version."
           }
+          if ($channel -eq 'beta' -and $releaseNotes -notmatch '(?i)beta') {
+            throw "$notes must identify the release as Beta."
+          }
 
           "GHOSTFTP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_CHANNEL=$channel" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_TAG=$expectedTag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GHOSTFTP_NOTES=$notes" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Restore
@@ -70,7 +86,7 @@ jobs:
       - name: Build
         run: dotnet build GhostFTP.sln -c Release --no-restore
 
-      - name: Dependency, version, privacy and brand audit
+      - name: Dependency, version, channel, privacy and brand audit
         shell: pwsh
         run: ./audit-source.ps1
 
@@ -103,7 +119,7 @@ jobs:
       - name: Upload authentic release UI captures
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-Authentic-UI
+          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}-Authentic-UI
           path: artifacts/ui/*.png
           if-no-files-found: error
           retention-days: 30
@@ -133,6 +149,14 @@ jobs:
             }
           }
 
+          $expectedFileVersion = "$env:GHOSTFTP_VERSION.0"
+          foreach ($exe in $required | Where-Object { $_ -like '*.exe' }) {
+            $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $exe))
+            if ($versionInfo.FileVersion -ne $expectedFileVersion) {
+              throw "$exe has FileVersion '$($versionInfo.FileVersion)' but expected '$expectedFileVersion'."
+            }
+          }
+
           $hashLines = Get-Content 'release/SHA256SUMS.txt'
           foreach ($exe in $required | Where-Object { $_ -like '*.exe' }) {
             $name = Split-Path $exe -Leaf
@@ -141,10 +165,14 @@ jobs:
             }
           }
 
+          if ($env:GHOSTFTP_CHANNEL -eq 'stable' -and $env:GHOSTFTP_VERSION -eq '1.0.0') {
+            Write-Host 'Verified first stable portable.exe and setup.exe family as Ghost FTP 1.0.0.'
+          }
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-release-${{ env.GHOSTFTP_VERSION }}
+          name: GhostFTP-release-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
           path: release/*
           if-no-files-found: error
           retention-days: 30
@@ -155,8 +183,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = $env:GHOSTFTP_VERSION
+          $channel = $env:GHOSTFTP_CHANNEL
           $notes = $env:GHOSTFTP_NOTES
-          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF_NAME } else { "v$version" }
+          $tag = $env:GHOSTFTP_TAG
+          $title = if ($channel -eq 'beta') { "Ghost FTP $version Beta" } else { "Ghost FTP $version" }
           $assets = @(
             'release/setup.exe',
             'release/portable.exe',
@@ -172,12 +202,22 @@ jobs:
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             Write-Host "Release $tag already exists; synchronizing detailed notes and verified assets."
-            gh release edit $tag --title "Ghost FTP $version" --notes-file $notes
+            if ($channel -eq 'beta') {
+              gh release edit $tag --title $title --notes-file $notes --prerelease
+            }
+            else {
+              gh release edit $tag --title $title --notes-file $notes
+            }
             if ($LASTEXITCODE -ne 0) { throw "Failed to update GitHub Release notes for $tag." }
             gh release upload $tag @assets --clobber
             if ($LASTEXITCODE -ne 0) { throw "Failed to refresh GitHub Release assets for $tag." }
           }
           else {
-            gh release create $tag @assets --target $env:GITHUB_SHA --title "Ghost FTP $version" --notes-file $notes
+            if ($channel -eq 'beta') {
+              gh release create $tag @assets --target $env:GITHUB_SHA --title $title --notes-file $notes --prerelease
+            }
+            else {
+              gh release create $tag @assets --target $env:GITHUB_SHA --title $title --notes-file $notes
+            }
             if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $tag." }
           }

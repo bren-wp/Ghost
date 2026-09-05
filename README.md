@@ -11,7 +11,10 @@ Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545
 - Product website: https://ghostftp.com
 - Developer / publisher website: https://brendigo.com
 - Repository: https://github.com/bren-wp/Ghost
-- Current source version: **1.7.0**
+- Current source version: **0.1.0**
+- Current release channel: **Beta**
+- Informational version: **0.1.0-beta**
+- First stable release target: **1.0.0**
 - Runtime baseline: **.NET 10 / C# 14**
 - Production GUI target: **Windows / WPF**
 - Shared protocol core: **platform-neutral `net10.0`**
@@ -19,9 +22,19 @@ Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545
 - Developer / publisher / licensor: **BRENDIGO LTD**
 - License: proprietary/source-available; see [LICENSE](LICENSE)
 
-## Ghost FTP 1.7.0
+## Version line: 0.1.0 Beta → 1.0.0 stable
 
-Version 1.7.0 focuses on **clarity, information density and professional workstation ergonomics** without abandoning the Ghost FTP design language.
+Ghost FTP now uses a clean public pre-1.0 version line. The current build is **0.1.0 Beta**.
+
+The version-number reset does **not** remove or revert the work already completed in the repository. The professional workstation UI, Site Manager, Connection Log, FTP/FTPS engine, transfer queue, Setup, localization, security hardening, privacy rules, tests and authentic screenshot pipeline remain part of the codebase.
+
+Earlier 1.x notes are preserved as historical internal-development records. New public development releases progress through `0.x.y` Beta versions until Ghost FTP is considered complete and stable. The first stable release is **1.0.0**. At that point the canonical `portable.exe` and `setup.exe` packages must carry matching stable 1.0.0 metadata.
+
+See [docs/VERSIONING.md](docs/VERSIONING.md) for the authoritative numbering contract.
+
+## Ghost FTP 0.1.0 Beta
+
+Version 0.1.0 Beta carries forward the professional workstation work developed before the numbering reset, with emphasis on **clarity, information density and professional FTP ergonomics** without abandoning the Ghost FTP design language.
 
 The main desktop window is organized into a predictable operating layout:
 
@@ -37,7 +50,7 @@ The sidebar, Local/Remote split and Transfers area remain resizable, can be rest
 
 ### Professional Site Manager
 
-1.7.0 adds a first-class Site Manager rather than forcing users through isolated one-profile-at-a-time forms.
+0.1.0 Beta includes the first-class Site Manager rather than forcing users through isolated one-profile-at-a-time forms.
 
 The manager provides:
 
@@ -59,13 +72,13 @@ Global timeout, retry, keepalive and concurrent-transfer settings remain central
 
 ### Connection Log
 
-The main workspace now includes a bounded local connection activity log. It records useful user-visible events such as startup, profile loading, connection attempts, TLS/plain state, remote listing completion, disconnects and failures.
+The main workspace includes a bounded local connection activity log. It records useful user-visible events such as startup, profile loading, connection attempts, TLS/plain state, remote listing completion, disconnects and failures.
 
 The log never records passwords or protected credential blobs and is never transmitted to Ghost FTP, BRENDIGO LTD or a telemetry provider.
 
 ### Better Local / Remote tables
 
-The file workspace remains a true dual-pane browser, but 1.7.0 gives more of the window to actual files and transfer state.
+The file workspace remains a true dual-pane browser and gives most of the window to actual files and transfer state.
 
 - Name, Type, Size and Modified columns resize with the pane.
 - Remote listings expose server-provided **Permissions** when available.
@@ -74,7 +87,7 @@ The file workspace remains a true dual-pane browser, but 1.7.0 gives more of the
 - Search/filter, create folder, rename, delete, refresh and transfer actions stay close to the relevant pane.
 - Multi-selection and drag-and-drop upload remain supported.
 
-See [docs/releases/v1.7.0.md](docs/releases/v1.7.0.md) for the complete release description.
+See [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md) for the complete current Beta release description.
 
 ## Authentic UI screenshots
 
@@ -98,16 +111,16 @@ The GitHub Actions screenshot workflow rebuilds these files directly from source
 When present on the current branch, the images below are exact captures of the real application code:
 
 <p align="center">
-  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 1.7.0 real desktop client" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.0 Beta real desktop client" width="100%">
 </p>
 
 <p align="center">
-  <img src="assets/readme/ghostftp-site-manager.png" alt="Ghost FTP 1.7.0 real Site Manager" width="82%">
+  <img src="assets/readme/ghostftp-site-manager.png" alt="Ghost FTP 0.1.0 Beta real Site Manager" width="82%">
 </p>
 
 ## Downloads
 
-Every official Windows release is required to publish verified x64 and ARM64 assets:
+Every official Windows Beta or stable release is required to publish verified x64 and ARM64 assets:
 
 - [setup.exe](https://github.com/bren-wp/Ghost/releases/latest/download/setup.exe) — Windows x64 installer
 - [portable.exe](https://github.com/bren-wp/Ghost/releases/latest/download/portable.exe) — Windows x64 portable build
@@ -115,6 +128,8 @@ Every official Windows release is required to publish verified x64 and ARM64 ass
 - [portable-arm64.exe](https://github.com/bren-wp/Ghost/releases/latest/download/portable-arm64.exe) — Windows ARM64 portable build
 - architecture-explicit GhostFTP copies for x64 and ARM64
 - `SHA256SUMS.txt`
+
+Canonical filenames remain stable across versions. During the `0.x.y` line they represent Beta packages and carry the current Beta file/product metadata. When Ghost FTP reaches the first stable release, these same canonical filenames must represent **1.0.0 stable** binaries.
 
 CI and Release fail when required release executables are missing or empty.
 
@@ -361,11 +376,11 @@ SHA256SUMS.txt
 
 ## Quality gates
 
-Every `main` release candidate is required to pass:
+Every release candidate is required to pass:
 
 1. .NET restore;
 2. warning-as-error Release build;
-3. dependency/version/privacy/product/publisher/platform source audit;
+3. dependency/version/channel/privacy/product/publisher/platform source audit;
 4. Core security/correctness self-tests;
 5. parallel queue concurrency/session-isolation tests;
 6. real Windows/WPF editable-input tests;
@@ -373,15 +388,19 @@ Every `main` release candidate is required to pass:
 8. Setup localization and live language-switch checks;
 9. authentic MainWindow + Site Manager screenshot capture from the compiled WPF client;
 10. Ghost FTP / BRENDIGO LTD identity checks;
-11. Windows x64 and ARM64 self-contained packaging;
+11. Windows x64 and ARM64 self-contained packaging for official release runs;
 12. canonical setup/portable executable verification;
 13. SHA-256 release manifest generation;
 14. verified artifact upload.
 
+A Beta build remains Beta even when all gates pass; stable status begins only with the explicit 1.0.0 stable version transition defined in `docs/VERSIONING.md`.
+
 ## Documentation
 
-- [CHANGELOG.md](CHANGELOG.md) — chronological version history.
-- [docs/releases/v1.7.0.md](docs/releases/v1.7.0.md) — current detailed release notes.
+- [CHANGELOG.md](CHANGELOG.md) — current Beta history plus preserved internal development history.
+- [docs/VERSIONING.md](docs/VERSIONING.md) — 0.x Beta → 1.0.0 stable numbering contract.
+- [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md) — current detailed Beta release notes.
+- [docs/releases/](docs/releases/) — current and preserved historical release notes.
 - [docs/INSTALLATION.md](docs/INSTALLATION.md) — install/update/uninstall behavior.
 - [docs/LOCALIZATION.md](docs/LOCALIZATION.md) — localization architecture and languages.
 - [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md) — exact Windows/Linux/mobile support contract.
@@ -391,6 +410,12 @@ Every `main` release candidate is required to pass:
 - [SECURITY.md](SECURITY.md) — security boundaries and reporting.
 - [PRIVACY.md](PRIVACY.md) — runtime privacy and network behavior.
 - [LICENSE](LICENSE) — BRENDIGO LTD Ghost FTP license.
+
+## Preserved historical development records
+
+The repository contains detailed 1.x release-note files and changelog entries created during the earlier internal development numbering. They are retained deliberately for engineering traceability and to ensure the work already completed is not hidden or discarded.
+
+Those records do **not** override the current public version. The active public line begins with **0.1.0 Beta**.
 
 ## Project structure
 
@@ -408,7 +433,8 @@ tests/
   GhostFTP.QueueSelfTest/ bounded parallel queue/session-isolation tests
   GhostFTP.UiSmoke/    live Windows/WPF input, localization and Setup smoke tests
 docs/
-  releases/            detailed version-specific release notes
+  VERSIONING.md        public Beta/stable versioning contract
+  releases/            current and preserved historical release notes
 ```
 
 Ghost FTP is developed and published by **BRENDIGO LTD** — https://brendigo.com. Copyright © 2026 BRENDIGO LTD. All rights reserved. See [NOTICE.md](NOTICE.md).
