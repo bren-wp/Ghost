@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
-        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(200) });
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(210) });
 
         var pageHeader = BuildPageHeader();
         Grid.SetRow(pageHeader, 0);
@@ -60,7 +60,7 @@ public sealed partial class MainWindow
         logoRow.Children.Add(GhostBrand.IconControl(50));
         var brandText = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         brandText.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 20, weight: FontWeights.SemiBold));
-        brandText.Children.Add(GhostTheme.Text("Private file transfer", 10.5, muted: true));
+        brandText.Children.Add(GhostTheme.Text(L("PrivateFileTransfer"), 10.5, muted: true));
         logoRow.Children.Add(brandText);
         brand.Children.Add(logoRow);
         var privacy = GhostTheme.Text(GhostBrand.PrivacyTagline, 10.5, muted: true);
@@ -70,16 +70,16 @@ public sealed partial class MainWindow
         root.Children.Add(brand);
 
         var bottom = new StackPanel { Margin = new Thickness(0, 16, 0, 0) };
-        var settings = GhostTheme.Button("⚙  Settings", subtle: true);
+        var settings = GhostTheme.Button($"⚙  {L("Settings")}", subtle: true);
         settings.HorizontalContentAlignment = HorizontalAlignment.Left;
         settings.Click += async (_, _) => await OpenSettingsAsync();
-        var about = GhostTheme.Button($"ⓘ  About {GhostBrand.DisplayName}", subtle: true);
+        var about = GhostTheme.Button($"ⓘ  {L("About")} {GhostBrand.DisplayName}", subtle: true);
         about.HorizontalContentAlignment = HorizontalAlignment.Left;
         about.Margin = new Thickness(0, 4, 0, 0);
         about.Click += (_, _) => new AboutDialog(this).ShowDialog();
         bottom.Children.Add(settings);
         bottom.Children.Add(about);
-        var privacyNote = GhostTheme.Text("No telemetry · No tracking", 10, muted: true);
+        var privacyNote = GhostTheme.Text(L("NoTelemetryTracking"), 10, muted: true);
         privacyNote.Margin = new Thickness(10, 10, 0, 0);
         bottom.Children.Add(privacyNote);
         DockPanel.SetDock(bottom, Dock.Bottom);
@@ -90,10 +90,10 @@ public sealed partial class MainWindow
         heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var title = new StackPanel();
-        title.Children.Add(GhostTheme.Text("Saved servers", 12.5, weight: FontWeights.SemiBold));
+        title.Children.Add(GhostTheme.Text(L("SavedServers"), 12.5, weight: FontWeights.SemiBold));
         title.Children.Add(GhostTheme.Text("Double-click a profile to connect", 10, muted: true));
         heading.Children.Add(title);
-        var add = GhostTheme.Button("＋ Add");
+        var add = GhostTheme.Button($"＋ {L("Add")}");
         add.Click += async (_, _) => await AddProfileAsync();
         Grid.SetColumn(add, 1);
         heading.Children.Add(add);
@@ -101,7 +101,7 @@ public sealed partial class MainWindow
         servers.Children.Add(heading);
 
         var actions = new StackPanel { Margin = new Thickness(2, 10, 2, 0) };
-        var connectSaved = GhostTheme.Button("Connect selected", primary: true);
+        var connectSaved = GhostTheme.Button(L("ConnectSelected"), primary: true);
         connectSaved.Click += async (_, _) => await ConnectAsync();
         actions.Children.Add(connectSaved);
 
@@ -109,9 +109,9 @@ public sealed partial class MainWindow
         editRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         editRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
         editRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var edit = GhostTheme.Button("Edit");
+        var edit = GhostTheme.Button(L("Edit"));
         edit.Click += async (_, _) => await EditSelectedProfileAsync();
-        var remove = GhostTheme.Button("Remove", danger: true);
+        var remove = GhostTheme.Button(L("Remove"), danger: true);
         remove.Click += async (_, _) => await RemoveSelectedProfileAsync();
         Grid.SetColumn(edit, 0);
         Grid.SetColumn(remove, 2);
@@ -141,7 +141,7 @@ public sealed partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var title = new StackPanel();
-        title.Children.Add(GhostTheme.Text("Files", 27, weight: FontWeights.SemiBold));
+        title.Children.Add(GhostTheme.Text(L("Files"), 27, weight: FontWeights.SemiBold));
         title.Children.Add(GhostTheme.Text("Move files between this PC and your server without leaving the workspace.", 11.5, muted: true));
         grid.Children.Add(title);
 
@@ -162,7 +162,7 @@ public sealed partial class MainWindow
         heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var title = new StackPanel();
-        title.Children.Add(GhostTheme.Text("Quick connect", 15, weight: FontWeights.SemiBold));
+        title.Children.Add(GhostTheme.Text(L("QuickConnect"), 15, weight: FontWeights.SemiBold));
         title.Children.Add(GhostTheme.Text("FTPS Explicit is recommended. Certificates are validated by Windows/.NET.", 10.5, muted: true));
         heading.Children.Add(title);
         var securityBadge = GhostTheme.Badge("TLS first", "SuccessSoft", "Text");
@@ -177,9 +177,9 @@ public sealed partial class MainWindow
         rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
         rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
         rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
-        var host = GhostTheme.Field("Host", _host);
-        var port = GhostTheme.Field("Port", _port);
-        var security = GhostTheme.Field("Security", _security);
+        var host = GhostTheme.Field(L("Host"), _host);
+        var port = GhostTheme.Field(L("Port"), _port);
+        var security = GhostTheme.Field(L("Security"), _security);
         Grid.SetColumn(host, 0);
         Grid.SetColumn(port, 2);
         Grid.SetColumn(security, 4);
@@ -194,8 +194,8 @@ public sealed partial class MainWindow
         rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var username = GhostTheme.Field("Username", _username);
-        var password = GhostTheme.Field("Password", _password);
+        var username = GhostTheme.Field(L("Username"), _username);
+        var password = GhostTheme.Field(L("Password"), _password);
         Grid.SetColumn(username, 0);
         Grid.SetColumn(password, 2);
         rowTwo.Children.Add(username);
@@ -222,8 +222,8 @@ public sealed partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var local = BuildPane("Local", "This PC", _localPathBox, _localFilter, _localList, _localSummary, false);
-        var remote = BuildPane("Remote", "Connected server", _remotePathBox, _remoteFilter, _remoteList, _remoteSummary, true);
+        var local = BuildPane(L("Local"), L("ThisPc"), _localPathBox, _localFilter, _localList, _localSummary, false);
+        var remote = BuildPane(L("Remote"), L("ConnectedServer"), _remotePathBox, _remoteFilter, _remoteList, _remoteSummary, true);
         Grid.SetColumn(local, 0);
         Grid.SetColumn(remote, 2);
         grid.Children.Add(local);
@@ -262,13 +262,13 @@ public sealed partial class MainWindow
         Button home;
         if (isRemote)
         {
-            up = ToolButton("↑ Up", RemoteUpAsync);
+            up = ToolButton($"↑ {L("Up")}", RemoteUpAsync);
             home = ToolButton("⌂ /", NavigateRemoteHomeAsync);
         }
         else
         {
-            up = ToolButton("↑ Up", LocalUp);
-            home = ToolButton("⌂ Home", NavigateLocalHome);
+            up = ToolButton($"↑ {L("Up")}", LocalUp);
+            home = ToolButton($"⌂ {L("Home")}", NavigateLocalHome);
         }
 
         Grid.SetColumn(up, 0);
@@ -282,28 +282,28 @@ public sealed partial class MainWindow
         if (!isRemote)
         {
             var quick = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
-            quick.Children.Add(SmallNavButton("Desktop", Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
-            quick.Children.Add(SmallNavButton("Documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)));
-            quick.Children.Add(SmallNavButton("Downloads", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
+            quick.Children.Add(SmallNavButton(L("Desktop"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
+            quick.Children.Add(SmallNavButton(L("Documents"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)));
+            quick.Children.Add(SmallNavButton(L("Downloads"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
             header.Children.Add(quick);
         }
 
         var toolbar = new WrapPanel { Margin = new Thickness(0, 0, 0, 9) };
         if (isRemote)
         {
-            toolbar.Children.Add(ToolButton("↓ Download", QueueDownloadSelected, primary: true));
-            toolbar.Children.Add(ToolButton("↻ Refresh", RefreshRemoteAsync));
-            toolbar.Children.Add(ToolButton("＋ New folder", NewRemoteFolderAsync));
-            toolbar.Children.Add(ToolButton("Rename", RenameRemoteSelectedAsync));
-            toolbar.Children.Add(ToolButton("Delete", DeleteRemoteSelectedAsync, danger: true));
+            toolbar.Children.Add(ToolButton($"↓ {L("Download")}", QueueDownloadSelected, primary: true));
+            toolbar.Children.Add(ToolButton($"↻ {L("Refresh")}", RefreshRemoteAsync));
+            toolbar.Children.Add(ToolButton($"＋ {L("NewFolder")}", NewRemoteFolderAsync));
+            toolbar.Children.Add(ToolButton(L("Rename"), RenameRemoteSelectedAsync));
+            toolbar.Children.Add(ToolButton(L("Delete"), DeleteRemoteSelectedAsync, danger: true));
         }
         else
         {
-            toolbar.Children.Add(ToolButton("↑ Upload", QueueUploadSelected, primary: true));
-            toolbar.Children.Add(ToolButton("↻ Refresh", RefreshLocal));
-            toolbar.Children.Add(ToolButton("＋ New folder", NewLocalFolder));
-            toolbar.Children.Add(ToolButton("Rename", RenameLocalSelected));
-            toolbar.Children.Add(ToolButton("Delete", DeleteLocalSelected, danger: true));
+            toolbar.Children.Add(ToolButton($"↑ {L("Upload")}", QueueUploadSelected, primary: true));
+            toolbar.Children.Add(ToolButton($"↻ {L("Refresh")}", RefreshLocal));
+            toolbar.Children.Add(ToolButton($"＋ {L("NewFolder")}", NewLocalFolder));
+            toolbar.Children.Add(ToolButton(L("Rename"), RenameLocalSelected));
+            toolbar.Children.Add(ToolButton(L("Delete"), DeleteLocalSelected, danger: true));
         }
         header.Children.Add(toolbar);
 
@@ -311,10 +311,10 @@ public sealed partial class MainWindow
         filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
         filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        filter.ToolTip = "Filter items in the current folder";
+        filter.ToolTip = L("FilterTooltip");
         Grid.SetColumn(filter, 0);
         filterRow.Children.Add(filter);
-        var clear = ToolButton("Clear filter", () => filter.Clear());
+        var clear = ToolButton(L("ClearFilter"), () => filter.Clear());
         Grid.SetColumn(clear, 2);
         filterRow.Children.Add(clear);
         header.Children.Add(filterRow);
@@ -344,22 +344,30 @@ public sealed partial class MainWindow
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(GhostTheme.Text("Transfers", 16, weight: FontWeights.SemiBold));
+        left.Children.Add(GhostTheme.Text(L("Transfers"), 16, weight: FontWeights.SemiBold));
         _queueSummary.Margin = new Thickness(10, 0, 0, 0);
         left.Children.Add(_queueSummary);
         header.Children.Add(left);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        var cancel = GhostTheme.Button("Cancel selected");
+        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        var retry = GhostTheme.Button(L("RetrySelected"));
+        retry.Click += (_, _) => RetrySelectedTransfers();
+        var cancel = GhostTheme.Button(L("CancelSelected"));
+        cancel.Margin = new Thickness(8, 0, 0, 0);
         cancel.Click += (_, _) => CancelSelectedTransfer();
-        var clear = GhostTheme.Button("Clear finished");
+        var cancelAll = GhostTheme.Button(L("CancelAll"));
+        cancelAll.Margin = new Thickness(8, 0, 0, 0);
+        cancelAll.Click += (_, _) => CancelAllTransfers();
+        var clear = GhostTheme.Button(L("ClearFinished"));
         clear.Margin = new Thickness(8, 0, 0, 0);
         clear.Click += (_, _) =>
         {
             _queue?.ClearFinished();
             UpdateQueueSummary();
         };
+        actions.Children.Add(retry);
         actions.Children.Add(cancel);
+        actions.Children.Add(cancelAll);
         actions.Children.Add(clear);
         Grid.SetColumn(actions, 1);
         header.Children.Add(actions);
@@ -397,20 +405,20 @@ public sealed partial class MainWindow
         _remoteList.SelectionMode = SelectionMode.Extended;
 
         _localList.ContextMenu = CreateContextMenu(
-            ("Open", (_, _) => OpenLocalSelected()),
-            ("Open in File Explorer", (_, _) => RevealLocalSelected()),
-            ("Copy full path", (_, _) => CopyLocalPath()),
-            ("Upload", (_, _) => QueueUploadSelected()),
-            ("Rename", (_, _) => RenameLocalSelected()),
-            ("Delete", (_, _) => DeleteLocalSelected()),
-            ("Refresh", (_, _) => RefreshLocal()));
+            (L("Open"), (_, _) => OpenLocalSelected()),
+            (L("OpenExplorer"), (_, _) => RevealLocalSelected()),
+            (L("CopyFullPath"), (_, _) => CopyLocalPath()),
+            (L("Upload"), (_, _) => QueueUploadSelected()),
+            (L("Rename"), (_, _) => RenameLocalSelected()),
+            (L("Delete"), (_, _) => DeleteLocalSelected()),
+            (L("Refresh"), (_, _) => RefreshLocal()));
 
         _remoteList.ContextMenu = CreateContextMenu(
-            ("Download", (_, _) => QueueDownloadSelected()),
-            ("Copy remote path", (_, _) => CopyRemotePath()),
-            ("Rename", async (_, _) => await RenameRemoteSelectedAsync()),
-            ("Delete", async (_, _) => await DeleteRemoteSelectedAsync()),
-            ("Refresh", async (_, _) => await RefreshRemoteAsync()));
+            (L("Download"), (_, _) => QueueDownloadSelected()),
+            (L("CopyRemotePath"), (_, _) => CopyRemotePath()),
+            (L("Rename"), async (_, _) => await RenameRemoteSelectedAsync()),
+            (L("Delete"), async (_, _) => await DeleteRemoteSelectedAsync()),
+            (L("Refresh"), async (_, _) => await RefreshRemoteAsync()));
     }
 
     private void ConfigureEvents()
