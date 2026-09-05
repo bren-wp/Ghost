@@ -58,8 +58,7 @@ public sealed class AppSettings
     public double WindowWidth { get; set; } = 1520;
     public double WindowHeight { get; set; } = 920;
     public bool WindowMaximized { get; set; }
-    public double SidebarWidth { get; set; } = 300;
-    public double TransferPanelHeight { get; set; } = 210;
+    public double TransferPanelHeight { get; set; } = 198;
     public double LocalPaneFraction { get; set; } = 0.5;
 }
 
@@ -200,8 +199,7 @@ public sealed class AppSettingsStore
         settings.KeepAliveSeconds = settings.KeepAliveSeconds == 0 ? 0 : Math.Clamp(settings.KeepAliveSeconds, 15, 600);
         settings.WindowWidth = ClampFinite(settings.WindowWidth, 980, 7680, 1520);
         settings.WindowHeight = ClampFinite(settings.WindowHeight, 640, 4320, 920);
-        settings.SidebarWidth = ClampFinite(settings.SidebarWidth, 220, 460, 300);
-        settings.TransferPanelHeight = ClampFinite(settings.TransferPanelHeight, 130, 460, 210);
+        settings.TransferPanelHeight = ClampFinite(settings.TransferPanelHeight, 128, 440, 198);
         settings.LocalPaneFraction = ClampFinite(settings.LocalPaneFraction, 0.25, 0.75, 0.5);
     }
 
