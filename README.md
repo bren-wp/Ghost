@@ -4,7 +4,7 @@
 
 # Ghost FTP
 
-**Ghost FTP** (`GhostFTP`) is a privacy-first FTP/FTPS desktop client built as a professional dual-pane workstation. It combines a dense, familiar FTP workflow with a modern dark/light design, local-only configuration, strict transport boundaries and a dependency-minimal C# codebase.
+**Ghost FTP** (`GhostFTP`) is a privacy-first FTP/FTPS desktop client built as a professional dual-pane workstation. It combines a dense, familiar FTP workflow with a modern native desktop design, local-only configuration, strict transport boundaries and a dependency-minimal C# codebase.
 
 Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), registered office **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom**.
 
@@ -26,8 +26,8 @@ Ghost FTP uses one shared FTP/FTPS engine with separate native desktop renderers
 
 ```text
 src/GhostFTP.Core      shared FTP/FTPS protocol, transfer queue, models and safety
-src/GhostFTP.Design    shared product identity + localization; Windows visual helpers
-src/GhostFTP.App       Windows WPF desktop client
+src/GhostFTP.Design    shared identity, localization and reference visual tokens
+src/GhostFTP.App       Windows WPF desktop client; installed and portable modes
 src/GhostFTP.Setup     Windows installer / maintenance application
 src/GhostFTP.Linux     Linux X11/XWayland desktop client
 ```
@@ -36,18 +36,38 @@ The Linux implementation is not a renamed Windows binary and does not contain a 
 
 See [docs/PLATFORM-SUPPORT.md](docs/PLATFORM-SUPPORT.md).
 
+## Approved desktop reference and UI parity
+
+Ghost FTP now has one documented desktop visual contract for the Windows installed client, `portable.exe`, Setup and Linux. Canonical palette and geometry tokens live in `src/GhostFTP.Design/GhostReferencePalette.cs`; platform renderers consume those tokens instead of maintaining unrelated visual identities.
+
+The normal desktop reference uses:
+
+- permanent **292 px** product / saved-sites / privacy rail;
+- **38 px** menu row;
+- **70 px** global action toolbar;
+- Connection Log and Quick Connect in the same upper workspace row;
+- Local and Remote file panes side by side;
+- full-width Transfers area;
+- compact local status/privacy state;
+- reference dark appearance as the first-run default.
+
+Windows installed mode and `portable.exe` use the same `GhostFTP.App` renderer, so portable mode does not have a separate UI implementation. Setup is a different workflow but uses the same product palette and control language. Linux reproduces the same workstation hierarchy in the native X11/XWayland renderer while continuing to share the FTP/FTPS core.
+
+The authentic Windows reference capture is rendered deterministically at **1914×907** logical pixels so visual-regression output can be compared against the approved desktop viewport without CI-host DPI scaling changing the image dimensions.
+
+See [docs/UI-PARITY.md](docs/UI-PARITY.md).
+
 ## Professional FTP workspace
 
 The 0.1.0 Beta workstation is organized around the workflow users expect from established desktop FTP clients while retaining Ghost FTP's own identity:
 
-1. **File / View / Sites / Transfers / Tools / Help** menu hierarchy;
-2. compact global action toolbar;
-3. Saved Sites / Site Manager workflow;
-4. local **Connection Log**;
-5. **Quick Connect**;
-6. large **Local / Remote** file panes;
-7. full transfer queue with state, progress and cancellation;
-8. compact connection/privacy status area.
+1. permanent product / saved-site / privacy rail;
+2. **File / View / Sites / Transfers / Tools / Help** menu hierarchy;
+3. compact global action toolbar and Remote search;
+4. local **Connection Log** beside **Quick Connect**;
+5. large **Local / Remote** file panes;
+6. full transfer queue with state, progress and cancellation;
+7. compact connection/privacy status area.
 
 The goal is information density without UI clutter. File browsing and transfer state receive most of the window instead of oversized decorative cards.
 
@@ -96,6 +116,8 @@ SHA256SUMS.txt
 SIGNING.txt
 ```
 
+`setup.exe` and `portable.exe` do not contain different FTP clients. The installed and portable packages both launch the same Windows desktop renderer; portable mode changes only the local data location.
+
 ### Windows Authenticode signing
 
 Ghost FTP includes a secure SHA-256 Authenticode release-signing pipeline. The private PFX is supplied only through GitHub Actions secrets and is not committed to the repository.
@@ -117,7 +139,7 @@ See [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md).
 
 ## Linux
 
-Ghost FTP now contains a real Linux desktop client at `src/GhostFTP.Linux`.
+Ghost FTP contains a real Linux desktop client at `src/GhostFTP.Linux`.
 
 The Linux renderer uses the standard X11 client ABI directly. It therefore does not add a third-party NuGet GUI framework. On Wayland desktops it can run through XWayland.
 
@@ -154,6 +176,12 @@ Linux saved-password support uses AES-256-GCM with a cryptographically random lo
 
 This prevents plaintext password persistence and provides authenticated tamper detection. The project does not falsely describe this file-based Linux protection as equivalent to Windows DPAPI or a hardware-backed secret store.
 
+### Linux UI and runtime validation
+
+The Linux renderer consumes the shared Ghost reference palette, keeps the permanent left rail / menu / toolbar / Log + Quick Connect / Local + Remote / Transfers hierarchy and adapts field/button density for narrower windows.
+
+CI launches the real renderer under Xvfb, runs the shared Core and transfer-queue tests, builds self-contained x64/ARM64 packages, verifies checksums and launches the packaged x64 binary again under Xvfb. This is a runtime gate, not merely a compile-only platform claim.
+
 ## Authentic Windows UI screenshots
 
 Repository Windows screenshots are generated from the **real compiled Ghost FTP WPF client** rather than external mockups.
@@ -171,7 +199,7 @@ assets/readme/ghostftp-client.png
 assets/readme/ghostftp-site-manager.png
 ```
 
-The screenshot workflow rebuilds these files from source. Demo capture is local-only and opens no external FTP connection.
+The main client capture uses the fixed **1914×907** reference viewport at 96 DPI. The screenshot workflow rebuilds these files from source. Demo capture is local-only and opens no external FTP connection.
 
 <p align="center">
   <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.0 Beta real Windows desktop client" width="100%">
