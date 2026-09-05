@@ -63,6 +63,7 @@ public sealed partial class MainWindow : Window
     private readonly ComboBox _security = new GhostComboBox();
     private readonly Button _connectButton = GhostTheme.Button(GhostLocalization.T("Connect"), primary: true);
     private readonly Button _disconnectButton = GhostTheme.Button(GhostLocalization.T("Disconnect"), danger: true);
+    private readonly Button _diagnosticsButton = GhostTheme.Button("Diagnostics");
     private readonly TextBox _localPathBox = GhostTheme.TextBox();
     private readonly TextBox _remotePathBox = GhostTheme.TextBox("/");
     private readonly TextBox _localFilter = GhostTheme.TextBox();
