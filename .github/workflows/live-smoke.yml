@@ -1,0 +1,47 @@
+name: Live FTP smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      GHOSTFTP_LIVE_HOST: ${{ secrets.GHOSTFTP_LIVE_HOST }}
+      GHOSTFTP_LIVE_PORT: ${{ secrets.GHOSTFTP_LIVE_PORT }}
+      GHOSTFTP_LIVE_USERNAME: ${{ secrets.GHOSTFTP_LIVE_USERNAME }}
+      GHOSTFTP_LIVE_PASSWORD: ${{ secrets.GHOSTFTP_LIVE_PASSWORD }}
+      GHOSTFTP_LIVE_SECURITY: ${{ secrets.GHOSTFTP_LIVE_SECURITY }}
+      GHOSTFTP_LIVE_PATH: ${{ secrets.GHOSTFTP_LIVE_PATH }}
+      GHOSTFTP_LIVE_ALLOW_PLAIN: ${{ secrets.GHOSTFTP_LIVE_ALLOW_PLAIN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Require securely configured server secrets
+        shell: pwsh
+        run: |
+          foreach ($name in @('GHOSTFTP_LIVE_HOST','GHOSTFTP_LIVE_USERNAME','GHOSTFTP_LIVE_PASSWORD')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Required repository secret $name is not configured. No credential value was printed."
+            }
+          }
+
+      - name: Restore live smoke harness
+        run: dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
+
+      - name: Non-destructive connect PWD LIST NOOP disconnect
+        run: dotnet run --project tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj -c Release --no-restore
