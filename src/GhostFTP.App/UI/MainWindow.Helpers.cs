@@ -23,7 +23,7 @@ public sealed partial class MainWindow
             }
             catch (Exception ex)
             {
-                ShowOperationError("The operation failed.", ex);
+                ShowOperationError(L("OperationFailed"), ex);
             }
         };
         return button;
@@ -43,7 +43,7 @@ public sealed partial class MainWindow
             }
             catch (Exception ex)
             {
-                ShowOperationError("The operation failed.", ex);
+                ShowOperationError(L("OperationFailed"), ex);
             }
         };
         return button;
@@ -52,23 +52,24 @@ public sealed partial class MainWindow
     private static GridView CreateFileGrid(bool local)
     {
         var grid = new GridView { AllowsColumnReorder = true };
-        grid.Columns.Add(Column("Name", "Name", local ? 230 : 205));
-        grid.Columns.Add(Column("Type", "Type", 70));
-        grid.Columns.Add(Column("Size", "SizeText", 78));
-        grid.Columns.Add(Column("Modified", "ModifiedText", 124));
+        grid.Columns.Add(Column(L("Name"), "Name", local ? 230 : 205));
+        grid.Columns.Add(Column(L("Type"), "Type", 70));
+        grid.Columns.Add(Column(L("Size"), "SizeText", 78));
+        grid.Columns.Add(Column(L("Modified"), "ModifiedText", 124));
         return grid;
     }
 
     private static GridView CreateQueueGrid()
     {
         var grid = new GridView { AllowsColumnReorder = true };
-        grid.Columns.Add(Column("Item", "DisplayName", 160));
-        grid.Columns.Add(Column("Direction", "Direction", 76));
-        grid.Columns.Add(Column("State", "State", 72));
-        grid.Columns.Add(Column("Progress", "ProgressText", 70));
-        grid.Columns.Add(Column("Speed", "SpeedText", 82));
-        grid.Columns.Add(Column("Source", "Source", 220));
-        grid.Columns.Add(Column("Destination", "Destination", 220));
+        grid.Columns.Add(Column(L("Item"), "DisplayName", 150));
+        grid.Columns.Add(Column(L("Direction"), "Direction", 76));
+        grid.Columns.Add(Column(L("State"), "State", 76));
+        grid.Columns.Add(Column(L("Progress"), "ProgressText", 70));
+        grid.Columns.Add(Column("Retry", "RetryText", 48));
+        grid.Columns.Add(Column(L("Speed"), "SpeedText", 82));
+        grid.Columns.Add(Column(L("Source"), "Source", 210));
+        grid.Columns.Add(Column(L("Destination"), "Destination", 210));
         return grid;
     }
 
@@ -97,24 +98,26 @@ public sealed partial class MainWindow
 
     private void ResizeQueueColumns()
     {
-        if (_queueList.View is not GridView grid || grid.Columns.Count != 7 || _queueList.ActualWidth <= 0) return;
+        if (_queueList.View is not GridView grid || grid.Columns.Count != 8 || _queueList.ActualWidth <= 0) return;
 
-        var available = Math.Max(760, _queueList.ActualWidth - 22);
-        var item = Math.Clamp(available * 0.16, 130, 200);
+        var available = Math.Max(820, _queueList.ActualWidth - 22);
+        var item = Math.Clamp(available * 0.15, 125, 190);
         var direction = 76d;
-        var state = 72d;
+        var state = 76d;
         var progress = 70d;
+        var retry = 48d;
         var speed = 82d;
-        var remaining = Math.Max(260, available - item - direction - state - progress - speed);
+        var remaining = Math.Max(260, available - item - direction - state - progress - retry - speed);
         var source = remaining / 2;
 
         grid.Columns[0].Width = item;
         grid.Columns[1].Width = direction;
         grid.Columns[2].Width = state;
         grid.Columns[3].Width = progress;
-        grid.Columns[4].Width = speed;
-        grid.Columns[5].Width = source;
+        grid.Columns[4].Width = retry;
+        grid.Columns[5].Width = speed;
         grid.Columns[6].Width = source;
+        grid.Columns[7].Width = source;
     }
 
     private static ContextMenu CreateContextMenu(params (string text, RoutedEventHandler handler)[] items)
@@ -139,7 +142,7 @@ public sealed partial class MainWindow
         _localSummary.Text = SummaryText(_localItems.Count, _localList.SelectedItems.Count);
         _remoteSummary.Text = IsConnected
             ? SummaryText(_remoteItems.Count, _remoteList.SelectedItems.Count)
-            : "Not connected";
+            : L("NotConnected");
     }
 
     private static string SummaryText(int count, int selected)
