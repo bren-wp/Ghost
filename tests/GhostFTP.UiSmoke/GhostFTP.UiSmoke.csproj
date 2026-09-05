@@ -5,6 +5,7 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SelfContained>true</SelfContained>
     <RootNamespace>GhostFTP.UiSmoke</RootNamespace>
     <AssemblyName>GhostFTP.UiSmoke</AssemblyName>
   </PropertyGroup>
