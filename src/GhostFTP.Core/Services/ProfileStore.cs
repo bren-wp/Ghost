@@ -64,6 +64,13 @@ public sealed class ProfileStore
             {
                 if (profile is null)
                     throw new InvalidDataException("Saved profile collection contains an invalid null entry.");
+
+                // Session-only Quick Connect entries are deliberately memory-only. Filtering
+                // happens here in addition to JsonIgnore on the flag so future callers cannot
+                // accidentally persist the connection definition when saving the collection.
+                if (profile.IsSessionOnly)
+                    continue;
+
                 list.Add(profile.Clone());
                 if (list.Count > MaxProfiles)
                     throw new InvalidOperationException($"Too many saved server profiles. Maximum: {MaxProfiles:N0}.");
@@ -261,6 +268,7 @@ public sealed class ProfileStore
         profile.Security = FtpSecurityMode.Plain;
         profile.InitialPath = "/";
         profile.IsDemo = true;
+        profile.IsSessionOnly = false;
         profile.RememberPassword = false;
         profile.ProtectedPassword = null;
     }
@@ -280,6 +288,7 @@ public sealed class ProfileStore
         Security = FtpSecurityMode.Plain,
         InitialPath = "/",
         IsDemo = true,
+        IsSessionOnly = false,
         RememberPassword = false
     };
 }
