@@ -13,6 +13,11 @@ public static class GhostBrand
     public const string Repository = "https://github.com/bren-wp/Ghost";
     public const string PrivacyTagline = "Private FTP / FTPS workspace for Windows";
 
+    public const string Publisher = "BRENDIGO LTD";
+    public const string CompanyNumber = "16545639";
+    public const string RegisteredOffice = "71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom";
+    public const string CopyrightNotice = "Copyright © 2026 BRENDIGO LTD. All rights reserved.";
+
     private static readonly Lazy<ImageSource> Icon = new(CreateIconSource, LazyThreadSafetyMode.ExecutionAndPublication);
 
     public static ImageSource IconSource => Icon.Value;
