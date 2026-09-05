@@ -1,6 +1,6 @@
 # Ghost FTP Privacy
 
-Ghost FTP **0.1.0 Beta** is designed to operate without application telemetry, tracking, advertising or hidden product-network activity. Ghost FTP is developed and published by **BRENDIGO LTD**.
+Ghost FTP **0.1.1 Beta** is designed to operate without application telemetry, tracking, advertising or hidden product-network activity. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## What Ghost FTP does not do
 
@@ -40,7 +40,7 @@ Keepalive is a connection-resilience feature, not telemetry.
 - setting `0` disables it;
 - the command is standard FTP `NOOP`;
 - it is sent only to the FTP/FTPS server already selected by the user;
-- Demo mode is skipped;
+- Demo mode is skipped for automatic keepalive;
 - Windows and Linux use the same server-only keepalive contract;
 - a failed keepalive marks stale session state lost rather than silently creating a replacement connection.
 
@@ -60,7 +60,7 @@ Plain FTP sends credentials and file data without TLS. Both Windows and Linux re
 
 The built-in `GhostFTP Demo` profile is fully local. It does not open an FTP socket, contact ghostftp.com, call GitHub or send data to another service.
 
-Demo mode is used for local product exploration, deterministic tests and authentic repository UI capture.
+Demo mode is used for local product exploration, deterministic tests and authentic repository UI capture. The 0.1.1 cross-platform regression suite performs local connect/diagnostics/PWD/CWD/listing/keepalive, file and recursive-directory round trips, rename/create/delete, conflict protection, cleanup, root-delete protection and disconnect-state checks without external network access.
 
 ## Local data locations
 
@@ -153,6 +153,8 @@ Plain FTP live testing requires an explicit opt-in. See `docs/LIVE-SMOKE-TEST.md
 ## Windows Setup privacy
 
 `setup.exe` performs local installation/maintenance work: embedded license display, local language preference, payload validation, per-user file installation, shortcuts, Installed Apps registration and uninstall.
+
+0.1.1 stages application and maintenance-Setup binaries locally and keeps rollback copies during update transactions. Those temporary/backup files remain on the local machine only and are cleaned after completion/failure or during uninstall.
 
 Setup contains no installation analytics, conversion tracking or crash-report uploader. Its self-delete helper uses only the local loopback address as a delay mechanism; it does not send data off the machine.
 
