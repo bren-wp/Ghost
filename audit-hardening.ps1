@@ -117,7 +117,7 @@ $security = Require-Tokens 'SECURITY.md' @(
     'Live-server testing without credential disclosure'
 )
 $privacy = Require-Tokens 'PRIVACY.md' @(
-    'no application telemetry',
+    'without application telemetry',
     'server-only',
     'Session-only Quick Connect',
     'Live-server smoke testing'
@@ -131,7 +131,7 @@ $architecture = Require-Tokens 'docs/ARCHITECTURE.md' @(
 $parity = Require-Tokens 'docs/UI-PARITY.md' @(
     '1914 × 907',
     'Windows and Linux',
-    'Delete cancels a transfer'
+    'transfer queue and cancellation'
 )
 $platform = Require-Tokens 'docs/PLATFORM-SUPPORT.md' @(
     'Windows',
