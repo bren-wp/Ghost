@@ -10,6 +10,12 @@ public sealed partial class FtpSession
 {
     private const int MaxListingPayloadBytes = 16 * 1024 * 1024;
 
+    private async Task EnsureBinaryTransferModeAsync(CancellationToken cancellationToken)
+    {
+        var reply = await SendCommandAsync("TYPE I", cancellationToken).ConfigureAwait(false);
+        Ensure(reply, 200, 299, "FTP server refused binary transfer mode.");
+    }
+
     private async Task<string> ReceiveTextDataAsync(string command, CancellationToken cancellationToken)
     {
         await using var memory = new MemoryStream(capacity: 64 * 1024);
@@ -37,7 +43,7 @@ public sealed partial class FtpSession
         long? maxBytes = null)
     {
         EnsureConnected();
-        _ = await TryCommandAsync("TYPE I", cancellationToken).ConfigureAwait(false);
+        await EnsureBinaryTransferModeAsync(cancellationToken).ConfigureAwait(false);
         using var data = await OpenPassiveTcpAsync(cancellationToken).ConfigureAwait(false);
         var preliminary = await SendCommandAsync(command, cancellationToken).ConfigureAwait(false);
         if (!preliminary.IsPositivePreliminary && !preliminary.IsPositiveCompletion)
@@ -80,7 +86,7 @@ public sealed partial class FtpSession
         CancellationToken cancellationToken)
     {
         EnsureConnected();
-        _ = await TryCommandAsync("TYPE I", cancellationToken).ConfigureAwait(false);
+        await EnsureBinaryTransferModeAsync(cancellationToken).ConfigureAwait(false);
         using var data = await OpenPassiveTcpAsync(cancellationToken).ConfigureAwait(false);
         var preliminary = await SendCommandAsync(command, cancellationToken).ConfigureAwait(false);
         if (!preliminary.IsPositivePreliminary && !preliminary.IsPositiveCompletion)
@@ -142,9 +148,7 @@ public sealed partial class FtpSession
         {
             // Data channels intentionally use the authenticated control host, not PASV host data.
             await client.ConnectAsync(_options.Host, port, cancellationToken)
-                .AsTask()
-                .WaitAsync(_options.ConnectTimeout, cancellationToken)
-                .ConfigureAwait(false);
+                .AsTask().WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
             return client;
         }
         catch
