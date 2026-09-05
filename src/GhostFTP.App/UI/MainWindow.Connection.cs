@@ -1,6 +1,7 @@
 using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
 using GhostFTP.Core.Services;
+using GhostFTP.Design;
 using GhostFTP.Services;
 using System.ComponentModel;
 using System.Windows;
@@ -19,7 +20,10 @@ public sealed partial class MainWindow
             _localPath = _settings.LastLocalDirectory;
             _localPathBox.Text = _localPath;
 
-            _queue = new TransferQueueService(CreateTransferSessionAsync, SynchronizationContext.Current);
+            _queue = new TransferQueueService(
+                CreateTransferSessionAsync,
+                SynchronizationContext.Current,
+                _settings.AutomaticTransferRetries);
             _queueList.ItemsSource = _queue.Jobs;
             _queue.JobUpdated += QueueJobUpdated;
 
@@ -108,13 +112,15 @@ public sealed partial class MainWindow
                 if (string.IsNullOrWhiteSpace(host)) throw new InvalidOperationException("Host is required.");
                 if (!int.TryParse(_port.Text.Trim(), out var port) || port is < 1 or > 65535)
                     throw new InvalidOperationException("Port must be between 1 and 65535.");
+                if (_security.SelectedIndex is < 0 or > 2)
+                    throw new InvalidOperationException("Select a valid FTP security mode.");
 
-                var securityMode = (FtpSecurityMode)Math.Max(0, _security.SelectedIndex);
+                var securityMode = (FtpSecurityMode)_security.SelectedIndex;
                 if (securityMode == FtpSecurityMode.Plain && !GhostMessageDialog.Confirm(
                         this,
                         "Plain FTP is not encrypted",
                         "Plain FTP sends usernames, passwords and file data without TLS encryption. Continue only when this is an intentionally trusted server or isolated network.",
-                        "Use plain FTP",
+                        GhostLocalization.T("Continue"),
                         danger: true,
                         warning: true))
                     throw new OperationCanceledException(ct);
@@ -125,7 +131,10 @@ public sealed partial class MainWindow
                     Port = port,
                     Username = _username.Text.Trim(),
                     Password = _password.Password,
-                    Security = securityMode
+                    Security = securityMode,
+                    ConnectTimeout = TimeSpan.FromSeconds(_settings.ConnectTimeoutSeconds),
+                    CommandTimeout = TimeSpan.FromSeconds(_settings.CommandTimeoutSeconds),
+                    TransferTimeout = TimeSpan.FromSeconds(_settings.TransferIdleTimeoutSeconds)
                 };
                 _session = new FtpSession(newOptions);
             }
@@ -156,7 +165,7 @@ public sealed partial class MainWindow
         catch (OperationCanceledException)
         {
             await DisconnectCoreAsync();
-            SetStatus("Offline", "Surface2");
+            SetStatus(GhostLocalization.T("Offline"), "Surface2");
         }
         catch (Exception ex)
         {
@@ -196,7 +205,7 @@ public sealed partial class MainWindow
             _remoteItems.Clear();
             _remotePath = "/";
             _remotePathBox.Text = "/";
-            SetStatus("Offline", "Surface2");
+            SetStatus(GhostLocalization.T("Offline"), "Surface2");
         }
         finally
         {
