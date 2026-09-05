@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
 using GhostFTP.Core.Services;
@@ -107,17 +106,18 @@ internal sealed partial class LinuxMainWindow : IDisposable
         var requestedLanguage = ParseArgument(args, "--lang") ?? _settings.LanguageCode;
         GhostLocalization.SetLanguage(GhostLocalization.NormalizeLanguageCode(requestedLanguage));
         _settings.LanguageCode = GhostLocalization.CurrentLanguageCode;
-        _languageIndex = Math.Max(0, GhostLocalization.Languages.ToList().FindIndex(x => x.Code == GhostLocalization.CurrentLanguageCode));
+        _languageIndex = Math.Max(0, GhostLocalization.SupportedLanguages.ToList().FindIndex(x => x.Code == GhostLocalization.CurrentLanguageCode));
 
         var profiles = _profileStore.LoadAsync().GetAwaiter().GetResult();
         _profiles.AddRange(profiles);
+        _siteSelected = Math.Max(0, _profiles.FindIndex(x => !x.IsDemo));
 
         _localPath = Directory.Exists(_settings.LastLocalDirectory)
             ? _settings.LastLocalDirectory
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         CreateFields();
-        LoadProfileIntoFields(_profiles.FirstOrDefault(x => !x.IsDemo) ?? _profiles.First());
+        LoadProfileIntoFields(_profiles[_siteSelected]);
         ReloadLocal();
         InitializeX11();
         Log($"{GhostProduct.DisplayName} {GhostProduct.InformationalVersion} started on Linux.");
@@ -282,6 +282,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
         _fields["port"].Value = profile.Port.ToString();
         _fields["username"].Value = profile.Username;
         _fields["password"].Value = _profileStore.GetPassword(profile);
+        _securityMode = profile.Security;
         _remotePath = string.IsNullOrWhiteSpace(profile.InitialPath) ? "/" : profile.InitialPath;
         _fields["remotePath"].Value = _remotePath;
     }
@@ -352,10 +353,9 @@ internal sealed partial class LinuxMainWindow : IDisposable
             }
             else
             {
-                if (!int.TryParse(_fields["port"].Value, out var port)) port = 21;
-                var security = port == 990 ? FtpSecurityMode.ImplicitTls : FtpSecurityMode.ExplicitTls;
-                if (string.Equals(_fields["host"].Value, "ftp", StringComparison.OrdinalIgnoreCase))
-                    security = FtpSecurityMode.Plain;
+                var defaultPort = _securityMode == FtpSecurityMode.ImplicitTls ? 990 : 21;
+                if (!int.TryParse(_fields["port"].Value, out var port) || port is < 1 or > 65535)
+                    port = defaultPort;
 
                 _activeOptions = new FtpConnectionOptions
                 {
@@ -363,7 +363,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
                     Port = port,
                     Username = _fields["username"].Value,
                     Password = _fields["password"].Value,
-                    Security = security,
+                    Security = _securityMode,
                     ConnectTimeout = TimeSpan.FromSeconds(_settings.ConnectTimeoutSeconds),
                     CommandTimeout = TimeSpan.FromSeconds(_settings.CommandTimeoutSeconds),
                     TransferTimeout = TimeSpan.FromSeconds(_settings.TransferIdleTimeoutSeconds)
@@ -486,7 +486,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
             _remotePath = _session?.WorkingDirectory ?? _remotePath;
             _fields["remotePath"].Value = _remotePath;
             _remoteSelected = Math.Clamp(_remoteSelected, -1, _remoteItems.Count - 1);
-            Log($"Remote directory loaded: {_remotePath} ({_remoteItems.Count} items). ");
+            Log($"Remote directory loaded: {_remotePath} ({_remoteItems.Count} items).");
         });
     }
 
