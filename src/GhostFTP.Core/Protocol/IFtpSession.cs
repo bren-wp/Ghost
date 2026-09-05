@@ -22,4 +22,16 @@ public interface IFtpSession : IAsyncDisposable
     Task UploadFileAsync(string localPath, string remotePath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default);
     Task DownloadDirectoryAsync(string remotePath, string localDirectory, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default);
     Task UploadDirectoryAsync(string localDirectory, string remotePath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default);
+
+    Task<FtpServerInfo> GetServerInfoAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new FtpServerInfo(
+            Host,
+            IsEncrypted,
+            WorkingDirectory,
+            GetType().Name.Contains("Demo", StringComparison.OrdinalIgnoreCase) ? "Ghost FTP local demo" : "Unavailable",
+            [],
+            DateTimeOffset.UtcNow));
+    }
 }
