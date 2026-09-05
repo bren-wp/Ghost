@@ -1,6 +1,6 @@
 # Ghost FTP Architecture
 
-Ghost FTP **0.1.0 Beta** is one privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
+Ghost FTP **0.1.1 Beta** is one privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
 
@@ -9,7 +9,7 @@ Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licen
 Root files define the public line:
 
 ```text
-VERSION=0.1.0
+VERSION=0.1.1
 RELEASE_CHANNEL=beta
 ```
 
@@ -25,6 +25,7 @@ src/GhostFTP.Setup       Windows per-user Setup / maintenance application
 src/GhostFTP.Linux       Linux X11/XWayland renderer
 
 tests/GhostFTP.SelfTest      shared security/correctness regression executable
+tests/GhostFTP.DemoSelfTest  complete local-only Demo workflow regression executable
 tests/GhostFTP.QueueSelfTest transfer concurrency/cancellation/session tests
 tests/GhostFTP.UiSmoke       Windows WPF input/localization smoke tests
 tests/GhostFTP.LiveSmoke     optional credential-safe real-server smoke harness
@@ -163,7 +164,7 @@ Keepalive:
 - defaults to 60 seconds;
 - accepts 15–600 seconds;
 - `0` disables it;
-- skips Demo mode;
+- skips automatic keepalive in Demo mode;
 - exists on Windows and Linux;
 - never silently reconnects using saved credentials.
 
@@ -249,6 +250,22 @@ This is documented as local file-based protection, not a claim of protection aga
 
 Core self-tests verify that the session-only host/runtime marker do not reach `profiles.json`.
 
+## Local Demo regression architecture
+
+`DemoFtpSession` is a deterministic local-only implementation used for UI exploration and cross-platform regression testing. It never opens a real FTP socket.
+
+`tests/GhostFTP.DemoSelfTest` validates the complete local workflow on Windows and Linux:
+
+```text
+connect → diagnostics → PWD/CWD → LIST → NOOP
+→ file download/upload round trip → rename
+→ create/delete directory → recursive directory round trip
+→ conflict protection → cleanup → root-delete protection
+→ disconnect reset → reject post-disconnect operations
+```
+
+File-vs-directory conflicts are rejected rather than silently replacing one node type with another. The test is intentionally separate from the secret-backed live-server harness.
+
 ## Connection Log and diagnostics
 
 Connection Log state is bounded/local. It can show timestamps, host/port/security state, list counts and visible errors but never intentionally records passwords/protected blobs/file contents.
@@ -267,19 +284,22 @@ Language → License → Options → Ready → Install/Update → Finish
 
 The license must be accepted before installation. Installation is per-user under `%LOCALAPPDATA%\Programs\GhostFTP` and registers normal Windows Installed Apps metadata.
 
-### Payload validation
+### Candidate validation
 
-Setup validates a candidate executable before committing it:
+Before active installation changes, Setup stages and validates the application payload and, when required, the maintenance Setup candidate:
 
 - minimum size;
 - `MZ` executable signature;
 - ProductName = Ghost FTP;
 - CompanyName = BRENDIGO LTD;
-- exact file version matching Setup.
+- exact file version matching Setup;
+- candidate file version must not be older than the corresponding installed binary.
 
-### Rollback
+### Transactional binary rollback
 
-When updating an existing app, the previous executable remains as rollback material until subsequent install stages finish. A later failure attempts to restore the old app. An incomplete brand-new install removes the newly committed client where possible.
+When updating an existing installation, both active binaries keep independent rollback copies until all later install stages have succeeded. If shortcut/settings/registry or another later stage fails, Setup attempts to restore the previous application and previous maintenance Setup copy. A brand-new partial installation removes newly committed binaries during rollback.
+
+Temporary application/Setup transaction files are cleaned after completion/failure and stale transaction files are removed during uninstall.
 
 ### Uninstall metadata
 
@@ -326,7 +346,7 @@ Transfer metrics, logs and screenshots remain local application/build state.
 
 Windows packaging creates self-contained x64/ARM64 portable + Setup executables. Linux packaging creates self-contained x64/ARM64 binaries/tarballs. SHA-256 manifests are verified before publication.
 
-The official release workflow creates/synchronizes GitHub Release tag `v0.1.0-beta` and uploads canonical release assets only after its build/test/package gates pass. Stable Windows publication additionally requires trusted Authenticode validation.
+The official release workflow creates GitHub Release tag `v0.1.1-beta` and uploads canonical release assets only after its build/test/package gates pass. Stable Windows publication additionally requires trusted Authenticode validation.
 
 ## Validation gates
 
@@ -337,14 +357,15 @@ The exact release source is expected to pass:
 3. Linux renderer build;
 4. dependency/privacy/platform/security source audit;
 5. Core self-tests on Windows and Linux;
-6. transfer queue tests on Windows and Linux;
-7. WPF editable-input/localization smoke tests;
-8. authentic production Windows UI capture and 1914×907 validation;
-9. real Linux renderer X11/XWayland smoke under Xvfb;
-10. Windows x64/ARM64 packaging and executable-version verification;
-11. Linux x64/ARM64 packaging and packaged-x64 runtime smoke;
-12. SHA-256 verification;
-13. trusted Authenticode verification for stable publication;
-14. GitHub Release asset publication.
+6. complete local Demo workflow tests on Windows and Linux;
+7. transfer queue tests on Windows and Linux;
+8. WPF editable-input/localization smoke tests;
+9. authentic production Windows UI capture and 1914×907 validation;
+10. real Linux renderer X11/XWayland smoke under Xvfb;
+11. Windows x64/ARM64 packaging and executable-version verification;
+12. Linux x64/ARM64 packaging and packaged-x64 runtime smoke;
+13. SHA-256 verification;
+14. trusted Authenticode verification for stable publication;
+15. GitHub Release asset publication.
 
 See `SECURITY.md`, `PRIVACY.md`, `docs/UI-PARITY.md`, `docs/PLATFORM-SUPPORT.md`, `docs/LIVE-SMOKE-TEST.md` and `docs/RELEASE-POLICY.md`.
