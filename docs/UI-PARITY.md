@@ -4,6 +4,14 @@ This document defines the visual contract for Ghost FTP **0.1.0 Beta** across th
 
 The approved workstation reference is a dense dark desktop FTP workspace. The implementation must preserve the same product identity, spacing system, information hierarchy and color tokens without introducing a web runtime, analytics framework, UI telemetry or a third-party runtime package.
 
+## Canonical reference viewport
+
+The supplied desktop reference is treated as a **1914 × 907 logical-pixel viewport at 96 DPI** for deterministic visual comparison.
+
+The real Windows client therefore exposes a deterministic documentation capture mode at that viewport. CI captures the compiled WPF application itself; the reference-validation path must not substitute an externally generated mockup.
+
+The reference viewport is a comparison target, not a fixed window-size requirement. Normal application windows remain resizable and must retain a usable layout above their documented minimum dimensions.
+
 ## Canonical design tokens
 
 The authoritative source is `src/GhostFTP.Design/GhostReferencePalette.cs`.
@@ -60,6 +68,34 @@ At normal desktop width the application shell follows this order:
 The left rail owns product identity, saved-site navigation, local privacy messaging and Settings/About access. Product identity is therefore not repeated as a large block in the action toolbar.
 
 The upper-right area owns language access and global Remote search. Quick Connect remains a local connection form and must not become an account/cloud sign-in surface.
+
+## Menu and toolbar contract
+
+At the reference viewport the top-level menu order is:
+
+```text
+File → View → Transfers → Sites → Tools → Help
+```
+
+The corresponding Croatian reference order is:
+
+```text
+Datoteka → Prikaz → Prijenosi → Poslužitelji → Alati → Pomoć
+```
+
+The normal-width global action toolbar keeps the major FTP actions directly visible and uses the same compact icon-over-label treatment as the approved reference. It includes Connect, Disconnect, Upload, Download, Refresh, New Folder, Rename, Delete, Site Manager, Settings and Diagnostics where horizontal space permits.
+
+New Folder, Rename and Delete are real contextual actions rather than decorative controls. Their target follows the active Local/Remote workspace and destructive actions remain disabled when no compatible selection exists.
+
+When width is constrained, lower-priority actions may compact or move out of the visible toolbar while remaining available through menus/context actions. Search must never overlap an action target.
+
+## Reference-shell localization
+
+English remains the product's primary/default language and guaranteed fallback. The core localization catalog continues to provide the existing 29 selectable languages without any online translation service.
+
+Reference-only shell copy is centralized in `src/GhostFTP.Design/GhostReferenceText.cs` so Windows and Linux do not grow unrelated hardcoded wording. The approved Croatian reference receives explicit shell wording for menu/navigation/privacy/search labels. Any reference-shell phrase not translated for the selected locale falls back locally to English; no language choice causes a network lookup.
+
+Localization is a presentation concern only. It must not alter protocol behavior, data retention, telemetry policy or FTP/FTPS security defaults.
 
 ## Windows installed application and portable.exe
 
