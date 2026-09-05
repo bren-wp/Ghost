@@ -1,0 +1,214 @@
+using System.Diagnostics;
+using GhostFTP.Core.Models;
+using GhostFTP.Core.Protocol;
+using GhostFTP.Core.Services;
+
+namespace GhostFTP.QueueSelfTest;
+
+public static class Program
+{
+    public static async Task<int> Main()
+    {
+        try
+        {
+            await TestParallelWorkersAsync();
+            await TestConcurrencyClampAsync();
+            Console.WriteLine("PASS  Transfer queue runs bounded parallel jobs with isolated sessions");
+            Console.WriteLine("PASS  Transfer queue concurrency limits are clamped safely");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("FAIL  " + ex.Message);
+            return 1;
+        }
+    }
+
+    private static async Task TestParallelWorkersAsync()
+    {
+        var probe = new ConcurrencyProbe();
+        await using var queue = new TransferQueueService(
+            _ => Task.FromResult<(IFtpSession Session, bool DisposeAfter)>((new ProbeSession(probe), true)),
+            uiContext: null,
+            maxAutomaticRetries: 0,
+            concurrentTransferLimit: 3);
+
+        for (var index = 0; index < 9; index++)
+            queue.EnqueueUpload($"source-{index}", $"/destination-{index}", isDirectory: false);
+
+        var timeout = Stopwatch.StartNew();
+        while (queue.Jobs.Any(job => job.State is TransferState.Queued or TransferState.Running or TransferState.Retrying))
+        {
+            if (timeout.Elapsed > TimeSpan.FromSeconds(10))
+                throw new InvalidOperationException("Parallel transfer queue did not settle within the test timeout.");
+            await Task.Delay(20);
+        }
+
+        if (queue.Jobs.Any(job => job.State != TransferState.Completed))
+            throw new InvalidOperationException("One or more synthetic queue jobs did not complete successfully.");
+        if (queue.ConcurrentTransferLimit != 3)
+            throw new InvalidOperationException("Configured queue concurrency limit was not retained.");
+        if (probe.MaxActive < 2)
+            throw new InvalidOperationException("Transfer queue did not execute jobs concurrently.");
+        if (probe.MaxActive > 3)
+            throw new InvalidOperationException($"Transfer queue exceeded its configured concurrency limit: {probe.MaxActive} active jobs.");
+        if (probe.SessionIds.Count != 9)
+            throw new InvalidOperationException("Synthetic queue jobs did not receive isolated transfer-session instances.");
+    }
+
+    private static async Task TestConcurrencyClampAsync()
+    {
+        await using (var minimum = new TransferQueueService(
+                         _ => throw new InvalidOperationException("Factory must not run in clamp-only test."),
+                         concurrentTransferLimit: 0))
+        {
+            if (minimum.ConcurrentTransferLimit != 1)
+                throw new InvalidOperationException("Transfer queue concurrency minimum was not clamped to one worker.");
+        }
+
+        await using (var maximum = new TransferQueueService(
+                         _ => throw new InvalidOperationException("Factory must not run in clamp-only test."),
+                         concurrentTransferLimit: 100))
+        {
+            if (maximum.ConcurrentTransferLimit != 8)
+                throw new InvalidOperationException("Transfer queue concurrency maximum was not clamped to eight workers.");
+        }
+    }
+
+    private sealed class ConcurrencyProbe
+    {
+        private int _active;
+        private int _maxActive;
+        private readonly object _sync = new();
+        private readonly HashSet<Guid> _sessionIds = [];
+
+        public int MaxActive => Volatile.Read(ref _maxActive);
+
+        public IReadOnlyCollection<Guid> SessionIds
+        {
+            get
+            {
+                lock (_sync)
+                    return _sessionIds.ToArray();
+            }
+        }
+
+        public void Register(Guid sessionId)
+        {
+            lock (_sync)
+                _sessionIds.Add(sessionId);
+        }
+
+        public async Task RunAsync(CancellationToken cancellationToken)
+        {
+            var active = Interlocked.Increment(ref _active);
+            while (true)
+            {
+                var observed = Volatile.Read(ref _maxActive);
+                if (active <= observed || Interlocked.CompareExchange(ref _maxActive, active, observed) == observed)
+                    break;
+            }
+
+            try
+            {
+                await Task.Delay(140, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _active);
+            }
+        }
+    }
+
+    private sealed class ProbeSession : IFtpSession
+    {
+        private readonly ConcurrencyProbe _probe;
+        private readonly Guid _id = Guid.NewGuid();
+        private bool _disposed;
+
+        public ProbeSession(ConcurrencyProbe probe)
+        {
+            _probe = probe;
+            _probe.Register(_id);
+        }
+
+        public bool IsConnected => !_disposed;
+        public bool IsEncrypted => true;
+        public string Host => "queue-self-test.local";
+        public string WorkingDirectory => "/";
+
+        public Task ConnectAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return Task.CompletedTask;
+        }
+
+        public Task DisconnectAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<FtpEntry>> ListAsync(string remotePath, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<FtpEntry>>([]);
+
+        public Task<string> GetWorkingDirectoryAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult("/");
+
+        public Task ChangeDirectoryAsync(string remotePath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task CreateDirectoryAsync(string remotePath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task RenameAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteFileAsync(string remotePath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteDirectoryAsync(string remotePath, bool recursive, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public async Task DownloadFileAsync(
+            string remotePath,
+            string localPath,
+            IProgress<(long transferred, long? total)>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            await _probe.RunAsync(cancellationToken);
+            progress?.Report((1, 1));
+        }
+
+        public async Task UploadFileAsync(
+            string localPath,
+            string remotePath,
+            IProgress<(long transferred, long? total)>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            await _probe.RunAsync(cancellationToken);
+            progress?.Report((1, 1));
+        }
+
+        public Task DownloadDirectoryAsync(
+            string remotePath,
+            string localDirectory,
+            IProgress<(long transferred, long? total)>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            DownloadFileAsync(remotePath, localDirectory, progress, cancellationToken);
+
+        public Task UploadDirectoryAsync(
+            string localDirectory,
+            string remotePath,
+            IProgress<(long transferred, long? total)>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            UploadFileAsync(localDirectory, remotePath, progress, cancellationToken);
+
+        public ValueTask DisposeAsync()
+        {
+            _disposed = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+}
