@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ghostftp-ui-capture-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
@@ -64,5 +68,5 @@ jobs:
             Write-Host "Authentic Ghost FTP screenshots are already current."
             exit 0
           }
-          git commit -m "Refresh authentic Ghost FTP UI screenshots [skip ci]"
+          git commit -m "Refresh authentic Ghost FTP UI screenshots"
           git push origin HEAD:${{ github.ref_name }}
