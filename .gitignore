@@ -8,3 +8,10 @@ Data/
 *.user
 *.suo
 *.ghostftp.part
+
+# Private signing material must never be committed.
+*.pfx
+*.p12
+*.pem
+*.key
+signing/

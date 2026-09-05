@@ -13,10 +13,10 @@ public sealed partial class MainWindow
     private UIElement BuildLayout()
     {
         var root = new Grid { Background = Brushes.Transparent };
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
 
         var menu = BuildTopMenu();
         Grid.SetRow(menu, 0);
@@ -26,38 +26,33 @@ public sealed partial class MainWindow
         Grid.SetRow(toolbar, 1);
         root.Children.Add(toolbar);
 
-        _workspaceBody = new Grid { Margin = new Thickness(10, 8, 10, 8) };
-        _workspaceBody.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(252) });
-        _workspaceBody.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        _workspaceBody.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _workspaceContent = new Grid { Margin = new Thickness(8, 6, 8, 6) };
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(126), MinHeight = 82, MaxHeight = 220 });
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(7) });
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(7) });
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 250 });
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(7) });
+        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(198), MinHeight = 128, MaxHeight = 440 });
 
-        var sidebar = BuildSidebar();
-        Grid.SetColumn(sidebar, 0);
-        _workspaceBody.Children.Add(sidebar);
+        var log = BuildConnectionLog();
+        Grid.SetRow(log, 0);
+        _workspaceContent.Children.Add(log);
 
-        _workspaceContent = new Grid();
-        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(154) });
-        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
-        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
-        _workspaceContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(210) });
-
-        var connectionStrip = BuildConnectionStrip();
-        Grid.SetRow(connectionStrip, 0);
-        _workspaceContent.Children.Add(connectionStrip);
+        var quickConnect = BuildQuickConnect();
+        Grid.SetRow(quickConnect, 2);
+        _workspaceContent.Children.Add(quickConnect);
 
         var panes = BuildFilePanes();
-        Grid.SetRow(panes, 2);
+        Grid.SetRow(panes, 4);
         _workspaceContent.Children.Add(panes);
 
         var transfers = BuildTransfers();
-        Grid.SetRow(transfers, 4);
+        Grid.SetRow(transfers, 6);
         _workspaceContent.Children.Add(transfers);
 
-        Grid.SetColumn(_workspaceContent, 2);
-        _workspaceBody.Children.Add(_workspaceContent);
-        Grid.SetRow(_workspaceBody, 2);
-        root.Children.Add(_workspaceBody);
+        Grid.SetRow(_workspaceContent, 2);
+        root.Children.Add(_workspaceContent);
 
         var status = BuildStatusBar();
         Grid.SetRow(status, 3);
@@ -73,7 +68,7 @@ public sealed partial class MainWindow
             Foreground = GhostTheme.R("Text"),
             BorderBrush = GhostTheme.R("Border"),
             BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(8, 0, 8, 0),
+            Padding = new Thickness(7, 0, 7, 0),
             FontFamily = GhostTheme.UiFont,
             FontSize = 12.5
         };
@@ -127,7 +122,7 @@ public sealed partial class MainWindow
     {
         Header = header,
         Foreground = GhostTheme.R("Text"),
-        Padding = new Thickness(10, 5, 10, 5)
+        Padding = new Thickness(10, 4, 10, 4)
     };
 
     private static MenuItem ActionMenuItem(string header, RoutedEventHandler handler)
@@ -139,7 +134,23 @@ public sealed partial class MainWindow
 
     private Border BuildMainToolbar()
     {
-        var toolbar = new WrapPanel { Margin = new Thickness(10, 7, 10, 2) };
+        var dock = new DockPanel { LastChildFill = true };
+
+        var identity = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 16, 0)
+        };
+        identity.Children.Add(GhostBrand.IconControl(30));
+        var identityText = new StackPanel { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        identityText.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 13.5, weight: FontWeights.SemiBold));
+        identityText.Children.Add(GhostTheme.Text($"{GhostBrand.ReleaseChannelDisplay} · local-first", 9, muted: true));
+        identity.Children.Add(identityText);
+        DockPanel.SetDock(identity, Dock.Left);
+        dock.Children.Add(identity);
+
+        var toolbar = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
         toolbar.Children.Add(ToolButton($"⚡ {L("Connect")}", ConnectAsync, primary: true));
         toolbar.Children.Add(ToolButton($"⏻ {L("Disconnect")}", DisconnectAsync));
         toolbar.Children.Add(ToolButton($"↑ {L("Upload")}", QueueUploadSelected));
@@ -149,48 +160,31 @@ public sealed partial class MainWindow
             RefreshLocal();
             if (IsConnected) await RefreshRemoteAsync();
         }));
-        toolbar.Children.Add(ToolButton($"＋ {L("NewFolder")}", NewLocalFolder));
-        toolbar.Children.Add(ToolButton($"✎ {L("Rename")}", RenameLocalSelected));
-        toolbar.Children.Add(ToolButton($"⌫ {L("Delete")}", DeleteLocalSelected, danger: true));
         toolbar.Children.Add(ToolButton("▣ Site Manager", OpenSiteManagerAsync));
         toolbar.Children.Add(ToolButton($"⚙ {L("Settings")}", OpenSettingsAsync));
         toolbar.Children.Add(ToolButton("◉ Diagnostics", ShowConnectionDiagnosticsAsync));
-        return GhostTheme.Surface(toolbar, new Thickness(6), 0);
-    }
+        dock.Children.Add(toolbar);
 
-    private Grid BuildConnectionStrip()
-    {
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var log = BuildConnectionLog();
-        Grid.SetColumn(log, 0);
-        grid.Children.Add(log);
-
-        var quick = BuildQuickConnect();
-        Grid.SetColumn(quick, 2);
-        grid.Children.Add(quick);
-        return grid;
+        return GhostTheme.Surface(dock, new Thickness(9, 6, 9, 5), 0);
     }
 
     private Border BuildConnectionLog()
     {
         var dock = new DockPanel();
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var heading = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        heading.Children.Add(GhostTheme.Text("Connection Log", 14, weight: FontWeights.SemiBold));
-        var privacy = GhostTheme.Text("  local session activity", 10, muted: true);
+        heading.Children.Add(GhostTheme.Text("Connection Log", 13.5, weight: FontWeights.SemiBold));
+        var privacy = GhostTheme.Text("  local session activity · credentials never logged", 9.5, muted: true);
         privacy.VerticalAlignment = VerticalAlignment.Center;
         heading.Children.Add(privacy);
         header.Children.Add(heading);
 
         var clear = GhostTheme.Button("Clear", subtle: true);
-        clear.Padding = new Thickness(10, 4, 10, 4);
+        clear.Padding = new Thickness(9, 3, 9, 3);
+        clear.MinHeight = 25;
         clear.Click += (_, _) => _connectionLog.Clear();
         Grid.SetColumn(clear, 1);
         header.Children.Add(clear);
@@ -202,122 +196,63 @@ public sealed partial class MainWindow
         _connectionLogList.Foreground = GhostTheme.R("Text");
         _connectionLogList.BorderBrush = GhostTheme.R("Border");
         _connectionLogList.BorderThickness = new Thickness(1);
-        _connectionLogList.FontFamily = new FontFamily("Cascadia Mono");
+        _connectionLogList.FontFamily = new FontFamily("Cascadia Mono, Consolas");
         _connectionLogList.FontSize = 10.5;
-        _connectionLogList.Padding = new Thickness(8, 4, 8, 4);
+        _connectionLogList.Padding = new Thickness(7, 3, 7, 3);
         _connectionLogList.SelectionMode = SelectionMode.Single;
         ScrollViewer.SetHorizontalScrollBarVisibility(_connectionLogList, ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_connectionLogList, ScrollBarVisibility.Auto);
         dock.Children.Add(_connectionLogList);
 
-        return GhostTheme.Card(dock, new Thickness(12), 12);
-    }
-
-    private Border BuildSidebar()
-    {
-        var root = new DockPanel();
-
-        var brand = new StackPanel { Margin = new Thickness(2, 2, 2, 16) };
-        var logoRow = new StackPanel { Orientation = Orientation.Horizontal };
-        logoRow.Children.Add(GhostBrand.IconControl(42));
-        var brandText = new StackPanel { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        brandText.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 18, weight: FontWeights.SemiBold));
-        brandText.Children.Add(GhostTheme.Text(L("PrivateFileTransfer"), 10, muted: true));
-        logoRow.Children.Add(brandText);
-        brand.Children.Add(logoRow);
-        DockPanel.SetDock(brand, Dock.Top);
-        root.Children.Add(brand);
-
-        var bottom = new StackPanel { Margin = new Thickness(0, 14, 0, 0) };
-        var settings = GhostTheme.Button($"⚙  {L("Settings")}", subtle: true);
-        settings.HorizontalContentAlignment = HorizontalAlignment.Left;
-        settings.Click += async (_, _) => await OpenSettingsAsync();
-        var about = GhostTheme.Button($"ⓘ  {L("About")} {GhostBrand.DisplayName}", subtle: true);
-        about.HorizontalContentAlignment = HorizontalAlignment.Left;
-        about.Margin = new Thickness(0, 3, 0, 0);
-        about.Click += (_, _) => new AboutDialog(this).ShowDialog();
-        bottom.Children.Add(settings);
-        bottom.Children.Add(about);
-        var privacyNote = GhostTheme.Text(L("NoTelemetryTracking"), 9.5, muted: true);
-        privacyNote.Margin = new Thickness(10, 8, 0, 0);
-        bottom.Children.Add(privacyNote);
-        DockPanel.SetDock(bottom, Dock.Bottom);
-        root.Children.Add(bottom);
-
-        var servers = new DockPanel();
-        var heading = new Grid { Margin = new Thickness(2, 0, 2, 8) };
-        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var title = new StackPanel();
-        title.Children.Add(GhostTheme.Text(L("SavedServers"), 12.5, weight: FontWeights.SemiBold));
-        title.Children.Add(GhostTheme.Text("Double-click to connect", 9.5, muted: true));
-        heading.Children.Add(title);
-        var add = GhostTheme.Button("＋", subtle: true);
-        add.ToolTip = L("Add");
-        add.MinWidth = 32;
-        add.Click += async (_, _) => await AddProfileAsync();
-        Grid.SetColumn(add, 1);
-        heading.Children.Add(add);
-        DockPanel.SetDock(heading, Dock.Top);
-        servers.Children.Add(heading);
-
-        var actions = new StackPanel { Margin = new Thickness(2, 8, 2, 0) };
-        var manager = GhostTheme.Button("Site Manager", primary: true);
-        manager.Click += async (_, _) => await OpenSiteManagerAsync();
-        actions.Children.Add(manager);
-
-        var editRow = new Grid { Margin = new Thickness(0, 7, 0, 0) };
-        editRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        editRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
-        editRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var edit = GhostTheme.Button(L("Edit"));
-        edit.Click += async (_, _) => await EditSelectedProfileAsync();
-        var remove = GhostTheme.Button(L("Remove"), danger: true);
-        remove.Click += async (_, _) => await RemoveSelectedProfileAsync();
-        Grid.SetColumn(edit, 0);
-        Grid.SetColumn(remove, 2);
-        editRow.Children.Add(edit);
-        editRow.Children.Add(remove);
-        actions.Children.Add(editRow);
-        DockPanel.SetDock(actions, Dock.Bottom);
-        servers.Children.Add(actions);
-
-        _profilesList.Background = Brushes.Transparent;
-        _profilesList.BorderThickness = new Thickness(0);
-        _profilesList.Foreground = GhostTheme.R("Text");
-        _profilesList.FontFamily = GhostTheme.UiFont;
-        _profilesList.FontSize = 12.5;
-        _profilesList.DisplayMemberPath = nameof(ServerProfile.Name);
-        _profilesList.ItemsSource = _profiles;
-        _profilesList.Padding = new Thickness(0);
-        servers.Children.Add(_profilesList);
-
-        root.Children.Add(servers);
-        return GhostTheme.Card(root, new Thickness(14), 14);
+        return GhostTheme.Card(dock, new Thickness(9), 9);
     }
 
     private Border BuildQuickConnect()
     {
         var root = new StackPanel();
-        var heading = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var title = new StackPanel();
-        title.Children.Add(GhostTheme.Text(L("QuickConnect"), 14, weight: FontWeights.SemiBold));
-        title.Children.Add(GhostTheme.Text("Explicit FTPS recommended", 9.5, muted: true));
-        heading.Children.Add(title);
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        title.Children.Add(GhostTheme.Text(L("QuickConnect"), 13.5, weight: FontWeights.SemiBold));
+        title.Children.Add(GhostTheme.Text("FTPS Explicit recommended", 9, muted: true));
+        Grid.SetColumn(title, 0);
+        header.Children.Add(title);
+
+        _profilesList.ToolTip = "Saved sites on this device";
+        Grid.SetColumn(_profilesList, 2);
+        header.Children.Add(_profilesList);
+
+        var add = ToolButton("＋", AddProfileAsync);
+        add.ToolTip = L("Add");
+        add.MinWidth = 34;
+        Grid.SetColumn(add, 4);
+        header.Children.Add(add);
+
+        var manager = ToolButton("▣ Site Manager", OpenSiteManagerAsync);
+        Grid.SetColumn(manager, 6);
+        header.Children.Add(manager);
+
         var securityBadge = GhostTheme.Badge("TLS first", "SuccessSoft", "Text");
         securityBadge.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(securityBadge, 1);
-        heading.Children.Add(securityBadge);
-        root.Children.Add(heading);
+        Grid.SetColumn(securityBadge, 8);
+        header.Children.Add(securityBadge);
+        root.Children.Add(header);
 
         var rowOne = new Grid();
         rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(74) });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) });
         rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(172) });
         var host = GhostTheme.Field(L("Host"), _host);
         var port = GhostTheme.Field(L("Port"), _port);
         var security = GhostTheme.Field(L("Security"), _security);
@@ -329,7 +264,7 @@ public sealed partial class MainWindow
         rowOne.Children.Add(security);
         root.Children.Add(rowOne);
 
-        var rowTwo = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        var rowTwo = new Grid { Margin = new Thickness(0, 7, 0, 0) };
         rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
         rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -343,8 +278,8 @@ public sealed partial class MainWindow
         rowTwo.Children.Add(password);
 
         var connectActions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom };
-        _connectButton.MinWidth = 92;
-        _disconnectButton.MinWidth = 92;
+        _connectButton.MinWidth = 96;
+        _disconnectButton.MinWidth = 96;
         _disconnectButton.Margin = new Thickness(6, 0, 0, 0);
         _disconnectButton.Visibility = Visibility.Collapsed;
         connectActions.Children.Add(_connectButton);
@@ -353,14 +288,14 @@ public sealed partial class MainWindow
         rowTwo.Children.Add(connectActions);
         root.Children.Add(rowTwo);
 
-        return GhostTheme.Card(root, new Thickness(12), 12);
+        return GhostTheme.Card(root, new Thickness(9), 9);
     }
 
     private Grid BuildFilePanes()
     {
         _filePanesGrid = new Grid();
         _filePanesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _filePanesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        _filePanesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7) });
         _filePanesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var local = BuildPane(L("Local"), L("ThisPc"), _localPathBox, _localFilter, _localList, _localSummary, false);
@@ -376,33 +311,50 @@ public sealed partial class MainWindow
     {
         var dock = new DockPanel();
 
-        var footer = new Grid { Margin = new Thickness(0, 7, 0, 0) };
+        var footer = new Grid { Margin = new Thickness(0, 5, 0, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         footer.Children.Add(summary);
-        var hint = GhostTheme.Text(isRemote ? "Double-click folder · file downloads" : "Double-click folder to open", 9.5, muted: true);
+        var hint = GhostTheme.Text(isRemote ? "Double-click folder · double-click file downloads" : "Double-click folder or file to open", 9, muted: true);
         Grid.SetColumn(hint, 1);
         footer.Children.Add(hint);
         DockPanel.SetDock(footer, Dock.Bottom);
         dock.Children.Add(footer);
 
         var header = new StackPanel();
-        var titleRow = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        var titleRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         titleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var titleBlock = new StackPanel { Orientation = Orientation.Horizontal };
-        titleBlock.Children.Add(GhostTheme.Text(title, 15, weight: FontWeights.SemiBold));
+        var titleBlock = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        titleBlock.Children.Add(GhostTheme.Text(title, 14.5, weight: FontWeights.SemiBold));
         var sub = GhostTheme.Text($"  {subtitle}", 9.5, muted: true);
         sub.VerticalAlignment = VerticalAlignment.Center;
         titleBlock.Children.Add(sub);
         titleRow.Children.Add(titleBlock);
+
+        if (!isRemote)
+        {
+            var quick = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+            quick.Children.Add(SmallNavButton(L("Desktop"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
+            quick.Children.Add(SmallNavButton(L("Documents"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)));
+            quick.Children.Add(SmallNavButton(L("Downloads"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
+            Grid.SetColumn(quick, 1);
+            titleRow.Children.Add(quick);
+        }
+        else
+        {
+            var remoteBadge = GhostTheme.Badge("Server", "AccentSoft", "Text");
+            remoteBadge.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(remoteBadge, 1);
+            titleRow.Children.Add(remoteBadge);
+        }
         header.Children.Add(titleRow);
 
-        var pathRow = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        var pathRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
         pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         Button up;
@@ -426,16 +378,7 @@ public sealed partial class MainWindow
         pathRow.Children.Add(home);
         header.Children.Add(pathRow);
 
-        if (!isRemote)
-        {
-            var quick = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-            quick.Children.Add(SmallNavButton(L("Desktop"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)));
-            quick.Children.Add(SmallNavButton(L("Documents"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)));
-            quick.Children.Add(SmallNavButton(L("Downloads"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
-            header.Children.Add(quick);
-        }
-
-        var toolbar = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+        var toolbar = new WrapPanel { Margin = new Thickness(0, 0, 0, 5) };
         if (isRemote)
         {
             toolbar.Children.Add(ToolButton($"↓ {L("Download")}", QueueDownloadSelected, primary: true));
@@ -454,9 +397,9 @@ public sealed partial class MainWindow
         }
         header.Children.Add(toolbar);
 
-        var filterRow = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        var filterRow = new Grid { Margin = new Thickness(0, 0, 0, 5) };
         filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+        filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
         filterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         filter.ToolTip = L("FilterTooltip");
         Grid.SetColumn(filter, 0);
@@ -480,18 +423,18 @@ public sealed partial class MainWindow
         ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Auto);
         dock.Children.Add(list);
 
-        return GhostTheme.Card(dock, new Thickness(11), 12);
+        return GhostTheme.Card(dock, new Thickness(9), 9);
     }
 
     private Border BuildTransfers()
     {
         var dock = new DockPanel();
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(GhostTheme.Text(L("Transfers"), 14, weight: FontWeights.SemiBold));
+        left.Children.Add(GhostTheme.Text(L("Transfers"), 13.5, weight: FontWeights.SemiBold));
         _queueSummary.Margin = new Thickness(10, 0, 0, 0);
         left.Children.Add(_queueSummary);
         header.Children.Add(left);
@@ -500,13 +443,13 @@ public sealed partial class MainWindow
         var retry = GhostTheme.Button(L("RetrySelected"));
         retry.Click += (_, _) => RetrySelectedTransfers();
         var cancel = GhostTheme.Button(L("CancelSelected"));
-        cancel.Margin = new Thickness(6, 0, 0, 0);
+        cancel.Margin = new Thickness(5, 0, 0, 0);
         cancel.Click += (_, _) => CancelSelectedTransfer();
         var cancelAll = GhostTheme.Button(L("CancelAll"));
-        cancelAll.Margin = new Thickness(6, 0, 0, 0);
+        cancelAll.Margin = new Thickness(5, 0, 0, 0);
         cancelAll.Click += (_, _) => CancelAllTransfers();
         var clear = GhostTheme.Button(L("ClearFinished"));
-        clear.Margin = new Thickness(6, 0, 0, 0);
+        clear.Margin = new Thickness(5, 0, 0, 0);
         clear.Click += (_, _) =>
         {
             _queue?.ClearFinished();
@@ -529,7 +472,7 @@ public sealed partial class MainWindow
         _queueList.FontSize = 11.5;
         ScrollViewer.SetHorizontalScrollBarVisibility(_queueList, ScrollBarVisibility.Disabled);
         dock.Children.Add(_queueList);
-        return GhostTheme.Card(dock, new Thickness(11), 12);
+        return GhostTheme.Card(dock, new Thickness(9), 9);
     }
 
     private Border BuildStatusBar()
@@ -538,17 +481,17 @@ public sealed partial class MainWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var left = GhostTheme.Text("No telemetry · No tracking · local profiles stay on this device", 9.5, muted: true);
+        var left = GhostTheme.Text($"{GhostBrand.DisplayName} {GhostBrand.InformationalVersion} · no telemetry · no tracking · local profiles stay on this device", 9, muted: true);
         left.VerticalAlignment = VerticalAlignment.Center;
-        left.Margin = new Thickness(12, 0, 0, 0);
+        left.Margin = new Thickness(10, 0, 0, 0);
         grid.Children.Add(left);
 
         _statusBadge.CornerRadius = new CornerRadius(999);
-        _statusBadge.Padding = new Thickness(10, 3, 10, 3);
+        _statusBadge.Padding = new Thickness(9, 2, 9, 2);
         _statusBadge.Background = GhostTheme.R("Surface2");
         _statusBadge.Child = _statusText;
         _statusBadge.VerticalAlignment = VerticalAlignment.Center;
-        _statusBadge.Margin = new Thickness(0, 0, 12, 0);
+        _statusBadge.Margin = new Thickness(0, 0, 10, 0);
         Grid.SetColumn(_statusBadge, 1);
         grid.Children.Add(_statusBadge);
         return GhostTheme.Surface(grid, new Thickness(0), 0);
@@ -557,9 +500,9 @@ public sealed partial class MainWindow
     private Button SmallNavButton(string text, string path)
     {
         var button = GhostTheme.Button(text, subtle: true);
-        button.Margin = new Thickness(0, 0, 5, 0);
-        button.Padding = new Thickness(8, 3, 8, 3);
-        button.MinHeight = 26;
+        button.Margin = new Thickness(0, 0, 4, 0);
+        button.Padding = new Thickness(7, 2, 7, 2);
+        button.MinHeight = 24;
         button.Click += (_, _) => NavigateLocalQuick(path);
         return button;
     }

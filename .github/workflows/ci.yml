@@ -20,7 +20,7 @@ env:
   NUGET_XMLDOC_MODE: skip
 
 jobs:
-  build-self-test-release:
+  windows-build-self-test-release:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -48,10 +48,10 @@ jobs:
       - name: Restore
         run: dotnet restore GhostFTP.sln
 
-      - name: Build
+      - name: Build Windows solution plus Linux compile target
         run: dotnet build GhostFTP.sln -c Release --no-restore
 
-      - name: Dependency, version, channel, privacy and brand audit
+      - name: Dependency, version, channel, privacy, platform and signing audit
         shell: pwsh
         run: ./audit-source.ps1
 
@@ -84,7 +84,7 @@ jobs:
       - name: Upload authentic UI captures
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}-Authentic-UI
+          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}-Authentic-Windows-UI
           path: artifacts/ui/*.png
           if-no-files-found: error
           retention-days: 30
@@ -119,10 +119,10 @@ jobs:
           }
 
           if ($env:GHOSTFTP_CHANNEL -eq 'stable' -and $env:GHOSTFTP_VERSION -eq '1.0.0') {
-            Write-Host 'Stable 1.0.0 package family verified.'
+            Write-Host 'Stable 1.0.0 Windows package family verified.'
           }
           else {
-            Write-Host "Verified Ghost FTP $env:GHOSTFTP_VERSION $env:GHOSTFTP_CHANNEL package family."
+            Write-Host "Verified Ghost FTP $env:GHOSTFTP_VERSION $env:GHOSTFTP_CHANNEL Windows package family."
           }
 
       - name: Upload verified Windows packages
@@ -130,5 +130,97 @@ jobs:
         with:
           name: GhostFTP-Windows-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
           path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+  linux-build-self-test-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Load version and release channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n ' < VERSION)"
+          channel="$(tr '[:upper:]' '[:lower:]' < RELEASE_CHANNEL | tr -d '\r\n ')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION: $version" >&2; exit 1; }
+          [[ "$channel" == "beta" || "$channel" == "stable" ]] || { echo "Invalid RELEASE_CHANNEL: $channel" >&2; exit 1; }
+          if [[ "${version%%.*}" == "0" && "$channel" != "beta" ]]; then
+            echo 'Every Ghost FTP 0.x build must remain Beta.' >&2
+            exit 1
+          fi
+          echo "GHOSTFTP_VERSION=$version" >> "$GITHUB_ENV"
+          echo "GHOSTFTP_CHANNEL=$channel" >> "$GITHUB_ENV"
+
+      - name: Restore Linux renderer and cross-platform tests
+        shell: bash
+        run: |
+          dotnet restore src/GhostFTP.Linux/GhostFTP.Linux.csproj
+          dotnet restore tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj
+          dotnet restore tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj
+
+      - name: Build Linux desktop client
+        run: dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
+
+      - name: Smoke-test real Linux X11/XWayland renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v xvfb-run >/dev/null || { echo 'xvfb-run is required for the Linux UI quality gate.' >&2; exit 1; }
+          xvfb-run -a timeout 15s dotnet run --project src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-build -- --smoke-test
+
+      - name: Core self-test on Linux
+        run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-restore
+
+      - name: Parallel transfer queue self-test on Linux
+        run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-restore
+
+      - name: Cross-platform source audit
+        shell: pwsh
+        run: ./audit-source.ps1
+
+      - name: Build self-contained Linux x64 and ARM64 packages
+        shell: bash
+        run: |
+          chmod +x ./build-linux-release.sh
+          ./build-linux-release.sh
+
+      - name: Verify Linux release assets, checksums and packaged x64 runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            release-linux/GhostFTP-linux-x64
+            release-linux/GhostFTP-linux-arm64
+            release-linux/GhostFTP-linux-x64.tar.gz
+            release-linux/GhostFTP-linux-arm64.tar.gz
+            release-linux/GhostFTP-${GHOSTFTP_VERSION}-${GHOSTFTP_CHANNEL}-linux-x64.tar.gz
+            release-linux/GhostFTP-${GHOSTFTP_VERSION}-${GHOSTFTP_CHANNEL}-linux-arm64.tar.gz
+            release-linux/SHA256SUMS-linux.txt
+            release-linux/BUILD-INFO.txt
+          )
+          for path in "${required[@]}"; do
+            [[ -s "$path" ]] || { echo "Missing/empty Linux release asset: $path" >&2; exit 1; }
+          done
+          [[ -x release-linux/GhostFTP-linux-x64 ]] || { echo 'linux-x64 binary is not executable.' >&2; exit 1; }
+          [[ -x release-linux/GhostFTP-linux-arm64 ]] || { echo 'linux-arm64 binary is not executable.' >&2; exit 1; }
+          (cd release-linux && sha256sum -c SHA256SUMS-linux.txt)
+          file release-linux/GhostFTP-linux-x64
+          file release-linux/GhostFTP-linux-arm64
+          xvfb-run -a timeout 15s release-linux/GhostFTP-linux-x64 --smoke-test
+
+      - name: Upload verified Linux packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: GhostFTP-Linux-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
+          path: release-linux/*
           if-no-files-found: error
           retention-days: 30

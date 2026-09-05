@@ -1,8 +1,6 @@
 # Ghost FTP platform support
 
-This document defines the shipping platform contract for the current **Ghost FTP 0.1.0 Beta** public line. It exists to prevent documentation, release assets and source layout from claiming platform support that the repository cannot actually build and validate.
-
-The public version-number reset does not remove platform work already completed during the preserved internal-development history. Platform claims remain based on code and validation, not on the version number alone.
+This document defines the shipping platform contract for the current **Ghost FTP 0.1.0 Beta** public line. Platform claims are based on source, build validation and actual release assets—not on naming alone.
 
 ## Release-channel context
 
@@ -13,99 +11,68 @@ VERSION=0.1.0
 RELEASE_CHANNEL=beta
 ```
 
-Every public `0.x.y` build remains Beta. The first fully stable product release is reserved for **1.0.0**. A platform must not be described as stable merely because a Beta package can be built for it.
+Every public `0.x.y` build remains Beta. The first stable product release is reserved for **1.0.0**. A platform must not be described as stable merely because a Beta package can be built for it.
 
-The `portable.exe` and `setup.exe` family reaches stable 1.0.0 status only when the Windows production target passes the complete stable release gate documented in `docs/RELEASE-POLICY.md` and `docs/VERSIONING.md`.
+## Shared FTP / FTPS engine
 
-## Current production desktop target
+`src/GhostFTP.Core` targets plain `net10.0` and is shared by both desktop renderers.
 
-### Windows
+Shared behavior includes:
 
-**Status: supported production desktop implementation; current public packages are Beta until 1.0.0.**
+- FTP;
+- explicit FTPS (`AUTH TLS`);
+- implicit FTPS;
+- TLS 1.2 / TLS 1.3 through .NET;
+- normal certificate-chain and hostname validation;
+- EPSV preference with PASV fallback;
+- UTF-8 negotiation;
+- MLSD with LIST fallback;
+- bounded parsing and traversal;
+- create / rename / delete operations;
+- recursive upload / download;
+- resumable downloads where supported;
+- transfer queue, retry and cancellation policy;
+- path and command-injection guards;
+- server-only keepalive and diagnostics.
 
-The shipping GUI is `src/GhostFTP.App`, built with C# / .NET 10 / WPF. The guided installer/maintenance application is `src/GhostFTP.Setup`, also WPF.
+The FTP implementation is not duplicated per operating system.
+
+## Shared desktop reference
+
+Windows, Windows portable mode, Windows Setup and Linux use the same Ghost FTP reference palette and information hierarchy. The canonical design tokens live in `src/GhostFTP.Design/GhostReferencePalette.cs`.
+
+The normal workstation hierarchy is:
+
+```text
+permanent left rail
+→ menu
+→ global action toolbar
+→ Connection Log + Quick Connect
+→ Local + Remote file panes
+→ Transfers
+→ compact status/privacy state
+```
+
+The approved normal-desktop geometry uses a 292 px left rail, 38 px menu and 70 px toolbar. Windows and Linux consume the same reference colors rather than maintaining unrelated visual identities. Setup uses the same palette and control language while retaining its installer-specific workflow.
+
+The installed Windows application and `portable.exe` are packaging modes of the same `GhostFTP.App` renderer. Portable mode may change local data paths, but it must not change the application UI, FTP behavior, privacy rules or security controls.
+
+See `docs/UI-PARITY.md` for the complete visual contract and validation rules.
+
+## Windows
+
+**Status: supported desktop implementation; public packages remain Beta during the 0.x line.**
+
+The Windows GUI is `src/GhostFTP.App`, built with C# / .NET 10 / WPF. The guided installer and maintenance application is `src/GhostFTP.Setup`.
 
 Supported release architectures:
 
-- Windows x64
-- Windows ARM64
+- Windows x64;
+- Windows ARM64.
 
-The Windows application uses platform facilities intentionally, including WPF, DPAPI, DWM/Mica integration, Windows shell integration and Installed Apps registration.
+Windows intentionally uses platform facilities including WPF, DPAPI, DWM integration, shell integration and Installed Apps registration.
 
-For the current 0.1.0 Beta line, Windows executable file versions use `0.1.0.0`. When Ghost FTP reaches the first stable release, the canonical x64/ARM64 client and Setup packages must use matching `1.0.0.0` metadata.
-
-## Shared FTP/FTPS engine
-
-`src/GhostFTP.Core` targets plain `net10.0` and contains the protocol/session/queue model independently of WPF.
-
-Core responsibilities include:
-
-- FTP, explicit FTPS and implicit FTPS;
-- TLS 1.2/1.3 through .NET;
-- EPSV with PASV fallback;
-- MLSD with LIST fallback;
-- bounded parser/reply/traversal handling;
-- upload/download directory traversal;
-- download resume and integrity checks;
-- rollback-safe remote replacement;
-- transfer queue and retry policy;
-- input/path safety guards.
-
-This separation is deliberate so future desktop renderers do not need to fork the protocol engine.
-
-## Linux
-
-**Status: core-capable, GUI distribution not yet claimed.**
-
-WPF does not run as a native Linux desktop UI. The current repository also enforces a zero-third-party-`PackageReference` shipping policy. Consequently, Ghost FTP does not claim that the existing WPF application is a Linux application and does not relabel a Windows build as Linux-compatible.
-
-A production Linux desktop release must meet all of these requirements before it is advertised:
-
-1. reuse the same `GhostFTP.Core` protocol engine rather than introducing a second FTP implementation;
-2. provide the same major workspace model: Saved Sites, Site Manager, Quick Connect, Connection Log where appropriate, Local/Remote panes, transfer queue, settings, dialogs and keyboard workflows;
-3. preserve English as the primary language plus the same supported localization catalog;
-4. provide secure local credential protection appropriate to Linux without writing plaintext passwords by default;
-5. retain strict TLS certificate validation with no unsafe bypass;
-6. contain no telemetry, advertising, tracking SDK or background cloud dependency;
-7. have a reproducible build and Linux-specific smoke/integration tests;
-8. publish architecture-explicit packages and SHA-256 checksums;
-9. document unavoidable platform-specific visual differences instead of claiming false pixel identity;
-10. participate in the same Beta/stable version contract rather than inventing an independent stable version number.
-
-Because the current constraints prohibit external UI/runtime dependencies, the Linux renderer requires an explicit architectural decision before implementation. That decision must not silently weaken the zero-dependency policy.
-
-A Linux GUI is **not** required merely to reach Windows stable 1.0.0 unless product scope is explicitly changed before that milestone. Stable 1.0.0 claims only the platforms actually implemented, tested and documented at that time.
-
-## Android and iOS
-
-**Status: not supported and not shipping.**
-
-Ghost FTP is currently a desktop product. Android and iOS application projects are not part of the shipping source tree and should not be added to release packaging, documentation or quality gates unless product scope is deliberately changed in a future version.
-
-The repository must not contain stale mobile build outputs, mobile release packages or documentation that implies an Android/iOS client currently exists.
-
-The move from 0.x Beta to 1.0.0 stable does not automatically create Android/iOS support.
-
-## Parity policy
-
-“Parity” means equivalent user capability and safety guarantees, not pretending that operating systems expose identical native APIs.
-
-Features that must stay behaviorally aligned across desktop renderers include:
-
-- profile model and connection validation;
-- FTP/FTPS protocol behavior;
-- transfer queue state model;
-- retry/cancellation semantics;
-- destructive-operation confirmation;
-- localization keys and fallback policy;
-- privacy guarantees;
-- release/version documentation.
-
-Platform-specific code should remain outside `GhostFTP.Core` whenever practical.
-
-## Release artifacts and platform labels
-
-Official package names must correspond to real build targets. Current Windows artifacts include:
+Official Windows release files include:
 
 ```text
 portable.exe
@@ -116,16 +83,113 @@ GhostFTP-Portable-win-x64.exe
 GhostFTP-Setup-win-x64.exe
 GhostFTP-Portable-win-arm64.exe
 GhostFTP-Setup-win-arm64.exe
+SHA256SUMS.txt
+SIGNING.txt
 ```
 
-Do not publish Linux, Android or iOS filenames until an actual target exists and passes its own required validation. Do not reuse a Windows executable with a different filename to imply platform compatibility.
+### Windows code signing
 
-## No external tracking or hidden networking
+The release pipeline supports SHA-256 Authenticode signing using a private PFX supplied only through GitHub Actions secrets. Private signing material is never committed to the repository.
 
-Platform expansion must never be used as a reason to add analytics, telemetry, crash uploading, advertising, automatic profile synchronization or hidden background requests.
+A self-signed development certificate is supported for local signing tests, but it does not create public Windows publisher trust. Stable publisher trust requires an appropriate CA-issued code-signing certificate whose legal publisher identity matches **BRENDIGO LTD**.
 
-Application network traffic remains user-driven FTP/FTPS traffic, documented keepalive/diagnostics against the user-selected server where applicable, plus explicit user-opened product/publisher website links.
+See `docs/CODE-SIGNING.md`.
 
-## Historical note
+## Linux
 
-Earlier internal 1.x development documents may mention platform decisions made before the public version reset. Those records are preserved for traceability. The active public sequence begins at 0.1.0 Beta, but platform support continues to be determined by the current source tree and validation gates.
+**Status: native desktop implementation present; current public Linux packages remain Beta during the 0.x line.**
+
+The Linux desktop client is `src/GhostFTP.Linux`. It uses the same `GhostFTP.Core` engine and shared product/localization/reference-design definitions from `GhostFTP.Design`.
+
+The Linux renderer is implemented directly against the standard X11 client ABI instead of introducing a third-party NuGet UI framework. This preserves the repository's zero-third-party-`PackageReference` shipping rule.
+
+Supported release architectures:
+
+- Linux x64 (`linux-x64`);
+- Linux ARM64 (`linux-arm64`).
+
+The release script is:
+
+```bash
+./build-linux-release.sh
+```
+
+It produces self-contained .NET 10 single-file binaries, user-local install/uninstall helpers, architecture-explicit tarballs and SHA-256 checksums.
+
+Expected Linux release files include:
+
+```text
+GhostFTP-linux-x64
+GhostFTP-linux-arm64
+GhostFTP-linux-x64.tar.gz
+GhostFTP-linux-arm64.tar.gz
+GhostFTP-0.1.0-beta-linux-x64.tar.gz
+GhostFTP-0.1.0-beta-linux-arm64.tar.gz
+SHA256SUMS-linux.txt
+BUILD-INFO.txt
+```
+
+### Linux desktop requirement
+
+Ghost FTP's Linux renderer requires the standard X11 client library (`libX11.so.6`). Native X11 desktops can run it directly. Wayland desktops can run it through XWayland, which is widely available on mainstream desktop distributions.
+
+This is an operating-system desktop library dependency, not a downloaded Ghost FTP framework, analytics SDK or online service.
+
+### Linux credential protection
+
+Linux saved-password support uses AES-256-GCM with a cryptographically random local key stored in the Ghost FTP application-data directory. The key file is restricted to the current user (`0600`) where the filesystem supports Unix permissions.
+
+This prevents plaintext credential storage and detects ciphertext tampering. It is intentionally documented as local file-based protection rather than being misrepresented as equivalent to Windows DPAPI or a hardware-backed secret store.
+
+### Linux workspace parity
+
+The Linux implementation follows the same professional FTP workstation hierarchy and reference palette as the Windows client:
+
+- permanent product/saved-site/privacy rail;
+- top application menu / global actions;
+- Connection Log and Quick Connect side by side at normal desktop width;
+- Local / Remote file panes;
+- create / rename / delete / refresh actions;
+- upload and download queue;
+- transfer progress and cancellation;
+- settings and language selection;
+- local-only persistence;
+- no telemetry or tracking.
+
+The renderer remains native X11/XWayland rather than WPF, so font rasterization, OS window chrome and native text metrics can differ by desktop environment. Those operating-system differences do not permit changing the product palette, feature placement, security model or core workstation hierarchy.
+
+## Android and iOS
+
+**Status: not supported and not shipping.**
+
+Ghost FTP is currently a desktop product. Android and iOS projects are not part of the shipping source tree or release packaging.
+
+## Parity policy
+
+Features that must remain behaviorally aligned across Windows and Linux include:
+
+- profile model and connection validation;
+- FTP / FTPS protocol behavior;
+- TLS validation policy;
+- transfer queue state model;
+- retry / cancellation semantics;
+- destructive-operation safeguards;
+- localization fallback policy;
+- privacy guarantees;
+- reference desktop hierarchy and palette;
+- release/version documentation;
+- no hidden product networking.
+
+Platform-specific UI and OS integration code remains outside `GhostFTP.Core`.
+
+## Privacy and networking
+
+Platform expansion and UI parity work must never be used as a reason to add analytics, telemetry, crash uploading, advertising, automatic profile synchronization, embedded web UI or hidden background requests.
+
+Ghost FTP application network traffic remains user-driven FTP/FTPS traffic, documented keepalive/diagnostics against the user-selected server, plus explicit user-opened website links. Code-signing and release packaging are build-time operations and do not create a runtime signing-service dependency.
+
+## Stable 1.0.0 gate
+
+A stable 1.0.0 platform claim requires the corresponding implementation to build, pass its platform-specific quality gates and publish the documented architecture-explicit assets. Stable Windows releases additionally require trusted Authenticode validation in the release pipeline.
+
+Until those gates are satisfied, all 0.x desktop packages remain explicitly **Beta**.

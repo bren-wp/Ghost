@@ -39,7 +39,7 @@ public sealed class ProfileStore
             {
                 return await ReadProfilesAsync(_filePath, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException)
             {
                 var backup = _filePath + ".bak";
                 if (!File.Exists(backup))
@@ -64,6 +64,13 @@ public sealed class ProfileStore
             {
                 if (profile is null)
                     throw new InvalidDataException("Saved profile collection contains an invalid null entry.");
+
+                // Session-only Quick Connect entries are deliberately memory-only. Filtering
+                // happens here in addition to JsonIgnore on the flag so future callers cannot
+                // accidentally persist the connection definition when saving the collection.
+                if (profile.IsSessionOnly)
+                    continue;
+
                 list.Add(profile.Clone());
                 if (list.Count > MaxProfiles)
                     throw new InvalidOperationException($"Too many saved server profiles. Maximum: {MaxProfiles:N0}.");
@@ -71,7 +78,10 @@ public sealed class ProfileStore
 
             Normalize(list);
             EnsureDemo(list);
-            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            var directory = Path.GetDirectoryName(_filePath) ?? throw new InvalidOperationException("Profile path has no parent directory.");
+            Directory.CreateDirectory(directory);
+            PrivateFilePermissions.TryHardenDirectory(directory);
+
             var temp = _filePath + ".tmp-" + Guid.NewGuid().ToString("N");
             try
             {
@@ -90,19 +100,22 @@ public sealed class ProfileStore
                 if (new FileInfo(temp).Length > MaxProfileFileBytes)
                     throw new InvalidDataException("Saved profile data exceeds the supported size limit.");
 
-                if (File.Exists(_filePath))
-                {
-                    var backup = _filePath + ".bak";
-                    File.Replace(temp, _filePath, backup, ignoreMetadataErrors: true);
-                }
-                else
-                {
-                    File.Move(temp, _filePath);
-                }
+                PrivateFilePermissions.TryHardenFile(temp);
+                AtomicFile.Replace(temp, _filePath, _filePath + ".bak");
+                PrivateFilePermissions.TryHardenFile(_filePath);
+                if (File.Exists(_filePath + ".bak"))
+                    PrivateFilePermissions.TryHardenFile(_filePath + ".bak");
             }
             finally
             {
-                try { if (File.Exists(temp)) File.Delete(temp); } catch { }
+                try
+                {
+                    if (File.Exists(temp)) File.Delete(temp);
+                }
+                catch
+                {
+                    // Best-effort temporary-file cleanup.
+                }
             }
         }
         finally
@@ -255,6 +268,7 @@ public sealed class ProfileStore
         profile.Security = FtpSecurityMode.Plain;
         profile.InitialPath = "/";
         profile.IsDemo = true;
+        profile.IsSessionOnly = false;
         profile.RememberPassword = false;
         profile.ProtectedPassword = null;
     }
@@ -274,6 +288,7 @@ public sealed class ProfileStore
         Security = FtpSecurityMode.Plain,
         InitialPath = "/",
         IsDemo = true,
+        IsSessionOnly = false,
         RememberPassword = false
     };
 }

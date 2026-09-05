@@ -1,5 +1,6 @@
 using GhostFTP.Core.Models;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -8,7 +9,8 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
-    private const double DocumentationCaptureScale = 1.5;
+    private const int ReferenceCaptureWidth = 1914;
+    private const int ReferenceCaptureHeight = 907;
 
     private async Task RunDocumentationCaptureAsync()
     {
@@ -17,8 +19,6 @@ public sealed partial class MainWindow
 
         Directory.CreateDirectory(_captureDirectory);
         WindowState = WindowState.Normal;
-        Width = 1600;
-        Height = 960;
         Left = 20;
         Top = 20;
 
@@ -26,6 +26,8 @@ public sealed partial class MainWindow
         if (demo is not null)
         {
             _profilesList.SelectedItem = demo;
+            if (_referenceSitesList is not null)
+                _referenceSitesList.SelectedItem = demo;
             ProfileSelected();
             await ConnectAsync();
         }
@@ -38,9 +40,9 @@ public sealed partial class MainWindow
             ResizeAllColumns();
         }, DispatcherPriority.ApplicationIdle);
 
-        var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
-        CaptureElementToPng(this, clientPath, DocumentationCaptureScale);
-
+        // Capture owned dialogs while the real MainWindow visual tree is still attached.
+        // This avoids reparenting a large reference-sized tree back into the smaller virtual
+        // desktop used by GitHub-hosted runners.
         if (_profileStore is not null)
         {
             var manager = new SiteManagerDialog(
@@ -50,8 +52,26 @@ public sealed partial class MainWindow
             manager.Show();
             await Dispatcher.InvokeAsync(manager.UpdateLayout, DispatcherPriority.ApplicationIdle);
             var managerPath = Path.Combine(_captureDirectory, "ghostftp-site-manager.png");
-            CaptureElementToPng(manager, managerPath, DocumentationCaptureScale);
+            CaptureElementToPng(manager, managerPath);
             manager.Close();
+        }
+
+        var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
+        if (Content is FrameworkElement captureRoot)
+        {
+            // Hosted Windows runners expose a desktop smaller than the canonical 1914x907
+            // workstation viewport. A live Window is therefore constrained to the runner's
+            // work area. Detach the exact compiled production visual tree, allow WPF to finish
+            // the detach, then place that same tree in a non-window staging Grid whose layout
+            // size is the canonical viewport. This performs a real WPF measure/arrange pass at
+            // 1914x907; it does not scale a smaller screenshot and does not create a mock UI.
+            Content = null;
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            CaptureReferenceRootToPng(captureRoot, clientPath);
+        }
+        else
+        {
+            throw new InvalidOperationException("Ghost FTP documentation capture requires a framework root element.");
         }
 
         if (_queue is not null)
@@ -84,22 +104,69 @@ public sealed partial class MainWindow
             _connectionLogList.ScrollIntoView(_connectionLog[^1]);
     }
 
-    private static void CaptureElementToPng(FrameworkElement element, string path, double scale)
+    private static void CaptureReferenceRootToPng(FrameworkElement element, string path)
+    {
+        if (VisualTreeHelper.GetParent(element) is not null)
+            throw new InvalidOperationException("Reference visual must be detached before canonical capture.");
+
+        // Remove only viewport constraints inherited from the previous Window layout. The
+        // production child controls, styles, bindings, commands and data remain untouched.
+        element.Width = double.NaN;
+        element.Height = double.NaN;
+        element.MinWidth = 0;
+        element.MinHeight = 0;
+        element.MaxWidth = double.PositiveInfinity;
+        element.MaxHeight = double.PositiveInfinity;
+        element.HorizontalAlignment = HorizontalAlignment.Stretch;
+        element.VerticalAlignment = VerticalAlignment.Stretch;
+
+        var stagingRoot = new Grid
+        {
+            Width = ReferenceCaptureWidth,
+            Height = ReferenceCaptureHeight,
+            ClipToBounds = true
+        };
+        stagingRoot.Children.Add(element);
+
+        stagingRoot.Measure(new Size(ReferenceCaptureWidth, ReferenceCaptureHeight));
+        stagingRoot.Arrange(new Rect(0, 0, ReferenceCaptureWidth, ReferenceCaptureHeight));
+        stagingRoot.UpdateLayout();
+
+        if (Math.Abs(stagingRoot.ActualWidth - ReferenceCaptureWidth) > 0.5
+            || Math.Abs(stagingRoot.ActualHeight - ReferenceCaptureHeight) > 0.5
+            || Math.Abs(element.ActualWidth - ReferenceCaptureWidth) > 0.5
+            || Math.Abs(element.ActualHeight - ReferenceCaptureHeight) > 0.5)
+        {
+            throw new InvalidOperationException(
+                $"Reference visual did not arrange to {ReferenceCaptureWidth}x{ReferenceCaptureHeight}; " +
+                $"host {stagingRoot.ActualWidth:0.#}x{stagingRoot.ActualHeight:0.#}, " +
+                $"content {element.ActualWidth:0.#}x{element.ActualHeight:0.#}.");
+        }
+
+        var bitmap = new RenderTargetBitmap(
+            ReferenceCaptureWidth,
+            ReferenceCaptureHeight,
+            96d,
+            96d,
+            PixelFormats.Pbgra32);
+        bitmap.Render(stagingRoot);
+        SavePng(bitmap, path);
+
+        stagingRoot.Children.Remove(element);
+    }
+
+    private static void CaptureElementToPng(FrameworkElement element, string path)
     {
         element.UpdateLayout();
-        var dpi = VisualTreeHelper.GetDpi(element);
-        scale = Math.Clamp(scale, 1d, 2d);
-
-        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX * scale));
-        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY * scale));
-        var bitmap = new RenderTargetBitmap(
-            width,
-            height,
-            96d * dpi.DpiScaleX * scale,
-            96d * dpi.DpiScaleY * scale,
-            PixelFormats.Pbgra32);
+        var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth));
+        var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight));
+        var bitmap = new RenderTargetBitmap(width, height, 96d, 96d, PixelFormats.Pbgra32);
         bitmap.Render(element);
+        SavePng(bitmap, path);
+    }
 
+    private static void SavePng(BitmapSource bitmap, string path)
+    {
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);

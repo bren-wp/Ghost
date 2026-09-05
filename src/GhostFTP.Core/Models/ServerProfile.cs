@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace GhostFTP.Core.Models;
 
 public sealed class ServerProfile
@@ -13,6 +15,13 @@ public sealed class ServerProfile
     public string? ProtectedPassword { get; set; }
     public bool IsDemo { get; set; }
 
+    /// <summary>
+    /// Keeps an ad-hoc connection visible only for the lifetime of the current application
+    /// session. It is intentionally excluded from JSON and filtered by ProfileStore.SaveAsync.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsSessionOnly { get; set; }
+
     public ServerProfile Clone() => new()
     {
         Id = Id,
@@ -24,6 +33,7 @@ public sealed class ServerProfile
         InitialPath = InitialPath,
         RememberPassword = RememberPassword,
         ProtectedPassword = ProtectedPassword,
-        IsDemo = IsDemo
+        IsDemo = IsDemo,
+        IsSessionOnly = IsSessionOnly
     };
 }

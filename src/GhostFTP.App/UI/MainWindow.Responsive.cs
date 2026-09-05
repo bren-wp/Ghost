@@ -27,31 +27,21 @@ public sealed partial class MainWindow
 
     private void ConfigureWorkspaceResizing()
     {
-        if (_workspaceBody is null || _workspaceContent is null || _filePanesGrid is null)
+        if (_workspaceContent is null || _filePanesGrid is null)
             return;
 
-        var sidebar = _workspaceBody.ColumnDefinitions[0];
-        sidebar.MinWidth = 210;
-        sidebar.MaxWidth = 420;
-        _workspaceBody.ColumnDefinitions[1].Width = new GridLength(8);
-
-        var sidebarSplitter = CreateSplitter(GridResizeDirection.Columns, Cursors.SizeWE);
-        sidebarSplitter.MouseDoubleClick += (_, _) => sidebar.Width = new GridLength(252);
-        Grid.SetColumn(sidebarSplitter, 1);
-        _workspaceBody.Children.Add(sidebarSplitter);
-
-        _workspaceContent.RowDefinitions[2].MinHeight = 250;
-        _workspaceContent.RowDefinitions[3].Height = new GridLength(8);
-        _workspaceContent.RowDefinitions[4].MinHeight = 130;
-        _workspaceContent.RowDefinitions[4].MaxHeight = 440;
+        _workspaceContent.RowDefinitions[4].MinHeight = 250;
+        _workspaceContent.RowDefinitions[5].Height = new GridLength(7);
+        _workspaceContent.RowDefinitions[6].MinHeight = 128;
+        _workspaceContent.RowDefinitions[6].MaxHeight = 440;
 
         var transferSplitter = CreateSplitter(GridResizeDirection.Rows, Cursors.SizeNS);
-        transferSplitter.MouseDoubleClick += (_, _) => _workspaceContent.RowDefinitions[4].Height = new GridLength(210);
-        Grid.SetRow(transferSplitter, 3);
+        transferSplitter.MouseDoubleClick += (_, _) => _workspaceContent.RowDefinitions[6].Height = new GridLength(198);
+        Grid.SetRow(transferSplitter, 5);
         _workspaceContent.Children.Add(transferSplitter);
 
         _filePanesGrid.ColumnDefinitions[0].MinWidth = 320;
-        _filePanesGrid.ColumnDefinitions[1].Width = new GridLength(8);
+        _filePanesGrid.ColumnDefinitions[1].Width = new GridLength(7);
         _filePanesGrid.ColumnDefinitions[2].MinWidth = 320;
 
         var paneSplitter = CreateSplitter(GridResizeDirection.Columns, Cursors.SizeWE);
@@ -72,10 +62,9 @@ public sealed partial class MainWindow
         Width = Math.Clamp(_settings.WindowWidth, MinWidth, maxWidth);
         Height = Math.Clamp(_settings.WindowHeight, MinHeight, maxHeight);
 
-        if (_workspaceBody is not null && _workspaceContent is not null && _filePanesGrid is not null)
+        if (_workspaceContent is not null && _filePanesGrid is not null)
         {
-            _workspaceBody.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 210, 420));
-            _workspaceContent.RowDefinitions[4].Height = new GridLength(Math.Clamp(_settings.TransferPanelHeight, 130, 440));
+            _workspaceContent.RowDefinitions[6].Height = new GridLength(Math.Clamp(_settings.TransferPanelHeight, 128, 440));
 
             var localFraction = Math.Clamp(_settings.LocalPaneFraction, 0.25, 0.75);
             _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(localFraction, GridUnitType.Star);
@@ -107,13 +96,11 @@ public sealed partial class MainWindow
 
         _settings.WindowMaximized = WindowState == WindowState.Maximized;
 
-        if (_workspaceBody is null || _workspaceContent is null || _filePanesGrid is null)
+        if (_workspaceContent is null || _filePanesGrid is null)
             return;
 
-        if (IsFinitePositive(_workspaceBody.ColumnDefinitions[0].ActualWidth))
-            _settings.SidebarWidth = Math.Clamp(_workspaceBody.ColumnDefinitions[0].ActualWidth, 210, 420);
-        if (IsFinitePositive(_workspaceContent.RowDefinitions[4].ActualHeight))
-            _settings.TransferPanelHeight = Math.Clamp(_workspaceContent.RowDefinitions[4].ActualHeight, 130, 440);
+        if (IsFinitePositive(_workspaceContent.RowDefinitions[6].ActualHeight))
+            _settings.TransferPanelHeight = Math.Clamp(_workspaceContent.RowDefinitions[6].ActualHeight, 128, 440);
 
         var local = _filePanesGrid.ColumnDefinitions[0].ActualWidth;
         var remote = _filePanesGrid.ColumnDefinitions[2].ActualWidth;
@@ -135,8 +122,8 @@ public sealed partial class MainWindow
             Cursor = cursor,
             Focusable = false,
             ToolTip = direction == GridResizeDirection.Columns
-                ? "Drag to resize panes · double-click to reset"
-                : "Drag to resize the transfer queue · double-click to reset"
+                ? "Drag to resize Local and Remote panes · double-click to reset"
+                : "Drag to resize the Transfers queue · double-click to reset"
         };
     }
 

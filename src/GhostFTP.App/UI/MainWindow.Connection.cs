@@ -47,6 +47,19 @@ public sealed partial class MainWindow
         catch (Exception ex)
         {
             AppendConnectionLog($"Startup failed: {ex.Message}", "ERROR");
+
+            if (_captureDirectory is not null)
+            {
+                // Documentation capture is a non-interactive CI/build path. A modal startup
+                // error would leave the runner blocked until the job timeout and hide the
+                // actual failure. Emit the full exception and terminate with a non-zero code.
+                Console.Error.WriteLine("Ghost FTP documentation capture failed:");
+                Console.Error.WriteLine(ex);
+                _allowClose = true;
+                Application.Current.Shutdown(1);
+                return;
+            }
+
             GhostMessageDialog.Error(this, "Ghost FTP could not finish startup.", ex.Message, "Startup error");
         }
     }
@@ -178,6 +191,7 @@ public sealed partial class MainWindow
             _remotePath = await _session.GetWorkingDirectoryAsync(ct);
             _remotePathBox.Text = _remotePath;
             await RefreshRemoteAsync();
+            KeepQuickConnectionInTabIfRequested();
             SetStatus(
                 _session.IsEncrypted ? "Connected · TLS" : selected?.IsDemo == true ? "Demo · local" : "Connected · FTP",
                 _session.IsEncrypted ? "Success" : "AccentSoft");
