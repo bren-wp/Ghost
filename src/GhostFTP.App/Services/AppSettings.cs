@@ -18,9 +18,11 @@ public sealed class AppSettings
     public bool ConfirmDeletes { get; set; } = true;
     public bool ShowHiddenFiles { get; set; }
     public int AutomaticTransferRetries { get; set; } = 2;
+    public int ConcurrentTransfers { get; set; } = 3;
     public int ConnectTimeoutSeconds { get; set; } = 15;
     public int CommandTimeoutSeconds { get; set; } = 30;
     public int TransferIdleTimeoutSeconds { get; set; } = 120;
+    public int KeepAliveSeconds { get; set; } = 60;
 
     // Workspace geometry is local-only UI state. Values are normalized before use so a
     // corrupted settings file cannot create an unusable off-screen or zero-sized window.
@@ -152,9 +154,13 @@ public sealed class AppSettingsStore
             settings.LastLocalDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         settings.AutomaticTransferRetries = Math.Clamp(settings.AutomaticTransferRetries, 0, 5);
+        settings.ConcurrentTransfers = Math.Clamp(settings.ConcurrentTransfers, 1, 8);
         settings.ConnectTimeoutSeconds = Math.Clamp(settings.ConnectTimeoutSeconds, 3, 120);
         settings.CommandTimeoutSeconds = Math.Clamp(settings.CommandTimeoutSeconds, 5, 300);
         settings.TransferIdleTimeoutSeconds = Math.Clamp(settings.TransferIdleTimeoutSeconds, 15, 3600);
+        settings.KeepAliveSeconds = settings.KeepAliveSeconds == 0
+            ? 0
+            : Math.Clamp(settings.KeepAliveSeconds, 15, 600);
 
         settings.WindowWidth = ClampFinite(settings.WindowWidth, 980, 7680, 1520);
         settings.WindowHeight = ClampFinite(settings.WindowHeight, 640, 4320, 920);
