@@ -33,7 +33,8 @@ public static class Program
             Console.WriteLine("PASS  Ghost FTP editable input controls");
             Console.WriteLine("PASS  Ghost FTP password input control");
             Console.WriteLine("PASS  Ghost FTP security selector");
-            Console.WriteLine($"PASS  Ghost FTP localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
+            Console.WriteLine($"PASS  Ghost FTP application localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
+            Console.WriteLine($"PASS  Ghost FTP Setup localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
             return 0;
         }
 
@@ -88,22 +89,37 @@ public static class Program
     private static void TestLocalization(List<string> failures)
     {
         var languages = GhostLocalization.SupportedLanguages;
-        Assert(languages.Count >= 21, "Ghost FTP must ship with more than 20 selectable languages.", failures);
+        Assert(languages.Count == 29, $"Ghost FTP must ship with exactly 29 validated languages in 1.4.0; found {languages.Count}.", failures);
         Assert(languages[0].Code == GhostLocalization.DefaultLanguageCode,
             "English must remain the primary/default language.", failures);
         Assert(languages.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() == languages.Count,
             "Localization language codes must be unique.", failures);
 
         foreach (var language in languages)
+        {
             Assert(GhostLocalization.HasCoreCoverage(language.Code),
-                $"Language '{language.Code}' is missing one or more required core translations.", failures);
+                $"Application language '{language.Code}' is missing one or more required core translations.", failures);
+            Assert(GhostSetupLocalization.HasCoverage(language.Code),
+                $"Setup language '{language.Code}' is missing one or more required wizard translations.", failures);
+
+            GhostLocalization.SetLanguage(language.Code);
+            Assert(!string.IsNullOrWhiteSpace(GhostLocalization.T("Settings")),
+                $"Application language '{language.Code}' returned an empty Settings label.", failures);
+            Assert(!string.IsNullOrWhiteSpace(GhostSetupLocalization.T("Welcome")),
+                $"Setup language '{language.Code}' returned an empty Welcome label.", failures);
+            Assert(!string.IsNullOrWhiteSpace(GhostSetupLocalization.T("AcceptLicenseTerms")),
+                $"Setup language '{language.Code}' returned an empty license-acceptance label.", failures);
+        }
 
         GhostLocalization.SetLanguage("hr");
         Assert(GhostLocalization.T("Settings") != "Settings", "Croatian core translation was not applied.", failures);
+        Assert(GhostSetupLocalization.T("Next") != "Next", "Croatian Setup translation was not applied.", failures);
+
         GhostLocalization.SetLanguage("not-a-real-language");
         Assert(GhostLocalization.CurrentLanguageCode == GhostLocalization.DefaultLanguageCode,
             "Unknown language did not fall back to English.", failures);
-        Assert(GhostLocalization.T("Settings") == "Settings", "English fallback text is incorrect.", failures);
+        Assert(GhostLocalization.T("Settings") == "Settings", "English application fallback text is incorrect.", failures);
+        Assert(GhostSetupLocalization.T("Welcome") == "Welcome", "English Setup fallback text is incorrect.", failures);
         GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
     }
 

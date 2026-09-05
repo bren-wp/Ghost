@@ -8,15 +8,28 @@ if ($packageRefs) {
     exit 1
 }
 
-$forbiddenTelemetry = @(
-    'ApplicationInsights', 'Sentry', 'TelemetryClient', 'GoogleAnalytics',
-    'Segment.Analytics', 'Mixpanel', 'PostHog', 'AppCenter', 'Crashlytics',
-    'Bugsnag', 'Rollbar', 'Amplitude', 'FirebaseAnalytics'
+# Match telemetry SDK identifiers/namespaces, not arbitrary substrings. For example,
+# WPF ScrollBarVisibility must never be mistaken for the Rollbar SDK.
+$forbiddenTelemetryPatterns = @(
+    '\bMicrosoft\.ApplicationInsights\b',
+    '\bTelemetryClient\b',
+    '\bSentry(?:\.|\s*\()',
+    '\bGoogleAnalytics\b',
+    '\bSegment\.Analytics\b',
+    '\bMixpanel(?:\.|\s*\()',
+    '\bPostHog(?:\.|\s*\()',
+    '\bMicrosoft\.AppCenter\b',
+    '\bAppCenter(?:\.|\s*\()',
+    '\bCrashlytics\b',
+    '\bBugsnag(?:\.|\s*\()',
+    '\bRollbar(?:\.|\s*\()',
+    '\bAmplitude(?:\.|\s*\()',
+    '\bFirebaseAnalytics\b'
 )
-foreach ($token in $forbiddenTelemetry) {
-    $matches = Get-ChildItem $src -Recurse -Filter *.cs | Select-String -SimpleMatch $token
+foreach ($pattern in $forbiddenTelemetryPatterns) {
+    $matches = Get-ChildItem $src -Recurse -Filter *.cs | Select-String -Pattern $pattern
     if ($matches) {
-        $matches | ForEach-Object { Write-Error "Forbidden telemetry/tracking reference '$token': $($_.Path):$($_.LineNumber)" }
+        $matches | ForEach-Object { Write-Error "Forbidden telemetry/tracking SDK reference matching '$pattern': $($_.Path):$($_.LineNumber)" }
         exit 1
     }
 }
