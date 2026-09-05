@@ -58,11 +58,18 @@ $installer = Require-Tokens 'src/GhostFTP.Setup/Services/InstallerService.cs' @(
     'versionInfo.ProductName',
     'versionInfo.CompanyName',
     'versionInfo.FileVersion',
-    'rollback',
+    'EnsureNotDowngrade',
+    'backupSetup',
+    'setupCommitted',
+    'RollbackFile(',
+    'GhostFTP-Setup.exe.*',
     'root.DeleteValue("QuietUninstallString"'
 )
 if ($installer -match 'SetValue\("QuietUninstallString"') {
     throw 'Setup must not advertise QuietUninstallString until true silent uninstall exists.'
+}
+if (($installer | Select-String -Pattern 'EnsureNotDowngrade\(' -AllMatches).Matches.Count -lt 3) {
+    throw 'Installer downgrade protection must cover the staged application and maintenance Setup binaries.'
 }
 
 $readme = Require-Tokens 'README.md' @(
@@ -101,7 +108,9 @@ $demo = Require-Tokens 'tests/GhostFTP.DemoSelfTest/Program.cs' @(
     'RenameAsync',
     'DeleteDirectoryAsync',
     'KeepAliveAsync',
-    'Ghost FTP Demo round-trip payload'
+    'Ghost FTP Demo round-trip payload',
+    'Existing Demo directory was replaced by file upload',
+    'Directory upload overwrote an existing Demo file'
 )
 $ci = Require-Tokens '.github/workflows/ci.yml' @(
     'Complete local Demo workflow self-test',
@@ -173,4 +182,4 @@ $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
     '(FtpSecurityMode)999'
 )
 
-Write-Host 'Ghost FTP hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, installer identity/rollback checks, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets.'
+Write-Host 'Ghost FTP hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, transactional Windows application/Setup rollback with downgrade protection, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets.'
