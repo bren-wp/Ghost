@@ -45,6 +45,7 @@ public static class Program
             _ => GhostTheme.IsSystemDark()
         };
         GhostTheme.Apply(dark);
+        GhostReferenceTheme.Apply(dark);
 
         app.DispatcherUnhandledException += OnDispatcherUnhandledException;
         var window = new MainWindow(captureDirectory);
