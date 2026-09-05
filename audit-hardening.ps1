@@ -110,7 +110,7 @@ $liveWorkflow = Require-Tokens '.github/workflows/live-smoke.yml' @(
 )
 
 $security = Require-Tokens 'SECURITY.md' @(
-    'fail closed',
+    'Fail-closed transport selection',
     'AUTH TLS',
     'TYPE I',
     'Installer integrity and rollback',
