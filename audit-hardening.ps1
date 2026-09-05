@@ -23,6 +23,7 @@ if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION for hardening
 if ($channel -notin @('beta','stable')) { throw "Invalid RELEASE_CHANNEL for hardening audit: $channel" }
 $expectedTag = if ($channel -eq 'beta') { "v$version-beta" } else { "v$version" }
 $currentReleaseTrigger = ".github/release-trigger-$version"
+$currentReleaseNotes = "docs/releases/v$version.md"
 
 $core = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Core.cs' @(
     'Enum.IsDefined(options.Security)',
@@ -84,7 +85,9 @@ $readme = Require-Tokens 'README.md' @(
     'Authentic application capture',
     'Windows release files',
     'Linux release files',
-    'docs/LIVE-SMOKE-TEST.md'
+    'docs/LIVE-SMOKE-TEST.md',
+    "Current source version: **$version**",
+    $currentReleaseNotes
 )
 if ($readme -match 'ghostftp-hero\.svg') {
     throw 'README still references the stale decorative Ghost FTP hero.'
@@ -100,10 +103,23 @@ foreach ($relative in @(
     'tests/GhostFTP.LiveSmoke/Program.cs',
     '.github/workflows/live-smoke.yml',
     'docs/LIVE-SMOKE-TEST.md',
+    'docs/HISTORICAL-CHANGELOG.md',
+    $currentReleaseNotes,
     $currentReleaseTrigger
 )) {
     if (!(Test-Path (Join-Path $root $relative) -PathType Leaf)) { throw "Missing final release file: $relative" }
 }
+
+$changelog = Require-Tokens 'CHANGELOG.md' @(
+    "## $version",
+    'docs/HISTORICAL-CHANGELOG.md',
+    'docs/releases/'
+)
+$historicalChangelog = Require-Tokens 'docs/HISTORICAL-CHANGELOG.md' @(
+    '# Ghost FTP changelog',
+    'Preserved internal development history',
+    '## 1.7.0'
+)
 
 $demo = Require-Tokens 'tests/GhostFTP.DemoSelfTest/Program.cs' @(
     'Demo session complete local FTP workflow',
@@ -147,6 +163,7 @@ $liveWorkflow = Require-Tokens '.github/workflows/live-smoke.yml' @(
 )
 
 $security = Require-Tokens 'SECURITY.md' @(
+    "Ghost FTP $version",
     'Fail-closed transport selection',
     'AUTH TLS',
     'TYPE I',
@@ -154,34 +171,60 @@ $security = Require-Tokens 'SECURITY.md' @(
     'Live-server testing without credential disclosure'
 )
 $privacy = Require-Tokens 'PRIVACY.md' @(
+    "Ghost FTP **$version",
     'without application telemetry',
     'server-only',
     'Session-only Quick Connect',
     'Live-server smoke testing'
 )
 $architecture = Require-Tokens 'docs/ARCHITECTURE.md' @(
+    "Ghost FTP **$version",
     'Linux X11/XWayland renderer',
     'Data-transfer mode integrity',
+    'Local Demo regression architecture',
     'Live real-server smoke architecture',
     'GitHub Release'
 )
 $parity = Require-Tokens 'docs/UI-PARITY.md' @(
+    "Ghost FTP **$version",
     '1914 × 907',
     'Windows and Linux',
     'transfer queue and cancellation'
 )
 $platform = Require-Tokens 'docs/PLATFORM-SUPPORT.md' @(
+    "Ghost FTP $version",
     'Windows',
     'Linux',
     'Web/browser client',
     'docs/LIVE-SMOKE-TEST.md'
 )
 $releasePolicy = Require-Tokens 'docs/RELEASE-POLICY.md' @(
+    "VERSION=$version",
     'setup.exe',
     'portable.exe',
     'GhostFTP-linux-x64',
     'GitHub Release requirement',
     $expectedTag
+)
+$installation = Require-Tokens 'docs/INSTALLATION.md' @(
+    "Ghost FTP $version Beta",
+    "VERSION=$version",
+    'refuses to downgrade',
+    'rollback'
+)
+$localization = Require-Tokens 'docs/LOCALIZATION.md' @(
+    "Ghost FTP $version Beta",
+    '29 selectable languages',
+    'English (`en`) is the primary language'
+)
+$uiUx = Require-Tokens 'docs/UI-UX.md' @(
+    "Ghost FTP **$version Beta**",
+    'Windows / Linux parity',
+    'Local Demo regression UX gate'
+)
+$notice = Require-Tokens 'NOTICE.md' @(
+    "Ghost FTP $version Beta",
+    'BRENDIGO LTD'
 )
 
 $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
@@ -190,4 +233,4 @@ $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
     '(FtpSecurityMode)999'
 )
 
-Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, transactional Windows application/Setup rollback with downgrade protection, authentic README capture, non-destructive secret-backed live smoke harness, Windows/Linux release documentation and canonical public Release assets."
+Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, transactional Windows application/Setup rollback with downgrade protection, authentic README capture, preserved historical changelog, non-destructive secret-backed live smoke harness, synchronized Windows/Linux release documentation and canonical public Release assets."
