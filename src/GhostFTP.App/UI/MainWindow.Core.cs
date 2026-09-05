@@ -2,7 +2,6 @@ using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
 using GhostFTP.Core.Services;
 using GhostFTP.Design;
-using GhostFTP.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
@@ -38,7 +37,7 @@ public sealed partial class MainWindow : Window
     }
 
     private readonly AppPaths _paths = new();
-    private readonly DpapiSecretProtector _secrets = new();
+    private readonly GhostFTP.Services.DpapiSecretProtector _secrets = new();
     private readonly ObservableCollection<ServerProfile> _profiles = [];
     private readonly ObservableCollection<LocalItem> _localItems = [];
     private readonly ObservableCollection<RemoteItem> _remoteItems = [];
