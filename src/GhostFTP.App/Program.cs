@@ -17,17 +17,20 @@ public static class Program
         };
 
         AppTheme configuredTheme = AppTheme.System;
+        var configuredLanguage = GhostLocalization.DefaultLanguageCode;
         try
         {
             var paths = new AppPaths();
             var settings = new AppSettingsStore(paths.SettingsFile).LoadAsync().GetAwaiter().GetResult();
             configuredTheme = settings.Theme;
+            configuredLanguage = settings.LanguageCode;
         }
         catch
         {
-            // Safe defaults. No crash report or telemetry is emitted.
+            // Safe defaults. No crash report, telemetry or remote lookup is emitted.
         }
 
+        GhostLocalization.SetLanguage(configuredLanguage);
         var dark = configuredTheme switch
         {
             AppTheme.Dark => true,
@@ -44,12 +47,18 @@ public static class Program
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        MessageBox.Show(
-            "GhostFTP encountered an unexpected local error and will close to protect session integrity.\n\n" + e.Exception.Message +
-            "\n\nNo crash report, telemetry or diagnostic data was transmitted.",
-            "GhostFTP",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        var message = "Ghost FTP encountered an unexpected local error and will close to protect session integrity.";
+        var details = e.Exception.Message + "\n\nNo crash report, telemetry or diagnostic data was transmitted.";
+
+        try
+        {
+            GhostMessageDialog.Error(Application.Current.MainWindow, message, details, "Ghost FTP");
+        }
+        catch
+        {
+            // The premium dialog itself is intentionally best-effort during a fatal UI failure.
+        }
+
         e.Handled = true;
         Application.Current.Shutdown(1);
     }
