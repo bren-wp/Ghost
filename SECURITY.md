@@ -1,217 +1,188 @@
 # Ghost FTP Security
 
-Ghost FTP **0.1.0 Beta** is designed around explicit trust boundaries, conservative FTP/FTPS behavior, bounded untrusted input, local-only persistence, deterministic control-connection state and focus-safe desktop operations.
+This document describes the active security model for **Ghost FTP 0.1.0 Beta** developed and published by **BRENDIGO LTD**.
 
-The public numbering reset to 0.1.0 Beta does not remove security work completed during the preserved internal development history. The security boundaries below describe the current source line.
+## Supported security scope
 
-Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
+Ghost FTP is a native FTP/FTPS desktop client. It does not implement SSH/SFTP and does not pretend that FTP and SFTP are interchangeable protocols.
 
-## Secure connection defaults
+Supported transport modes:
 
-- Explicit FTPS is the default for newly created server profiles.
-- TLS 1.2 and TLS 1.3 are supported for FTPS.
-- Certificate chain and hostname validation use the normal Windows/.NET validation path.
-- There is no "accept any certificate" or trust-all switch.
-- Certificate revocation uses the Windows offline cache so Ghost FTP does not create hidden CRL/OCSP web traffic.
-- Plain FTP requires an explicit warning confirmation before connection.
-- EPSV is preferred with PASV fallback.
-- PASV host redirection is not trusted; data channels connect to the authenticated control host.
+- plain FTP;
+- Explicit FTPS (`AUTH TLS`);
+- Implicit FTPS;
+- TLS 1.2 and TLS 1.3 for FTPS control/data channels.
 
-## FTP command and reply safety
+Explicit FTPS is the recommended default when the server supports it.
 
-User-controlled FTP command arguments reject CR, LF and NUL characters to prevent command injection.
+## Fail-closed transport selection
 
-Control replies are bounded by line and aggregate limits. Malformed replies, socket closure, timeouts and protocol failures propagate as real failures rather than silently becoming unsupported-command results.
+`FtpConnectionOptions.Security` is validated when a real `FtpSession` is created. An undefined enum value is rejected with an exception. It cannot silently fall through to plain FTP.
 
-Directory listings are bounded before parsing. MLSD is preferred with LIST fallback. Listing entry counts, line lengths, recursive depth and aggregate recursive item counts are constrained.
+Plain FTP is intentionally treated as a high-risk compatibility mode. Both Windows and Linux clients require an explicit warning/confirmation before credentials are sent without TLS.
 
-## Remote path safety
+For explicit FTPS, `AUTH TLS` must complete with a positive **2xx** reply before Ghost FTP upgrades the control stream. A 3xx intermediate response is not treated as successful TLS negotiation.
 
-Remote paths are canonicalized before use. Traversal above FTP root is clamped/rejected where appropriate, user-supplied names cannot inject traversal segments, and remote root deletion is blocked.
+## Certificate validation
 
-Ambiguous `MKD 550` responses are verified before being treated as an already-existing directory.
+FTPS uses the normal .NET `SslStream` trust and hostname-validation path.
 
-## Server working-directory consistency
+Ghost FTP deliberately has no:
 
-Remote navigation uses server `CWD` followed by `PWD`. The visible Remote path is synchronized to the server-confirmed working directory instead of relying on a UI-only assumption.
+- trust-all certificate switch;
+- `ServerCertificateCustomValidationCallback` that returns `true` unconditionally;
+- UI option to bypass hostname validation;
+- automatic fallback from failed FTPS to plain FTP.
 
-## Control-channel keepalive and stale state
+Certificate revocation uses the operating-system offline cache to avoid introducing hidden online CRL/OCSP traffic from the application itself.
 
-Ghost FTP can send standard FTP `NOOP` periodically while a real FTP/FTPS server session remains connected.
+## Protected FTPS data channels
 
-- Keepalive can be disabled with interval `0`.
-- Enabled intervals are constrained to 15–600 seconds.
-- It uses only the already selected server session.
-- Demo mode does not use network keepalive.
-- Failed `NOOP` resets unusable browser transport rather than leaving stale `IsConnected=true` state.
-- Genuine control-channel failure during Connection Diagnostics applies the same reset.
-- Ghost FTP does not silently reconnect with saved credentials after keepalive failure.
+After a TLS control connection is established, Ghost FTP requires:
 
-## Download integrity
+```text
+PBSZ 0
+PROT P
+```
 
-Downloads use a `.ghostftp.part` file. When server `SIZE` is available, Ghost FTP verifies final partial-file length before promoting it to the requested destination.
+A server that refuses protected data channels causes the FTPS connection to fail rather than silently transferring files in cleartext.
 
-A mismatch fails the transfer and leaves the partial file available for later safe resume.
+## Binary transfer integrity
 
-## Upload integrity and replacement
+Before any upload, download or listing data channel is used, the shared engine requires successful FTP binary mode (`TYPE I`). A rejected binary-mode command now fails the transfer instead of continuing with an unknown/previous transfer type.
 
-Uploads use a unique temporary remote file. When `SIZE` is available:
+Downloads use `.ghostftp.part` partial files and use server `SIZE` when available to detect a byte-count mismatch before finalization. Uploads use a unique temporary remote filename and, when replacing an existing remote file, a rollback backup before committing the new destination. Server-reported size is checked before and after the upload commit when `SIZE` is available.
 
-1. temporary remote size is checked against local source length;
-2. an existing destination can move to rollback backup;
-3. temporary upload is renamed into destination;
-4. committed destination size is checked again;
-5. rollback backup is removed only after successful verification.
+These length checks are not cryptographic hashes. A server-side hash capability can be added later only with conservative capability negotiation and explicit interoperability handling.
 
-If final verification fails, Ghost FTP attempts to remove the invalid destination and restore the previous backup.
+## FTP command injection protection
 
-This is a byte-length integrity boundary, not a cryptographic checksum claim.
+User-controlled FTP command arguments pass through `InputGuard`, which rejects CR, LF, NUL and other unsafe command content. Host, port, remote paths and remote single-name operations are validated separately.
 
-## Transfer retry and concurrency
+Remote paths are canonicalized before use. Traversal-style names received from a directory listing are rejected/ignored by the listing parser rather than being used as local filesystem paths.
 
-Automatic retries are configurable from 0–5 and limited to transient conditions such as socket/timeouts and FTP 4xx responses.
+## Passive data-connection hardening
 
-Authentication failures, certificate failures, permission problems and permanent FTP 5xx errors are not blindly retried.
+Ghost FTP prefers EPSV and falls back to PASV for compatibility. For PASV, the application derives the port from the reply but deliberately connects the data socket to the **authenticated control host**, not to an arbitrary host address supplied inside a PASV response. This reduces passive-mode redirect/bounce exposure.
 
-Browsing uses the primary FTP/FTPS session. Real queued transfers use independent sessions. Concurrent workers normalize to 1–8 and queue capacity remains bounded at 4,096 jobs.
+## Resource-exhaustion boundaries
 
-Cancelling one transfer does not cancel neighboring workers. Queue saturation becomes visible failed state rather than an unhandled WPF exception.
+Untrusted server input is bounded:
 
-## Transfer measurement safety
+- maximum control reply lines: 256;
+- maximum control reply characters: 1 MiB;
+- maximum individual reply line: 64 KiB;
+- maximum directory-listing payload: 16 MiB;
+- recursive traversal depth: 64;
+- recursive traversal items: 100,000;
+- transfer queue capacity: 4,096;
+- concurrent real transfers: **1–8**.
 
-Progress, transferred bytes, speed and ETA are local display state. The first current-session progress sample establishes a measurement baseline so resumed partial-file bytes are not misreported as new throughput.
+Exceeding a limit becomes an explicit failure rather than unbounded memory/recursion growth.
 
-Unknown ETA remains unknown rather than being fabricated.
+## Transfer-session isolation
 
-## Keyboard destructive-action routing
+Queued real transfers use isolated FTP/FTPS sessions created from the currently authenticated connection options. Browsing/control traffic is not multiplexed onto the same data-transfer control session.
 
-File-operation shortcuts are scoped to the UI region that owns keyboard focus.
+Cancelling one job does not intentionally cancel unrelated queue work. Authentication, permission, permanent FTP 5xx and TLS/certificate failures are not blindly retried.
 
-- `Delete` on Local/Remote acts only on that active pane.
-- `Delete` while Transfers has focus cancels the selected transfer.
-- `F2`, `F5`, `Enter`, `Backspace`, `Ctrl+F` and `Ctrl+L` do not silently fall through to Local when a non-file region owns focus.
+## Keepalive and stale connection state
 
-This focus boundary is treated as a data-safety property.
+Keepalive is supported on Windows and Linux and consists only of standard FTP `NOOP` on the currently selected server connection.
 
-## Site Manager credential boundary
+- default: 60 seconds;
+- configurable: 15–600 seconds;
+- `0` disables keepalive;
+- Demo mode is skipped;
+- no silent reconnect is performed.
 
-The current Ghost FTP Beta includes a first-class Site Manager, but it does not introduce a new credential store.
+If a Keepalive or connection diagnostic proves the control channel unusable, Ghost FTP invalidates stale connection state and marks the UI offline/lost. A late failure from an obsolete/replaced session is ignored instead of overwriting the state of a newer session.
 
-- Site Manager edits cloned profile models until the dialog is accepted.
-- Built-in Demo cannot be modified or removed into a real-server profile.
-- Saved passwords remain opt-in.
-- Password changes pass through the existing `ProfileStore` / Windows DPAPI current-user protection path.
-- Passwords are not copied into the Connection Log.
-- Invalid security mode, host, port and path data is normalized or rejected by the existing profile/settings boundaries.
+## Linux connection-lifecycle hardening
 
-Global timeout, retry, keepalive and concurrency policy remains centralized rather than duplicated as unvalidated per-site settings.
+The native Linux renderer shares the same `FtpSession` and now follows the same security boundaries as Windows:
 
-## Connection Log boundary
+- explicit warning before plain FTP;
+- successful sessions are assigned only after authentication completes;
+- candidate sessions are disposed after failed connection attempts;
+- cancellation during initial navigation is not misreported as a harmless path fallback;
+- active transfer options are cleared on disconnect/failure;
+- late directory-listing results from a replaced session are discarded;
+- server-only keepalive invalidates stale state without silent reconnect.
 
-The current Connection Log is bounded in-memory user-interface state.
+## Local path safety
 
-It can contain timestamps, host/port/security connection attempts, TLS/plain state, listing counts and visible error summaries. It is not intended to contain passwords, protected password blobs or file contents.
+Downloads derive local names through `LocalPathSafety` and containment checks. Resolved destinations must remain under the selected local root.
 
-The log can be cleared by the user and is never uploaded as telemetry or a crash report.
+Windows reserved device names and Windows-invalid characters are escaped on Windows. Linux-valid filenames are not unnecessarily rewritten with Windows-only rules. Recursive local uploads skip reparse points/symlinks to avoid unintended traversal through linked trees.
 
-## Local filesystem safety
+## Saved credentials
 
-Remote names are sanitized before writing to Windows paths. Local extraction destinations are canonicalized and verified to remain inside the selected destination root.
+### Windows
 
-Recursive local operations do not follow NTFS reparse points/junctions, preventing traversal into an unexpected filesystem tree.
+Saved passwords are opt-in and protected with CurrentUser DPAPI. Decryption is tied to the same Windows user context.
 
-## Profile and settings hardening
+### Linux
 
-Ghost FTP treats local JSON as untrusted input.
+Saved passwords are opt-in and protected with AES-256-GCM using a cryptographically random local 256-bit key. Authenticated encryption detects ciphertext tampering. The key file is restricted to the current user (`0600`) where Unix filesystem permissions are available.
 
-- Settings are size-bounded.
-- Profile files/backups are size-bounded.
-- Saved profile count is bounded.
-- Important strings and protected-password blobs are bounded.
-- Invalid security enums normalize to FTPS Explicit.
-- Invalid hosts are neutralized.
-- Stored remote paths are canonicalized.
-- Demo profile is canonicalized and duplicate Demo entries are removed.
-- Oversized/invalid protected password data is discarded.
-- Decrypted saved passwords pass through FTP command-argument guards.
-- Concurrent transfers normalize to 1–8.
-- Keepalive normalizes to disabled (`0`) or 15–600 seconds.
-- Timeout and workspace-geometry bounds remain enforced.
+This is local file-based credential protection. It does not claim to protect secrets from a full compromise of the same OS user account and is not represented as a hardware-backed keyring.
 
-Settings/profile writes use unique temporary files and atomic replacement/backup recovery where supported.
+## Session-only Quick Connect
 
-## Password persistence
+**Keep in this tab** creates a memory-only runtime profile. Session-only profiles are marked `[JsonIgnore]`, explicitly filtered from `ProfileStore.SaveAsync`, never persist the Quick Connect password and disappear when the application exits.
 
-Password persistence is opt-in through **Remember password**. Saved passwords are protected with Windows DPAPI current-user scope.
+A dedicated Core self-test checks that a session-only host and runtime flag do not reach `profiles.json`.
 
-Ghost FTP does not implement a cloud credential vault, account synchronization or remote password backup.
+## Installer integrity and rollback
 
-## Connection Diagnostics
+Windows Setup no longer treats an `MZ` header as sufficient payload identity. Before committing an embedded/copied executable it checks:
 
-Diagnostics is user-initiated and communicates only with the selected FTP/FTPS server. It can inspect control-channel health, `SYST`, `PWD`, known `FEAT` capabilities and current TLS/plain transport state.
+- minimum expected payload size;
+- Windows `MZ` executable signature;
+- ProductName = **Ghost FTP**;
+- CompanyName = **BRENDIGO LTD**;
+- exact file version matching the Setup assembly.
 
-Results remain local. If diagnostics prove control transport unusable, connection state is reset rather than left stale.
+When updating an existing application, Setup keeps the previous executable as a rollback copy until subsequent install stages finish. If a later stage fails, Setup attempts to restore the previous application rather than intentionally leaving a partially updated executable.
 
-## Authentic documentation capture boundary
+The installed-app registry entry advertises the real interactive uninstall command only. `QuietUninstallString` is removed until a genuine non-interactive uninstall implementation exists.
 
-`--capture-ui <directory>` is a documentation/build path that renders the actual compiled WPF application.
+## Code-signing boundary
 
-Security properties:
+Official Windows release packaging supports Authenticode using a PFX supplied only through GitHub Actions secrets:
 
-- capture mode uses built-in Demo only;
-- Demo opens no FTP network socket;
-- output is limited to PNG files requested by the caller;
-- the renderer uses WPF `RenderTargetBitmap` and `PngBitmapEncoder` already present in the Microsoft desktop stack;
-- no external image-generation API or tracking endpoint is contacted;
-- CI verifies both canonical captures are produced and non-empty.
+```text
+GHOSTFTP_SIGNING_PFX_BASE64
+GHOSTFTP_SIGNING_PFX_PASSWORD
+```
 
-The canonical repository images are therefore derived from production UI code rather than unrelated mockups.
+Private signing keys must never be committed. A self-signed RSA-3072 development certificate is only for local signing-mechanics tests. It is **not** a SmartScreen/Unknown Publisher solution.
 
-## Editable-input regression protection
+Stable Windows releases require a trusted CA-issued code-signing identity for **BRENDIGO LTD** and the release pipeline rejects stable publication when trusted Authenticode validation is unavailable.
 
-Host, Port, Username, Password, path, filter and dialog fields retain native WPF TextBox/PasswordBox behavior. Shared styling does not replace their editor/content host.
+## Live-server testing without credential disclosure
 
-CI runs a live Windows STA smoke test for focusability, tab navigation and value mutation. Source audit rejects known fragile replacement templates.
+The optional `tests/GhostFTP.LiveSmoke` harness is non-destructive. It reads server information only from environment variables/GitHub Actions secrets and performs connect → PWD → LIST → NOOP → disconnect. It never stores real credentials in repository fixtures.
 
-## Installer/update boundary
+Plain FTP live testing is disabled unless explicitly opted in with `GHOSTFTP_LIVE_ALLOW_PLAIN=1`.
 
-The per-user Setup validates the embedded Ghost FTP payload:
+See `docs/LIVE-SMOKE-TEST.md`.
 
-- payload must exist;
-- payload must exceed a conservative minimum size;
-- payload must start with Windows `MZ` signature;
-- updates use temporary files and atomic replacement where possible;
-- locked/running Ghost FTP causes visible failure;
-- installed maintenance Setup copy is validated before use;
-- invalid/oversized settings are quarantined or neutralized when Setup persists language.
+## Dependency and telemetry policy
 
-## Version/channel integrity
+Shipping projects contain zero third-party NuGet `PackageReference` entries. Windows uses .NET/WPF; Linux uses the system `libX11.so.6` ABI directly.
 
-Security and release metadata are now coupled to the public Beta/stable version policy.
+The source audit rejects known telemetry/tracking SDK references and tracked private signing-key file types.
 
-- `VERSION` contains the numeric product version.
-- `RELEASE_CHANNEL` contains `beta` or `stable`.
-- all `0.x.y` builds must remain Beta.
-- the first stable release is `1.0.0`.
-- `portable.exe`, `setup.exe` and architecture-specific copies must have file versions matching the active numeric version.
-- a Beta package must not independently claim stable 1.0.0 metadata.
+Ghost FTP has no application telemetry, analytics SDK, advertising SDK, crash uploader or cloud profile sync.
 
-This prevents a packaging/versioning mismatch from making an unfinished build appear stable.
+## Reporting a vulnerability
 
-## Uninstall boundary
+Do not publish real FTP passwords, private signing material, access tokens, sensitive server listings or other secrets in a public GitHub issue.
 
-The installed `GhostFTP-Setup.exe --uninstall` handles removal. No separate uninstaller executable is generated.
+When reporting a vulnerability, include the affected Ghost FTP version, platform, reproduction steps that do not disclose production credentials, expected vs actual behavior and whether FTP, Explicit FTPS or Implicit FTPS is involved.
 
-Uninstall verifies required application deletion, removes shortcuts/Installed Apps registration and optionally removes local data when explicitly selected. Setup self-cleanup uses delayed local deletion plus Windows delete-on-reboot fallback.
+## Release gate
 
-## No telemetry / tracking runtime
-
-Ghost FTP contains no application telemetry SDK, analytics SDK, advertising SDK, tracking SDK, crash-report upload component, background update checker or cloud profile synchronization component.
-
-Source audit checks for known telemetry/tracking SDK identifiers and zero NuGet `PackageReference` entries in shipping source.
-
-## Reporting security issues
-
-Use the project issue tracker for non-sensitive issues. Do not post passwords, server addresses, private keys, access tokens, session credentials or other secrets publicly.
-
-For sensitive security reports, use a private contact method published by BRENDIGO LTD / Ghost FTP.
+A 0.1.0 Beta release is not considered verified until the exact source commit passes the Windows and Linux build/audit/self-test/package/checksum gates. Stable 1.0.0 additionally requires trusted Windows Authenticode validation.

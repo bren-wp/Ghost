@@ -1,170 +1,90 @@
 # Ghost FTP Architecture
 
-Ghost FTP **0.1.0 Beta** is a Windows-production, C#-only FTP/FTPS client organized around a platform-neutral protocol core, local persistence, bounded parallel transfers, a dense professional WPF workstation, authentic UI documentation capture and zero third-party runtime package dependencies.
-
-The public version-line reset does not remove architectural work completed during the preserved internal 1.x development history. The architecture below describes the current source tree and current 0.1.0 Beta product line.
+Ghost FTP **0.1.0 Beta** is one privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
 
-## Version and release-channel architecture
+## Release identity
 
-Release identity is defined by two root files:
-
-```text
-VERSION
-RELEASE_CHANNEL
-```
-
-The current values are:
+Root files define the public line:
 
 ```text
 VERSION=0.1.0
 RELEASE_CHANNEL=beta
 ```
 
-`Directory.Build.props` synchronizes the numeric assembly/file version and the Beta informational version. The current build therefore uses `0.1.0.0` assembly/file metadata and `0.1.0-beta` informational metadata.
+`Directory.Build.props` synchronizes assembly/file/informational version metadata. All 0.x builds remain Beta; the first stable target is **1.0.0**.
 
-All pre-1.0 releases remain Beta. The first stable release is **1.0.0**. Canonical package filenames stay stable while their internal version metadata advances. This keeps download URLs predictable without allowing a 0.x Beta package to claim stable 1.0.0 metadata.
-
-See `docs/VERSIONING.md`.
-
-## Solution projects
-
-- `GhostFTP.Core` — platform-neutral `net10.0` FTP/FTPS engine, parsers, path/input guards, Demo session, transfer queue and storage abstractions. No WPF dependency.
-- `GhostFTP.Design` — shared Ghost FTP identity, BRENDIGO LTD metadata, localization, Windows visual resources, GhostComboBox, native editable-control styling, Mica/DWM integration and programmatic icon source.
-- `GhostFTP.App` — production Windows desktop client written programmatically in C# with WPF. No XAML.
-- `GhostFTP.Setup` — self-contained guided per-user installer/update/uninstall wizard. No MSI/WiX/NSIS/Inno dependency.
-- `GhostFTP.SelfTest` — dependency-free Core security/correctness regression executable.
-- `GhostFTP.QueueSelfTest` — bounded parallelism, session isolation, cancellation isolation and lifecycle regression executable.
-- `GhostFTP.UiSmoke` — live Windows/WPF editable-input, localization and Setup language-switch smoke tests.
-
-Dependency direction:
+## Project map
 
 ```text
-GhostFTP.Core   <- GhostFTP.App
-GhostFTP.Design <- GhostFTP.App
-GhostFTP.Design <- GhostFTP.Setup
-GhostFTP.Core   <- GhostFTP.SelfTest
-GhostFTP.Core   <- GhostFTP.QueueSelfTest
-GhostFTP.Design <- GhostFTP.UiSmoke
-GhostFTP.Setup  <- GhostFTP.UiSmoke
+src/GhostFTP.Core        shared net10.0 FTP/FTPS engine, safety, persistence and queue
+src/GhostFTP.Design      shared product identity, localization and visual contract
+src/GhostFTP.App         Windows WPF renderer
+src/GhostFTP.Setup       Windows per-user Setup / maintenance application
+src/GhostFTP.Linux       Linux X11/XWayland renderer
+
+tests/GhostFTP.SelfTest      shared security/correctness regression executable
+tests/GhostFTP.QueueSelfTest transfer concurrency/cancellation/session tests
+tests/GhostFTP.UiSmoke       Windows WPF input/localization smoke tests
+tests/GhostFTP.LiveSmoke     optional credential-safe real-server smoke harness
 ```
 
-Core does not depend on Windows presentation. Design does not own FTP sockets or credentials.
+Dependency direction keeps FTP sockets and credentials out of the design layer. Both desktop renderers use `GhostFTP.Core`; both consume shared `GhostFTP.Design` identity/localization/reference definitions.
 
 ## Platform boundary
 
-The production GUI is Windows WPF. `GhostFTP.Core` deliberately targets platform-neutral `net10.0` so a future Linux renderer can reuse the same protocol and transfer engine.
+### Windows
 
-Android and iOS are outside the shipping desktop scope and are rejected by source audit. A Linux GUI is not claimed until a real renderer exists and passes the same protocol, privacy, security, localization and workstation-parity gates.
+`GhostFTP.App` is a C# WPF desktop application. `GhostFTP.Setup` is a separate installation/maintenance UI. Official Windows builds are self-contained x64/ARM64 packages.
 
-See `docs/PLATFORM-SUPPORT.md`.
+### Linux
 
-## Product and legal identity
+`GhostFTP.Linux` is a real native desktop renderer that calls the system X11 client ABI (`libX11.so.6`) directly and can run on Wayland desktops through XWayland. It is not a browser wrapper, WPF shim or web runtime. Official Linux builds are self-contained x64/ARM64 packages except for the normal system X11 library dependency.
 
-`GhostBrand` is the runtime source of truth for:
+Android, iOS, MacCatalyst/macOS native and Web/browser clients are outside the current shipping line.
+
+## Shared visual/product contract
+
+`src/GhostFTP.Design/GhostReferencePalette.cs` defines shared reference geometry and palette tokens. The normal desktop hierarchy is:
+
+```text
+Product / saved-sites / privacy rail
+→ File / View / Sites / Transfers / Tools / Help
+→ compact global toolbar + Remote search
+→ Connection Log + Quick Connect
+→ Local + Remote panes
+→ Transfers
+→ status
+```
+
+The canonical repository image is the real Windows application rendered at **1914×907 / 96 DPI**. Windows and Linux are required to preserve product identity, action hierarchy, colors, core workflows and safety semantics. Native WPF/X11 font rasterization and OS window chrome can differ; literal byte-identical pixels are not claimed.
+
+See `docs/UI-PARITY.md`.
+
+## Product identity
+
+`GhostBrand` / shared design metadata defines:
 
 - display name `Ghost FTP`;
 - compact identifier `GhostFTP`;
-- product website;
-- publisher website;
-- repository;
-- shared icon/visual identity;
+- product/publisher websites;
+- repository identity;
 - publisher `BRENDIGO LTD`;
-- company number `16545639`;
-- registered office;
-- copyright notice.
+- company number and registered-office metadata;
+- copyright and visual identity.
 
-Product identity is never replaced by publisher identity on normal application surfaces.
+Product identity is not replaced by publisher identity on normal user surfaces.
 
-## Localization architecture
+## Localization
 
-`GhostLocalization` owns the supported application language list, English source strings, core translations, language-code normalization and fallback behavior.
+`GhostLocalization` owns the application language catalog, English source strings, language normalization and fallback. `GhostSetupLocalization` owns Setup vocabulary.
 
-`GhostSetupLocalization` owns Setup vocabulary. Both operate entirely in-process. English is primary/default and guaranteed fallback. Ghost FTP validates 29 selectable application/Setup languages without a translation web service.
+The current catalog exposes **29 languages**. English is primary/default and guaranteed fallback. Translation resources are local; runtime does not call an online translation service.
 
-## Native editable-input boundary
+## FTP/FTPS ownership
 
-TextBox and PasswordBox retain native WPF editor/content-host behavior. Ghost FTP styles colors, typography, padding and focus resources without replacing the editor host.
-
-This protects caret placement, selection, clipboard shortcuts, Tab navigation, IME input and normal password editing. `GhostFTP.UiSmoke` exercises actual controls on a Windows STA thread.
-
-## Main desktop composition
-
-The application is split into responsibility-specific partial classes:
-
-- `MainWindow.Core.cs` — control/state ownership and startup composition;
-- `MainWindow.Layout.cs` — menu, toolbar, sidebar, Connection Log, Quick Connect, file panes, Transfers and status-bar composition;
-- `MainWindow.Connection.cs` — browser connection lifecycle and visible connection activity;
-- `MainWindow.WorkspaceActions.cs` — bounded local Connection Log and Site Manager orchestration;
-- `MainWindow.KeepAlive.cs` — optional selected-server control-channel health loop;
-- `MainWindow.Diagnostics.cs` — user-initiated connection diagnostics;
-- `MainWindow.Files.cs` — Local/Remote navigation and filesystem operations;
-- `MainWindow.Transfers.cs` — transfer/profile/settings workflows;
-- `MainWindow.QueueUx.cs` — transfer queue context/details operations;
-- `MainWindow.Responsive.cs` — resizable/persistent pane geometry and adaptive columns;
-- `MainWindow.Helpers.cs` — reusable UI helpers and focus-safe keyboard routing;
-- `MainWindow.DocumentationCapture.cs` — deterministic rendering of the actual production windows to repository PNGs.
-
-`SiteManagerDialog.cs` is the first-class saved-site master/detail editor.
-
-The current workstation hierarchy is:
-
-```text
-Menu bar
-   ↓
-Global action toolbar
-   ↓
-Saved Sites │ Connection Log + Quick Connect
-            │
-            └──────── Local ⇄ Remote
-                       ↓
-                    Transfers
-                       ↓
-                    Status bar
-```
-
-The Saved Sites/main split, Local/Remote split and browser/Transfers split are user-resizable. Geometry is stored locally and normalized before restoration.
-
-## Site Manager boundary
-
-Site Manager operates on cloned `ServerProfile` models until the dialog is accepted.
-
-Implemented per-site state is intentionally limited to supported behavior:
-
-- site name;
-- host;
-- port;
-- security mode;
-- username;
-- optional password;
-- Remember password;
-- default remote path.
-
-Passwords are never exposed as plain persisted JSON. Accepted password changes pass through the existing `ProfileStore` / DPAPI protection path.
-
-The built-in Demo profile is visible but protected from modification/removal. Global retry, timeout, keepalive and concurrency policy remains in `AppSettings` rather than being duplicated as fake per-site state.
-
-## Local Connection Log architecture
-
-The main-window Connection Log is an in-memory bounded collection used only for user-visible session activity.
-
-It may contain timestamps and non-secret events such as:
-
-- application startup;
-- local profile count;
-- selected host/port/security connection attempt;
-- TLS/plain connection state;
-- remote directory listing count;
-- disconnect/loss/failure summaries.
-
-It never records passwords, DPAPI blobs or file contents. It is not written to an analytics service or uploaded automatically. The UI bounds the collection to prevent unbounded memory growth.
-
-## FTP/FTPS control boundary
-
-Only `FtpSession` owns real FTP/FTPS sockets.
-
-Capabilities include:
+Only `FtpSession` owns real FTP/FTPS sockets. The shared engine supports:
 
 - FTP;
 - Explicit FTPS;
@@ -173,238 +93,258 @@ Capabilities include:
 - EPSV with PASV fallback;
 - MLSD with LIST fallback;
 - UTF-8 negotiation where supported;
-- REST/SIZE-assisted transfer behavior;
-- standard `NOOP` health checking.
+- SIZE / REST-assisted transfers;
+- standard FTP `NOOP` keepalive.
 
-Security/correctness boundaries include:
+### Fail-closed transport selection
 
-- .NET certificate-chain and hostname validation;
-- no certificate bypass option;
-- offline revocation-cache mode to avoid hidden Ghost FTP-triggered OCSP/CRL traffic;
-- CR/LF/NUL command-argument rejection;
-- bounded command/reply and listing payloads;
-- passive-host redirection hardening;
-- connect/command/transfer-idle timeouts;
-- depth/entry traversal budgets;
-- remote-root deletion protection;
-- verified ambiguous `MKD 550` handling.
+`FtpConnectionOptions.Security` is validated when a real session is constructed. Undefined enum values fail immediately rather than falling through to plain FTP.
 
-## Working-directory consistency
+For Explicit FTPS, `AUTH TLS` must return a positive 2xx reply before TLS upgrade. Ghost FTP does not silently downgrade failed FTPS to FTP.
 
-Remote navigation sends server `CWD` and then reads `PWD`. The visible Remote path is the server-confirmed working directory rather than a client-only assumption.
+Both desktop renderers require explicit confirmation before real plain FTP because it sends credentials/content without TLS.
 
-This aligns browsing, transfer destinations and diagnostics.
+### FTPS data protection
 
-## Browser session health
+After TLS is active, Ghost FTP requires:
 
-`KeepAliveAsync` is part of `IFtpSession`. The real implementation sends `NOOP` under the control-session gate.
+```text
+PBSZ 0
+PROT P
+```
 
-If keepalive or diagnostics proves the control transport is unusable:
+The data channel therefore remains protected or the connection fails.
 
-1. the transport resets;
-2. `IsConnected` becomes false;
-3. stale Remote state is cleared by the UI;
-4. status becomes Connection lost;
-5. reconnection remains explicit.
+### Certificate validation
 
-Keepalive is configurable/disableable, skips Demo mode and communicates only with the selected FTP/FTPS server. It is not telemetry.
+FTPS uses normal .NET chain and hostname validation. No trust-all/certificate-bypass switch exists. Revocation uses the operating-system offline cache so Ghost FTP does not intentionally create hidden online CRL/OCSP requests.
 
-## Transfer architecture
+## Data-transfer mode integrity
 
-Browsing uses the primary session. Real queued transfers lease independent sessions so a long transfer, retry or cancellation cannot consume browser-session replies.
+Before any listing, upload or download data channel is consumed, the engine requires successful FTP binary mode:
+
+```text
+TYPE I
+```
+
+The old best-effort behavior is not used; a server refusing binary mode fails the data operation instead of allowing an unknown prior mode to corrupt content.
+
+## Passive-mode hardening
+
+EPSV is preferred. PASV is used as compatibility fallback. PASV supplies a port, but Ghost FTP deliberately connects the data socket to the **authenticated control host** rather than trusting an arbitrary host embedded in a PASV reply.
+
+## Untrusted server-input bounds
+
+Core bounds include:
+
+- control reply lines: 256;
+- control reply text: 1 MiB;
+- one reply line: 64 KiB;
+- listing payload: 16 MiB;
+- recursive traversal depth: 64;
+- recursive traversal entries: 100,000;
+- transfer queue capacity: 4,096;
+- concurrent transfers: 1–8.
+
+FTP command arguments reject unsafe control characters including CR/LF/NUL. Remote paths/names are canonicalized/validated, and root deletion is guarded.
+
+## Remote working-directory consistency
+
+Remote navigation uses server `CWD` followed by `PWD`. The UI's visible path therefore comes from the server-confirmed working directory rather than a client-only assumption.
+
+Late Linux listing results are ignored when they belong to a session that has already been replaced.
+
+## Browser-session health and keepalive
+
+`IFtpSession.KeepAliveAsync` maps to standard server-only FTP `NOOP` for real sessions.
+
+Keepalive:
+
+- defaults to 60 seconds;
+- accepts 15–600 seconds;
+- `0` disables it;
+- skips Demo mode;
+- exists on Windows and Linux;
+- never silently reconnects using saved credentials.
+
+If keepalive proves the current control channel unusable, stale connected state is invalidated. The renderer clears stale remote state and reports connection loss. A late error from an obsolete session must not overwrite a newer session.
+
+## Windows MainWindow composition
+
+The WPF renderer is split into focused partial classes including connection, files, transfer queue, diagnostics, keepalive, responsive layout, workspace actions, helpers and deterministic documentation capture.
+
+`MainWindow.Helpers.cs` owns focus-safe shortcut routing. Destructive file operations require explicit Local/Remote context. Transfer focus routes Delete to transfer cancellation rather than local deletion.
+
+`SiteManagerDialog` is the first-class saved-site editor.
+
+## Linux renderer composition
+
+`LinuxMainWindow` is split across native layout/drawing/input/testing/core/keepalive partials. The renderer shares the same protocol/core model but owns X11 event processing and drawing.
+
+Linux lifecycle rules include:
+
+- successful session assignment only after authentication;
+- disposal of failed candidate sessions;
+- explicit cancellation handling during initial navigation;
+- clearing `_activeOptions` on failure/disconnect;
+- ignoring late listing results from replaced sessions;
+- server-only keepalive with stale-state invalidation;
+- focus-safe destructive shortcuts: transfer selection routes Delete to cancellation, and Local/Remote selection clears transfer selection.
+
+## Transfer queue architecture
+
+Browsing uses the primary control session. Real queued transfers create independent sessions from the current connection options so transfer work cannot consume browser-session replies.
 
 `TransferQueueService` provides:
 
-- capacity bounded at 4,096 jobs;
-- parallel workers normalized to 1–8;
-- default concurrency 3;
+- queue capacity 4,096;
+- 1–8 workers, default 3;
 - per-job cancellation;
 - queue-wide cancellation;
-- progress, byte, speed, ETA, retry and lifecycle state;
-- controlled transient retry;
-- visible failed-job state;
-- deterministic worker shutdown before cancellation resources are released.
+- retry count and selective transient retry;
+- progress/bytes/speed/ETA/start/finish state;
+- controlled worker shutdown.
 
-Automatic retry is selective: socket/timeouts and FTP 4xx transient errors may retry; authentication, certificate, permission and permanent 5xx failures do not blindly retry.
-
-## Transfer measurement model
-
-`TransferJob` tracks local operational state:
-
-- lifecycle state;
-- progress percentage;
-- bytes transferred;
-- known total;
-- current speed;
-- ETA;
-- retry count;
-- start/finish timestamps;
-- source/destination;
-- local error text.
-
-The first progress callback establishes a measurement baseline, preventing already-present resumed bytes from being counted as current-session throughput.
-
-ETA remains unknown unless both usable current speed and known total are available.
-
-## Cancellation and session isolation
-
-Each queued item has its own linked cancellation token. Cancelling one transfer must not cancel neighboring jobs.
-
-`GhostFTP.QueueSelfTest` verifies actual parallelism, 1–8 clamps, isolated transfer-session instances, cancellation isolation and lifecycle state.
+Authentication, certificate, permission and permanent 5xx errors are not blindly retried.
 
 ## Download integrity
 
-Downloads target `.ghostftp.part`. When `SIZE` is available:
+Downloads use `.ghostftp.part` files. When server `SIZE` is available, resume offsets and final byte length are validated before the partial file is promoted to the requested destination.
 
-1. expected remote size is obtained;
-2. resume offset is validated;
-3. transfer runs;
-4. final partial-file length must match expected size;
-5. only then is the partial file promoted to the requested destination.
+A byte-count mismatch remains failed/resumable state rather than being reported as success. These checks are byte-length integrity, not cryptographic file hashing.
 
-A mismatch remains a failed resumable partial rather than a misleading successful file.
+## Upload replacement integrity
 
-## Upload integrity and replacement
+Uploads use a unique temporary remote path. When replacing a destination, the old destination can be moved to a rollback backup before the temporary upload is renamed into place. Server `SIZE` is used when available to validate temporary/final length. Failure after replacement attempts to restore the backup.
 
-Uploads use a unique temporary remote path. When `SIZE` is available:
+## Local path safety
 
-1. temporary upload length is checked;
-2. existing destination can be moved to rollback backup;
-3. temporary upload is renamed into destination;
-4. final destination length is verified;
-5. rollback backup is removed only after verified commit.
-
-A failed final check attempts to remove the invalid destination and restore the backup. This is byte-length integrity, not a cryptographic checksum claim.
-
-## Focus-safety boundary
-
-Global shortcuts resolve explicit Local, Remote and Transfers focus context. File actions never silently default to Local when another region owns focus.
-
-`Delete` while Transfers owns focus cancels the selected transfer rather than deleting local data. This is treated as a safety invariant because incorrect focus routing can mutate the wrong storage domain.
-
-## Connection Diagnostics
-
-Diagnostics is user-initiated against the already-connected server and can inspect:
-
-- `NOOP` control health;
-- `SYST` text;
-- `PWD`;
-- known `FEAT` capabilities;
-- TLS/plain transport state.
-
-Results remain local.
+Downloaded names are sanitized and containment-checked under the selected local root. Windows-only reserved/invalid filename rules are applied on Windows without unnecessarily rewriting Linux-valid names. Recursive uploads skip reparse points/symlinks to avoid unintentional traversal.
 
 ## Persistence boundary
 
-Installed mode stores data under `%LOCALAPPDATA%\GhostFTP`. Portable mode uses a local `Data` directory next to the executable where applicable.
+Profile/settings files are treated as untrusted local input:
 
-Persistence is treated as untrusted input:
-
-- settings/profile file size bounds;
-- profile count bounds;
-- important string/blob bounds;
-- enum/path/host normalization;
+- file-size bounds;
+- profile-count/string/blob bounds;
+- host/port/enum/path normalization;
 - canonical single Demo profile;
-- opt-in DPAPI password protection;
-- command-safety revalidation after decryption;
-- bounded retry/concurrency/timeouts/keepalive;
-- bounded window/pane geometry;
-- temp-file/atomic-replacement/backup recovery where supported.
+- retry/concurrency/timeout/keepalive normalization;
+- workspace-geometry normalization;
+- atomic temp/replace/backup recovery where implemented.
 
-## Authentic documentation capture
+### Windows secrets
 
-The current Beta line treats repository screenshots as build artifacts derived from real UI source.
+Saved passwords are opt-in and protected by CurrentUser DPAPI.
 
-`Program.cs` recognizes:
+### Linux secrets
 
-```text
---capture-ui <output-directory>
-```
+Saved passwords are opt-in and protected by AES-256-GCM using a cryptographically random local 256-bit key. The key file is restricted to the current user (`0600`) where Unix permissions are supported.
 
-Capture mode:
+This is documented as local file-based protection, not a claim of protection against compromise of the same OS account.
 
-1. forces deterministic dark theme and English locale;
-2. launches the real production `MainWindow`;
-3. loads local profile/settings infrastructure;
-4. selects the built-in local Demo profile;
-5. opens the Demo session without a network socket;
-6. renders the real MainWindow through WPF `RenderTargetBitmap`;
-7. opens and renders the real `SiteManagerDialog`;
-8. writes `ghostftp-client.png` and `ghostftp-site-manager.png`;
-9. disposes queue/session state and exits.
+## Session-only Quick Connect
 
-`.github/workflows/capture-ui.yml` rebuilds the client and refreshes those images from source. The regular CI workflow independently regenerates captures into an artifact and validates that both are non-empty.
+**Keep in this tab** produces a runtime-only profile. Session-only state is `[JsonIgnore]`, filtered again before `ProfileStore.SaveAsync`, never persists the Quick Connect password and disappears when the process exits.
 
-This design prevents repository marketing images from drifting into unrelated mockups: screenshots are a rendering of production UI code.
+Core self-tests verify that the session-only host/runtime marker do not reach `profiles.json`.
 
-## Setup architecture
+## Connection Log and diagnostics
 
-Setup is a C# WPF application embedding:
+Connection Log state is bounded/local. It can show timestamps, host/port/security state, list counts and visible errors but never intentionally records passwords/protected blobs/file contents.
 
-- architecture-matching self-contained Ghost FTP executable;
-- repository LICENSE text;
-- shared Ghost FTP design/localization code.
+User-initiated diagnostics can issue `NOOP`, `SYST` and `PWD` against the current server and display known `FEAT` capability state. Results are local.
 
-Install flow:
+## Windows Setup architecture
+
+Setup is a separate C# WPF maintenance application embedding the architecture-matching Ghost FTP client payload and license text.
+
+Install flow remains:
 
 ```text
 Language → License → Options → Ready → Install/Update → Finish
 ```
 
-The license must be accepted before installation. Setup installs per-user under `%LOCALAPPDATA%\Programs\GhostFTP` and registers Windows Installed Apps metadata.
+The license must be accepted before installation. Installation is per-user under `%LOCALAPPDATA%\Programs\GhostFTP` and registers normal Windows Installed Apps metadata.
 
-No separate uninstaller executable is generated. The installed maintenance copy is `GhostFTP-Setup.exe`, invoked with `--uninstall`.
+### Payload validation
 
-## Setup language lifecycle
+Setup validates a candidate executable before committing it:
 
-Live Setup language changes avoid unsafe WPF logical-tree reparenting by closing the dropdown, deferring render until the input event unwinds, detaching reusable controls, coalescing repeated requests and ignoring queued rebuilds after close.
+- minimum size;
+- `MZ` executable signature;
+- ProductName = Ghost FTP;
+- CompanyName = BRENDIGO LTD;
+- exact file version matching Setup.
 
-`GhostFTP.UiSmoke` exercises actual language switching plus wizard Next/Back navigation.
+### Rollback
 
-## Setup self-cleanup
+When updating an existing app, the previous executable remains as rollback material until subsequent install stages finish. A later failure attempts to restore the old app. An incomplete brand-new install removes the newly committed client where possible.
 
-A running process cannot reliably delete itself. During uninstall Ghost FTP removes the client, shortcuts and registry entry, then uses:
+### Uninstall metadata
 
-- a bounded hidden delayed local delete attempt after process exit;
-- Windows delete-on-reboot fallback for maintenance Setup.
+`UninstallString` points to the real interactive maintenance Setup. `QuietUninstallString` is deliberately not advertised until a true non-interactive uninstall mode exists.
 
-The delay loop is local and not external product network traffic.
+## Authentic documentation capture
 
-## No telemetry architecture
+`GhostFTP.App` recognizes:
 
-Ghost FTP has no telemetry service, analytics client, ad component, cloud profile service, automatic updater client or crash-upload component.
+```text
+--capture-ui <output-directory>
+```
 
-Network behavior is limited to:
+Capture mode uses the real compiled `MainWindow`, local profile/settings infrastructure and built-in local Demo session. It renders the production MainWindow and Site Manager to PNG, disposes runtime state and exits.
 
-- selected FTP/FTPS server operations;
-- optional keepalive on that selected session;
-- user-initiated diagnostics on that selected session;
+The canonical MainWindow PNG is **1914×907**. `.github/workflows/capture-ui.yml` rebuilds and refreshes the repository PNGs. The stale decorative hero is not the primary README image.
+
+## Live real-server smoke architecture
+
+`tests/GhostFTP.LiveSmoke` is intentionally separate from deterministic CI. It reads connection values only from environment variables / GitHub Actions secrets and performs:
+
+```text
+connect → PWD → optional CWD → LIST → NOOP → disconnect
+```
+
+It performs no upload/download/rename/delete/create operation. Plain FTP requires explicit `GHOSTFTP_LIVE_ALLOW_PLAIN=1`. Its own error output redacts configured host/username/password values.
+
+The manual workflow is `.github/workflows/live-smoke.yml`. Real credentials must never be committed to source or workflow text.
+
+## Privacy/network architecture
+
+Ghost FTP has no application telemetry service, analytics client, ad component, crash uploader, cloud profile service or automatic background product-update client.
+
+Normal runtime traffic is limited to:
+
+- operations against the FTP/FTPS server selected by the user;
+- optional `NOOP` keepalive on that server session;
+- user-initiated diagnostics on that server;
 - website links explicitly opened by the user.
 
-Transfer metrics, Connection Log entries and documentation capture remain local.
+Transfer metrics, logs and screenshots remain local application/build state.
 
-## Build architecture
+## Build/release architecture
 
-`build-release.ps1` publishes self-contained single-file Windows builds for `win-x64` and `win-arm64`. Each architecture receives a matching Setup payload. Canonical and architecture-explicit names plus SHA-256 checksums are produced.
+Windows packaging creates self-contained x64/ARM64 portable + Setup executables. Linux packaging creates self-contained x64/ARM64 binaries/tarballs. SHA-256 manifests are verified before publication.
 
-The release workflow verifies that the resulting executable file versions match the active numeric `VERSION`. During the Beta line this means 0.x.y.0 Windows file versions. When Ghost FTP is promoted to stable 1.0.0, the canonical `portable.exe` and `setup.exe` family must verify as 1.0.0.0 binaries.
+The official release workflow creates/synchronizes GitHub Release tag `v0.1.0-beta` and uploads canonical release assets only after its build/test/package gates pass. Stable Windows publication additionally requires trusted Authenticode validation.
 
-## Release gates
+## Validation gates
 
-The pipeline requires:
+The exact release source is expected to pass:
 
-1. restore;
-2. warning-as-error Release build;
-3. dependency/version/channel/privacy/product/publisher/platform audit;
-4. Core security/correctness tests;
-5. bounded parallel queue/session/cancellation tests;
-6. WPF editable-input tests;
-7. app localization tests;
-8. Setup localization/live-rebuild tests;
-9. authentic compiled MainWindow + Site Manager capture;
-10. x64/ARM64 packaging for official release publication;
-11. required executable and executable-version verification;
-12. SHA-256 manifest generation;
-13. verified artifact/release publication.
+1. version/channel/product/publisher synchronization;
+2. Windows warning-as-error solution build;
+3. Linux renderer build;
+4. dependency/privacy/platform/security source audit;
+5. Core self-tests on Windows and Linux;
+6. transfer queue tests on Windows and Linux;
+7. WPF editable-input/localization smoke tests;
+8. authentic production Windows UI capture and 1914×907 validation;
+9. real Linux renderer X11/XWayland smoke under Xvfb;
+10. Windows x64/ARM64 packaging and executable-version verification;
+11. Linux x64/ARM64 packaging and packaged-x64 runtime smoke;
+12. SHA-256 verification;
+13. trusted Authenticode verification for stable publication;
+14. GitHub Release asset publication.
 
-See `docs/RELEASE-POLICY.md` for release governance.
+See `SECURITY.md`, `PRIVACY.md`, `docs/UI-PARITY.md`, `docs/PLATFORM-SUPPORT.md`, `docs/LIVE-SMOKE-TEST.md` and `docs/RELEASE-POLICY.md`.

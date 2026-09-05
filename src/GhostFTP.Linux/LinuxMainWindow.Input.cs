@@ -136,14 +136,22 @@ internal sealed partial class LinuxMainWindow
         }
         if (keysym == X11Native.XkDelete)
         {
-            if (_remoteSelected >= 0 && _connected) DeleteRemote();
-            else DeleteLocal();
+            if (_transferSelected >= 0)
+                CancelSelectedTransfer();
+            else if (_remoteSelected >= 0 && _connected)
+                DeleteRemote();
+            else if (_localSelected >= 0)
+                DeleteLocal();
             return;
         }
         if (keysym == X11Native.XkF2)
         {
-            if (_remoteSelected >= 0 && _connected) RenameRemote();
-            else RenameLocal();
+            if (_transferSelected >= 0)
+                return;
+            if (_remoteSelected >= 0 && _connected)
+                RenameRemote();
+            else if (_localSelected >= 0)
+                RenameLocal();
             return;
         }
 
@@ -230,6 +238,7 @@ internal sealed partial class LinuxMainWindow
     {
         _localSelected = index;
         _remoteSelected = -1;
+        _transferSelected = -1;
         var target = "local:" + item.FullPath;
         if (IsDoubleClick(target))
         {
@@ -245,6 +254,7 @@ internal sealed partial class LinuxMainWindow
     {
         _remoteSelected = index;
         _localSelected = -1;
+        _transferSelected = -1;
         var target = "remote:" + item.FullPath;
         if (IsDoubleClick(target))
         {

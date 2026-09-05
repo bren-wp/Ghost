@@ -57,18 +57,22 @@ internal sealed class InstallerService
         Directory.CreateDirectory(InstallDirectory);
         var tempApp = Path.Combine(InstallDirectory, $"GhostFTP.exe.new-{Guid.NewGuid():N}");
         var backupApp = Path.Combine(InstallDirectory, $"GhostFTP.exe.backup-{Guid.NewGuid():N}");
+        var previousAppExisted = File.Exists(AppPath);
+        var appCommitted = false;
 
         try
         {
             await ExtractPayloadAsync(tempApp, cancellationToken).ConfigureAwait(false);
             await ValidateExecutableAsync(tempApp, "Ghost FTP application payload", cancellationToken).ConfigureAwait(false);
 
-            if (File.Exists(AppPath))
+            if (previousAppExisted)
             {
                 try
                 {
+                    // Keep the rollback copy until every install step succeeds. A later failure
+                    // must not strand the user with a half-updated application.
                     File.Replace(tempApp, AppPath, backupApp, ignoreMetadataErrors: true);
-                    TryDelete(backupApp);
+                    appCommitted = true;
                 }
                 catch (IOException ex)
                 {
@@ -78,6 +82,7 @@ internal sealed class InstallerService
             else
             {
                 File.Move(tempApp, AppPath);
+                appCommitted = true;
             }
 
             var currentSetup = Environment.ProcessPath
@@ -87,6 +92,38 @@ internal sealed class InstallerService
             CreateShortcuts(desktopShortcut);
             await WritePreferredLanguageAsync(languageCode, cancellationToken).ConfigureAwait(false);
             WriteUninstallRegistry();
+
+            // Only now is the application replacement fully committed.
+            TryDelete(backupApp);
+        }
+        catch (Exception installError)
+        {
+            Exception? rollbackError = null;
+            if (appCommitted)
+            {
+                try
+                {
+                    if (previousAppExisted && File.Exists(backupApp))
+                    {
+                        if (File.Exists(AppPath))
+                            File.Replace(backupApp, AppPath, null, ignoreMetadataErrors: true);
+                        else
+                            File.Move(backupApp, AppPath);
+                    }
+                    else if (!previousAppExisted)
+                    {
+                        DeleteRequiredFile(AppPath, "The incomplete Ghost FTP installation could not be rolled back.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    rollbackError = ex;
+                }
+            }
+
+            if (rollbackError is not null)
+                throw new AggregateException("Ghost FTP installation failed and automatic rollback was incomplete.", installError, rollbackError);
+            throw;
         }
         finally
         {
@@ -285,16 +322,31 @@ internal sealed class InstallerService
             throw new InvalidDataException($"The {description} is missing, empty or unexpectedly small.");
 
         var signature = new byte[2];
-        await using var stream = new FileStream(
+        await using (var stream = new FileStream(
             path,
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read,
             4096,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var read = await stream.ReadAsync(signature, cancellationToken).ConfigureAwait(false);
-        if (read != 2 || signature[0] != (byte)'M' || signature[1] != (byte)'Z')
-            throw new InvalidDataException($"The {description} is not a valid Windows executable.");
+            FileOptions.Asynchronous | FileOptions.SequentialScan))
+        {
+            var read = await stream.ReadAsync(signature, cancellationToken).ConfigureAwait(false);
+            if (read != 2 || signature[0] != (byte)'M' || signature[1] != (byte)'Z')
+                throw new InvalidDataException($"The {description} is not a valid Windows executable.");
+        }
+
+        // An MZ header alone is not an adequate payload identity check. Refuse a substituted
+        // executable unless its version resource identifies the expected Ghost FTP product,
+        // BRENDIGO LTD publisher and this Setup build's exact file version.
+        var versionInfo = FileVersionInfo.GetVersionInfo(path);
+        var expectedVersion = typeof(InstallerService).Assembly.GetName().Version?.ToString(4)
+            ?? throw new InvalidOperationException("Setup assembly version is unavailable.");
+        if (!string.Equals(versionInfo.ProductName, GhostBrand.DisplayName, StringComparison.Ordinal))
+            throw new InvalidDataException($"The {description} does not identify the expected {GhostBrand.DisplayName} product.");
+        if (!string.Equals(versionInfo.CompanyName, GhostBrand.Publisher, StringComparison.Ordinal))
+            throw new InvalidDataException($"The {description} does not identify the expected {GhostBrand.Publisher} publisher.");
+        if (!string.Equals(versionInfo.FileVersion, expectedVersion, StringComparison.Ordinal))
+            throw new InvalidDataException($"The {description} has file version '{versionInfo.FileVersion}' but Setup requires '{expectedVersion}'.");
     }
 
     private void CreateShortcuts(bool desktopShortcut)
@@ -323,7 +375,9 @@ internal sealed class InstallerService
         root.SetValue("InstallLocation", InstallDirectory);
         root.SetValue("DisplayIcon", AppPath);
         root.SetValue("UninstallString", $"\"{InstalledSetupPath}\" --uninstall");
-        root.SetValue("QuietUninstallString", $"\"{InstalledSetupPath}\" --uninstall");
+        // The current uninstaller is interactive. Do not advertise an interactive command as
+        // QuietUninstallString because management software may otherwise assume silent removal.
+        root.DeleteValue("QuietUninstallString", throwOnMissingValue: false);
         root.SetValue("NoModify", 1, RegistryValueKind.DWord);
         root.SetValue("NoRepair", 1, RegistryValueKind.DWord);
 

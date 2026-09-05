@@ -35,6 +35,9 @@ public sealed partial class FtpSession : IFtpSession
     public FtpSession(FtpConnectionOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (!Enum.IsDefined(options.Security))
+            throw new ArgumentOutOfRangeException(nameof(options.Security), options.Security, "Unsupported FTP security mode.");
+
         _options = new FtpConnectionOptions
         {
             Host = InputGuard.Host(options.Host),
@@ -75,7 +78,7 @@ public sealed partial class FtpSession : IFtpSession
             if (_options.Security == FtpSecurityMode.ExplicitTls)
             {
                 var auth = await SendCommandAsync("AUTH TLS", cancellationToken).ConfigureAwait(false);
-                Ensure(auth, 200, 399, "Server refused explicit TLS.");
+                Ensure(auth, 200, 299, "Server refused explicit TLS.");
                 await UpgradeControlToTlsAsync(cancellationToken).ConfigureAwait(false);
                 BuildControlTextStreams();
             }

@@ -14,6 +14,7 @@ public static class Program
         var tests = new (string Name, Action Run)[]
         {
             ("InputGuard blocks CRLF command injection", TestCommandInjection),
+            ("Invalid FTP security modes fail closed", TestInvalidSecurityModeFailsClosed),
             ("Remote paths normalize safely", TestRemotePath),
             ("Remote path traversal canonicalizes safely", TestRemoteTraversal),
             ("Remote names block traversal", TestRemoteName),
@@ -59,6 +60,28 @@ public static class Program
         try { _ = InputGuard.CommandArgument("safe\r\nDELE /important", "value"); }
         catch (ArgumentException) { blocked = true; }
         Assert(blocked, "CRLF was accepted.");
+    }
+
+    private static void TestInvalidSecurityModeFailsClosed()
+    {
+        var blocked = false;
+        try
+        {
+            _ = new FtpSession(new FtpConnectionOptions
+            {
+                Host = "localhost",
+                Port = 21,
+                Username = "test",
+                Password = "test",
+                Security = (FtpSecurityMode)999
+            });
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            blocked = true;
+        }
+
+        Assert(blocked, "Undefined FtpSecurityMode was accepted and could fall through to an unsafe transport path.");
     }
 
     private static void TestRemotePath()
