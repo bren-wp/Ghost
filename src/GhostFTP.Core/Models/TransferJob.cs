@@ -13,6 +13,7 @@ public enum TransferState
 {
     Queued,
     Running,
+    Retrying,
     Completed,
     Cancelled,
     Failed
@@ -25,6 +26,7 @@ public sealed class TransferJob : INotifyPropertyChanged
     private long _bytesTransferred;
     private string? _error;
     private double _speedBytesPerSecond;
+    private int _retryCount;
 
     public Guid Id { get; } = Guid.NewGuid();
     public TransferDirection Direction { get; init; }
@@ -70,6 +72,12 @@ public sealed class TransferJob : INotifyPropertyChanged
         }
     }
 
+    public int RetryCount
+    {
+        get => _retryCount;
+        set => Set(ref _retryCount, Math.Max(0, value));
+    }
+
     public string? Error
     {
         get => _error;
@@ -88,6 +96,7 @@ public sealed class TransferJob : INotifyPropertyChanged
 
     public string ProgressText => $"{Progress:0}%";
     public string SpeedText => FormatBytes(SpeedBytesPerSecond) + "/s";
+    public string RetryText => RetryCount == 0 ? string.Empty : RetryCount.ToString();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
