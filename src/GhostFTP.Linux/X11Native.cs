@@ -101,7 +101,7 @@ internal static class X11Native
         internal int x_root;
         internal int y_root;
         internal uint state;
-        internal char is_hint;
+        internal byte is_hint;
         internal int same_screen;
     }
 
