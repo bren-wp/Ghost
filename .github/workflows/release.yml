@@ -30,32 +30,60 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - name: Validate release version
+
+      - name: Validate release version and notes
         shell: pwsh
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "VERSION must use MAJOR.MINOR.PATCH format. Got: $version"
+          }
+
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $tag = $env:GITHUB_REF_NAME
-            if ($tag -ne "v$version") { throw "Tag $tag does not match VERSION v$version." }
+            if ($tag -ne "v$version") {
+              throw "Tag $tag does not match VERSION v$version."
+            }
           }
+
+          $notes = "docs/releases/v$version.md"
+          if (!(Test-Path $notes -PathType Leaf) -or (Get-Item $notes).Length -le 0) {
+            throw "Required release notes are missing or empty: $notes"
+          }
+
+          $releaseNotes = Get-Content $notes -Raw
+          if ($releaseNotes -notmatch [regex]::Escape("Ghost FTP $version")) {
+            throw "$notes must identify Ghost FTP $version."
+          }
+
+          "GHOSTFTP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_NOTES=$notes" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Restore
         run: dotnet restore GhostFTP.sln
+
       - name: Build
         run: dotnet build GhostFTP.sln -c Release --no-restore
+
       - name: Dependency, version, privacy and brand audit
         shell: pwsh
         run: ./audit-source.ps1
+
       - name: Core self-test
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
-      - name: WPF editable input smoke-test
+
+      - name: WPF editable input and localization smoke-test
         run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
+
       - name: Build release packages
         shell: pwsh
         run: ./build-release.ps1
+
       - name: Verify required GitHub Release assets
         shell: pwsh
         run: |
@@ -70,24 +98,36 @@ jobs:
             'release/GhostFTP-Setup-win-arm64.exe',
             'release/SHA256SUMS.txt'
           )
+
           foreach ($path in $required) {
             if (!(Test-Path $path -PathType Leaf) -or (Get-Item $path).Length -le 0) {
               throw "Required GitHub Release asset is missing or empty: $path"
             }
           }
+
+          $hashLines = Get-Content 'release/SHA256SUMS.txt'
+          foreach ($exe in $required | Where-Object { $_ -like '*.exe' }) {
+            $name = Split-Path $exe -Leaf
+            if (-not ($hashLines -match [regex]::Escape($name))) {
+              throw "SHA256SUMS.txt does not contain $name"
+            }
+          }
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-release
+          name: GhostFTP-release-${{ env.GHOSTFTP_VERSION }}
           path: release/*
           if-no-files-found: error
           retention-days: 30
+
       - name: Publish GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = (Get-Content VERSION -Raw).Trim()
+          $version = $env:GHOSTFTP_VERSION
+          $notes = $env:GHOSTFTP_NOTES
           $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF_NAME } else { "v$version" }
           $assets = @(
             'release/setup.exe',
@@ -103,11 +143,13 @@ jobs:
 
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists; refreshing verified assets."
+            Write-Host "Release $tag already exists; synchronizing detailed notes and verified assets."
+            gh release edit $tag --title "Ghost FTP $version" --notes-file $notes
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update GitHub Release notes for $tag." }
             gh release upload $tag @assets --clobber
             if ($LASTEXITCODE -ne 0) { throw "Failed to refresh GitHub Release assets for $tag." }
           }
           else {
-            gh release create $tag @assets --target $env:GITHUB_SHA --title "Ghost FTP $tag" --generate-notes
+            gh release create $tag @assets --target $env:GITHUB_SHA --title "Ghost FTP $version" --notes-file $notes
             if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $tag." }
           }

@@ -38,6 +38,7 @@ public sealed class SetupWindow : Window
     private WizardStep _step = WizardStep.Welcome;
     private bool _busy;
     private bool _rebuilding;
+    private string? _lastError;
 
     public SetupWindow(bool uninstallMode)
     {
@@ -349,6 +350,18 @@ public sealed class SetupWindow : Window
     private UIElement BuildReadyStep()
     {
         var stack = new StackPanel();
+
+        if (!string.IsNullOrWhiteSpace(_lastError))
+        {
+            var title = GhostTheme.Text("Setup could not complete", 12.5, weight: FontWeights.SemiBold);
+            title.Foreground = GhostTheme.R("Danger");
+            var message = GhostTheme.Text(_lastError, 11, muted: true);
+            message.TextWrapping = TextWrapping.Wrap;
+            var error = GhostTheme.Surface(new StackPanel { Children = { title, message } }, new Thickness(14), 10);
+            error.Margin = new Thickness(0, 0, 0, 16);
+            stack.Children.Add(error);
+        }
+
         var selectedLanguage = _language.SelectedItem as GhostLanguage;
         stack.Children.Add(SummaryRow("Action", _uninstallMode
             ? GhostLocalization.T("Uninstall")
@@ -515,6 +528,7 @@ public sealed class SetupWindow : Window
         if (!CanGoBack())
             return;
 
+        _lastError = null;
         if (_uninstallMode)
         {
             SetStep(_step == WizardStep.Ready ? WizardStep.Options : WizardStep.Welcome);
@@ -532,12 +546,15 @@ public sealed class SetupWindow : Window
 
     private void SetStep(WizardStep step)
     {
+        if (step != WizardStep.Ready)
+            _lastError = null;
         _step = step;
         Render();
     }
 
     private async Task ExecuteInstallAsync()
     {
+        _lastError = null;
         SetBusy(true);
         _step = WizardStep.Progress;
         _status.Text = _installer.IsInstalled ? GhostLocalization.T("Updating") : GhostLocalization.T("Installing");
@@ -550,7 +567,7 @@ public sealed class SetupWindow : Window
         }
         catch (Exception ex)
         {
-            _status.Text = GhostLocalization.F("OperationCouldNotComplete", ex.Message);
+            _lastError = GhostLocalization.F("OperationCouldNotComplete", ex.Message);
             _step = WizardStep.Ready;
         }
         finally
@@ -562,6 +579,7 @@ public sealed class SetupWindow : Window
 
     private async Task ExecuteUninstallAsync()
     {
+        _lastError = null;
         SetBusy(true);
         _step = WizardStep.Progress;
         _status.Text = GhostLocalization.T("Removing");
@@ -573,7 +591,7 @@ public sealed class SetupWindow : Window
         }
         catch (Exception ex)
         {
-            _status.Text = GhostLocalization.F("OperationCouldNotComplete", ex.Message);
+            _lastError = GhostLocalization.F("OperationCouldNotComplete", ex.Message);
             _step = WizardStep.Ready;
         }
         finally

@@ -183,11 +183,24 @@ internal sealed class InstallerService
         JsonObject root;
         try
         {
-            if (File.Exists(SettingsPath) && new FileInfo(SettingsPath).Length <= MaxSettingsFileBytes)
+            if (File.Exists(SettingsPath))
             {
-                await using var input = File.OpenRead(SettingsPath);
-                root = await JsonNode.ParseAsync(input, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject
-                    ?? new JsonObject();
+                var info = new FileInfo(SettingsPath);
+                if (info.Length > MaxSettingsFileBytes)
+                {
+                    QuarantineCorruptSettings();
+                    root = new JsonObject();
+                }
+                else if (info.Length == 0)
+                {
+                    root = new JsonObject();
+                }
+                else
+                {
+                    await using var input = File.OpenRead(SettingsPath);
+                    root = await JsonNode.ParseAsync(input, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject
+                        ?? new JsonObject();
+                }
             }
             else
             {
@@ -323,9 +336,14 @@ internal sealed class InstallerService
 
     private void ScheduleSelfDelete(string currentSetup)
     {
+        // Register a reliable OS-level fallback first. The hidden cmd process below attempts
+        // immediate cleanup after Setup exits; MoveFileEx guarantees eventual removal on reboot
+        // if the process is kept open longer than the immediate cleanup window.
+        _ = MoveFileEx(currentSetup, null, MoveFileDelayUntilReboot);
+
         try
         {
-            var command = $"ping 127.0.0.1 -n 3 >nul & del /f /q \"{currentSetup}\" >nul 2>&1 & rmdir \"{InstallDirectory}\" >nul 2>&1";
+            var command = $"ping 127.0.0.1 -n 4 >nul & del /f /q \"{currentSetup}\" >nul 2>&1 & rmdir \"{InstallDirectory}\" >nul 2>&1";
             var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"))
             {
                 UseShellExecute = false,
@@ -340,7 +358,7 @@ internal sealed class InstallerService
         }
         catch
         {
-            _ = MoveFileEx(currentSetup, null, MoveFileDelayUntilReboot);
+            // MoveFileEx above remains the guaranteed fallback.
         }
     }
 

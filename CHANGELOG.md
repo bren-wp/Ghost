@@ -1,5 +1,85 @@
 # Ghost FTP changelog
 
+## 1.4.0 — 2026-09-05
+
+### Internationalization
+
+- Added a central dependency-free C# localization system shared by the Windows client and Setup.
+- English remains the primary/default language and the guaranteed fallback for technical text that does not yet have a localized override.
+- Added selectable support for 29 languages: English, Croatian, German, French, Spanish, Italian, Portuguese, Dutch, Polish, Czech, Slovak, Slovenian, Hungarian, Romanian, Bulgarian, Greek, Turkish, Ukrainian, Russian, Serbian, Bosnian, Swedish, Danish, Norwegian, Finnish, Japanese, Korean, Simplified Chinese and Traditional Chinese.
+- Added a dedicated Setup wizard catalog for Welcome, License Agreement, license acceptance, Back/Next navigation, Install options, Ready, Finish and client-language selection.
+- Added WPF smoke-test coverage for all 29 application locales and all 29 Setup locales.
+- Unknown/invalid stored language codes normalize back to English instead of breaking application startup.
+- Language selection is stored locally only; no online translation or language lookup service is used.
+
+### Connection and transfer reliability
+
+- Added configurable automatic transfer retries from 0–5 attempts.
+- Retries are limited to transient socket/timeout conditions and FTP 4xx failures.
+- Authentication failures, TLS/certificate failures, permission failures and FTP 5xx permanent errors are not blindly retried.
+- Added `Retrying` transfer state and retry-count visibility.
+- Fixed cancellation during retry backoff so cancelling one job cannot terminate the queue worker.
+- Fixed retry-count property notification so the UI updates immediately.
+- Added configurable connect, command and transfer-idle timeout settings and wired them into browsing and per-transfer FTP sessions.
+- Preserved one independent FTP/FTPS session per queued transfer so transfer cancellation/failure cannot desynchronize the browser control connection.
+
+### FTP integrity and protocol correctness
+
+- Added local Connection Diagnostics using `NOOP`, `SYST`, `PWD` and the server capability set already obtained through `FEAT`.
+- Diagnostics communicate only with the server the user explicitly connected to and are never uploaded to Ghost FTP or BRENDIGO LTD.
+- Remote file-pane navigation now synchronizes path state through server `CWD` and `PWD`, preventing UI path state from diverging from the server working directory.
+- Download completion now verifies `.ghostftp.part` length against server `SIZE` when the server supports it before promoting the partial file to the final local destination.
+- Upload completion verifies the temporary remote file size with `SIZE` when available before replacing the destination.
+- Upload completion re-verifies the committed destination size when available.
+- A failed post-commit upload integrity check attempts to remove the invalid new destination and restore the previous rollback backup.
+- Preserved strict certificate validation, passive-host hardening, command-injection guards, reply/listing bounds, traversal limits, root-delete blocking and verified `MKD 550` handling.
+
+### Guided premium Setup
+
+- Rebuilt Setup as a multi-step Windows 11-style wizard instead of a single action screen.
+- Install flow is now: **Language → License → Install options → Ready → Install/Update → Finish**.
+- The license displayed by Setup is the same `LICENSE` file stored in the repository and embedded into the Setup build.
+- The user must explicitly accept the license before the installer enables progression beyond the License step.
+- The selected Setup language is also stored as the initial Ghost FTP client language.
+- Existing valid settings are preserved when Setup writes the initial language.
+- Malformed or oversized settings data is quarantined/neutralized rather than trusted.
+- Setup validates both the embedded Ghost FTP application payload and its installed maintenance copy as Windows executables before use.
+- Setup reports install/update/uninstall failures on the Ready page instead of silently returning without a visible reason.
+- Installed updates retain atomic replacement behavior for the application payload.
+
+### Uninstall architecture
+
+- Removed the separate generated uninstaller executable model.
+- The installed maintenance copy is `GhostFTP-Setup.exe` and the Windows Installed Apps uninstall command invokes the same executable with `--uninstall`.
+- Uninstall removes the application, shortcuts and Installed Apps registration immediately and optionally removes local Ghost FTP settings/profiles.
+- When Setup is uninstalling itself, Windows delete-on-reboot is registered as a fallback while a local delayed cleanup attempt tries to remove the maintenance Setup and empty install directory after process exit.
+- Preserved the choice to keep local profiles/settings for a future reinstall.
+
+### Product and legal identity
+
+- Product identity remains **Ghost FTP / GhostFTP**.
+- Developer, publisher and licensor metadata is now **BRENDIGO LTD**.
+- Added Company number **16545639** and registered office **71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom** to the shared legal identity model.
+- Windows assembly metadata, Setup publisher display, Installed Apps publisher and About dialog use the same BRENDIGO LTD publisher identity.
+- Replaced the previous license text with an English-first Ghost FTP proprietary/source-available license naming BRENDIGO LTD as licensor.
+- The repository audit continues to reject legacy non-Ghost FTP product identifiers while allowing the legitimate BRENDIGO LTD publisher identity.
+
+### Dependency, privacy and build guarantees
+
+- Source remains C#-only for shipping application code and contains zero NuGet `PackageReference` entries.
+- No application telemetry, analytics, advertising, tracking SDK, crash-upload service or background update checker was introduced.
+- Refined telemetry source scanning to detect actual SDK identifiers/namespaces without false positives from ordinary WPF symbols such as `ScrollBarVisibility`.
+- Synchronized VERSION, assembly/file/informational metadata and both Windows manifests to 1.4.0.
+- Release remains blocked unless Build, source/privacy/product/publisher audit, Core self-tests, WPF editable-input tests, application/Setup localization tests, x64/ARM64 packaging and required release-executable verification all pass.
+
+### Documentation and release discipline
+
+- Expanded README for 1.4.0 features, publisher identity, languages, Setup, FTP integrity and validation rules.
+- Added dedicated installation, localization and release-policy documentation.
+- Expanded security, privacy, architecture and UI/UX documentation.
+- Added version-specific release-note documents under `docs/releases/` so every published release has a maintainable detailed historical record.
+- Release workflow now uses the version-specific release-note document instead of generic generated notes for new releases.
+
 ## 1.3.1 — 2026-09-05
 
 ### Critical input fix
@@ -43,7 +123,7 @@
 ### Branding and release discipline
 
 - Product identity remains exclusively **Ghost FTP / GhostFTP** across application, setup, documentation, metadata and repository artwork.
-- Source audit now scans both file contents and repository paths for disallowed legacy identity tokens.
+- Source audit scans both file contents and repository paths for disallowed legacy product identity tokens.
 - Version, assembly/file metadata and both Windows manifests are synchronized to 1.3.1.
 - Release remains gated on Build, source/privacy/brand audit, Core self-tests, WPF input smoke tests, x64/ARM64 packaging and required executable verification.
 
@@ -51,25 +131,24 @@
 
 ### Brand and product identity
 
-- Standardized every shipping surface on the **Ghost FTP / GhostFTP** identity.
-- Added `GhostBrand` as the central product-name, website, repository and vector-icon source used by the desktop app and setup.
+- Standardized every shipping product surface on **Ghost FTP / GhostFTP**.
+- Added `GhostBrand` as the central product-name, website, repository and vector-icon source used by the desktop app and Setup.
 - Added the official vector icon at `assets/brand/ghostftp-icon.svg`.
 - Added deterministic build-time generation of the Windows `.ico` resource and connected it as the real `ApplicationIcon` for both Ghost FTP and Setup.
 - Added a Ghost FTP-only repository hero at `assets/readme/ghostftp-hero.svg` and integrated it into README.
-- Removed legacy alternate brand/author references from UI, installer metadata, privacy/legal documentation and current project metadata.
-- Added CI enforcement that rejects a return of the previous alternate brand identity.
+- Added CI enforcement that rejects a return of previous alternate product identities.
 
 ### UI / UX
 
-- Replaced the remaining Windows-default Security/Appearance ComboBox chrome with the shared `GhostComboBox` C# template.
+- Replaced remaining Windows-default Security/Appearance ComboBox chrome with the shared `GhostComboBox` C# template.
 - Applied the premium dropdown consistently to Quick Connect, server-profile editing and Settings.
-- Removed obsolete `GhostTheme.Logo()` and `GhostTheme.ComboBox()` helpers after migrating all callers to the canonical brand/dropdown paths.
+- Removed obsolete `GhostTheme.Logo()` and `GhostTheme.ComboBox()` helpers after migrating all callers to canonical identity/dropdown paths.
 - Polished the sidebar brand block, spacing, Ghost FTP naming and About navigation.
 
 ### Security and stability
 
-- Installer now validates the embedded application payload before installation, including minimum size and Windows `MZ` executable signature.
-- Existing installations are replaced with atomic `File.Replace` semantics and temporary backup cleanup.
+- Installer validates the embedded application payload before installation, including minimum size and Windows `MZ` executable signature.
+- Existing installations use atomic `File.Replace` semantics and temporary backup cleanup.
 - Setup reports a locked/running application as an error instead of claiming a successful update.
 - Uninstall verifies required application deletion and reports failure instead of silently ignoring a locked executable.
 - Added bounded profile persistence: 8 MiB file limit and a 2,048-profile limit.
@@ -83,7 +162,7 @@
 - Updated version, assembly metadata and application manifests to 1.3.0.
 - Removed obsolete release-trigger files from earlier releases.
 - Expanded source audit checks for Ghost FTP identity, required visual assets, executable-icon generation, premium dropdown ownership and shared design-system ownership.
-- Refreshed README, SECURITY, architecture and UI/UX documentation for the new brand and persistence/installer boundaries.
+- Refreshed README, SECURITY, architecture and UI/UX documentation for persistence/installer boundaries.
 - Retained dependency-free C# source and mandatory x64/ARM64 `setup.exe` / `portable.exe` release verification.
 
 ## 1.2.0 — 2026-09-05
