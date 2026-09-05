@@ -39,31 +39,9 @@ public sealed partial class MainWindow
             ResizeAllColumns();
         }, DispatcherPriority.ApplicationIdle);
 
-        var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
-        if (Content is FrameworkElement captureRoot)
-        {
-            // GitHub-hosted Windows runners expose a desktop smaller than the canonical
-            // 1914×907 reference. A live Window is constrained by that virtual work area,
-            // so rendering its attached Content would capture only the visible runner-sized
-            // portion and leave the remainder of the bitmap empty. Detach the real compiled
-            // visual tree only for the render pass, lay it out at the canonical viewport,
-            // then restore it to the Window. No mock/staged UI is created here.
-            Content = null;
-            try
-            {
-                CaptureReferenceRootToPng(captureRoot, clientPath);
-            }
-            finally
-            {
-                Content = captureRoot;
-                UpdateLayout();
-            }
-        }
-        else
-        {
-            throw new InvalidOperationException("Ghost FTP documentation capture requires a framework root element.");
-        }
-
+        // Capture owned dialogs while the real MainWindow visual tree is still attached.
+        // This avoids reparenting a large reference-sized tree back into the smaller virtual
+        // desktop used by GitHub-hosted runners.
         if (_profileStore is not null)
         {
             var manager = new SiteManagerDialog(
@@ -75,6 +53,23 @@ public sealed partial class MainWindow
             var managerPath = Path.Combine(_captureDirectory, "ghostftp-site-manager.png");
             CaptureElementToPng(manager, managerPath);
             manager.Close();
+        }
+
+        var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
+        if (Content is FrameworkElement captureRoot)
+        {
+            // GitHub-hosted Windows runners expose a desktop smaller than the canonical
+            // 1914×907 reference. A live Window is constrained by that virtual work area,
+            // so rendering its attached Content can leave a large empty right/bottom region.
+            // Detach the real compiled visual tree once, arrange that exact tree at the
+            // canonical viewport, render it, and leave it detached because capture mode exits
+            // immediately afterwards. No mock, duplicate shell or generated image is used.
+            Content = null;
+            CaptureReferenceRootToPng(captureRoot, clientPath);
+        }
+        else
+        {
+            throw new InvalidOperationException("Ghost FTP documentation capture requires a framework root element.");
         }
 
         if (_queue is not null)
