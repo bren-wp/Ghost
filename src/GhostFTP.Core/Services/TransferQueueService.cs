@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Threading.Channels;
 using GhostFTP.Core.Models;
 using GhostFTP.Core.Protocol;
@@ -23,14 +24,19 @@ public sealed class TransferQueueService : IAsyncDisposable
     private readonly object _sync = new();
     private readonly Task _worker;
     private readonly SynchronizationContext? _uiContext;
+    private readonly int _maxAutomaticRetries;
 
     public ObservableCollection<TransferJob> Jobs { get; } = [];
     public event EventHandler<TransferJob>? JobUpdated;
 
-    public TransferQueueService(Func<CancellationToken, Task<(IFtpSession Session, bool DisposeAfter)>> sessionFactory, SynchronizationContext? uiContext = null)
+    public TransferQueueService(
+        Func<CancellationToken, Task<(IFtpSession Session, bool DisposeAfter)>> sessionFactory,
+        SynchronizationContext? uiContext = null,
+        int maxAutomaticRetries = 2)
     {
         _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
         _uiContext = uiContext;
+        _maxAutomaticRetries = Math.Clamp(maxAutomaticRetries, 0, 5);
         _worker = Task.Run(WorkerAsync);
     }
 
@@ -95,9 +101,22 @@ public sealed class TransferQueueService : IAsyncDisposable
         try
         {
             await foreach (var queued in _channel.Reader.ReadAllAsync(_shutdown.Token).ConfigureAwait(false))
+                await ProcessQueuedAsync(queued).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task ProcessQueuedAsync(Queued queued)
+    {
+        var job = queued.Job;
+        var ct = queued.Cancellation.Token;
+
+        try
+        {
+            for (var attempt = 0; ; attempt++)
             {
-                var job = queued.Job;
-                var ct = queued.Cancellation.Token;
                 IFtpSession? transferSession = null;
                 var disposeAfter = false;
                 try
@@ -109,65 +128,135 @@ public sealed class TransferQueueService : IAsyncDisposable
                     if (!transferSession.IsConnected)
                         throw new InvalidOperationException("Transfer session is not connected.");
 
-                    Ui(() => job.State = TransferState.Running, job);
-                    var stopwatch = Stopwatch.StartNew();
-                    long lastBytes = 0;
-                    var lastTime = TimeSpan.Zero;
-                    var progress = new Progress<(long transferred, long? total)>(p =>
+                    Ui(() =>
                     {
-                        var total = p.total ?? job.TotalBytes;
-                        var elapsed = stopwatch.Elapsed;
-                        var deltaSeconds = (elapsed - lastTime).TotalSeconds;
-                        var speed = deltaSeconds >= 0.5 ? (p.transferred - lastBytes) / deltaSeconds : -1;
-                        if (deltaSeconds >= 0.5)
-                        {
-                            lastBytes = p.transferred;
-                            lastTime = elapsed;
-                        }
-                        Ui(() =>
-                        {
-                            job.BytesTransferred = p.transferred;
-                            if (total is > 0) job.Progress = p.transferred * 100d / total.Value;
-                            if (speed >= 0) job.SpeedBytesPerSecond = speed;
-                        }, job);
-                    });
+                        job.State = TransferState.Running;
+                        if (attempt == 0) job.Error = null;
+                    }, job);
 
-                    if (job.Direction == TransferDirection.Upload)
+                    await ExecuteTransferAsync(job, transferSession, ct).ConfigureAwait(false);
+                    Ui(() =>
                     {
-                        if (job.IsDirectory) await transferSession.UploadDirectoryAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
-                        else await transferSession.UploadFileAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        if (job.IsDirectory) await transferSession.DownloadDirectoryAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
-                        else await transferSession.DownloadFileAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
-                    }
-
-                    Ui(() => { job.Progress = 100; job.State = TransferState.Completed; }, job);
+                        job.Progress = 100;
+                        job.Error = null;
+                        job.State = TransferState.Completed;
+                    }, job);
+                    return;
                 }
                 catch (OperationCanceledException)
                 {
                     Ui(() => job.State = TransferState.Cancelled, job);
+                    return;
+                }
+                catch (Exception ex) when (attempt < _maxAutomaticRetries && IsTransient(ex))
+                {
+                    var retryNumber = attempt + 1;
+                    Ui(() =>
+                    {
+                        job.RetryCount = retryNumber;
+                        job.State = TransferState.Retrying;
+                        job.Error = $"Transient transfer failure. Retry {retryNumber} of {_maxAutomaticRetries}: {ex.Message}";
+                        job.SpeedBytesPerSecond = 0;
+                    }, job);
+
+                    await DisposeLeaseAsync(transferSession, disposeAfter).ConfigureAwait(false);
+                    transferSession = null;
+                    disposeAfter = false;
+
+                    var delay = TimeSpan.FromMilliseconds(Math.Min(5000, 700 * Math.Pow(2, attempt)));
+                    await Task.Delay(delay, ct).ConfigureAwait(false);
+                    continue;
                 }
                 catch (Exception ex)
                 {
-                    Ui(() => { job.Error = ex.Message; job.State = TransferState.Failed; }, job);
+                    Ui(() =>
+                    {
+                        job.Error = ex.Message;
+                        job.State = TransferState.Failed;
+                        job.SpeedBytesPerSecond = 0;
+                    }, job);
+                    return;
                 }
                 finally
                 {
-                    if (disposeAfter && transferSession is not null)
-                    {
-                        try { await transferSession.DisposeAsync().ConfigureAwait(false); } catch { }
-                    }
-                    Ui(() => { }, job);
-                    lock (_sync) _cancellations.Remove(job.Id);
-                    queued.Cancellation.Dispose();
+                    await DisposeLeaseAsync(transferSession, disposeAfter).ConfigureAwait(false);
                 }
             }
         }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        finally
         {
+            Ui(() => { }, job);
+            lock (_sync) _cancellations.Remove(job.Id);
+            queued.Cancellation.Dispose();
         }
+    }
+
+    private async Task ExecuteTransferAsync(TransferJob job, IFtpSession transferSession, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        long lastBytes = 0;
+        var lastTime = TimeSpan.Zero;
+        var progress = new Progress<(long transferred, long? total)>(p =>
+        {
+            var total = p.total ?? job.TotalBytes;
+            var elapsed = stopwatch.Elapsed;
+            var deltaSeconds = (elapsed - lastTime).TotalSeconds;
+            var speed = deltaSeconds >= 0.5 ? Math.Max(0, p.transferred - lastBytes) / deltaSeconds : -1;
+            if (deltaSeconds >= 0.5)
+            {
+                lastBytes = p.transferred;
+                lastTime = elapsed;
+            }
+            Ui(() =>
+            {
+                job.BytesTransferred = p.transferred;
+                if (total is > 0) job.Progress = p.transferred * 100d / total.Value;
+                if (speed >= 0) job.SpeedBytesPerSecond = speed;
+            }, job);
+        });
+
+        if (job.Direction == TransferDirection.Upload)
+        {
+            if (job.IsDirectory) await transferSession.UploadDirectoryAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
+            else await transferSession.UploadFileAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            if (job.IsDirectory) await transferSession.DownloadDirectoryAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
+            else await transferSession.DownloadFileAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
+        }
+    }
+
+    private static bool IsTransient(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is OperationCanceledException or UnauthorizedAccessException or System.Security.Authentication.AuthenticationException)
+                return false;
+
+            if (current is FtpException ftp)
+            {
+                if (ftp.ReplyCode is >= 400 and <= 499)
+                    return true;
+                if (ftp.ReplyCode is >= 500 and <= 599)
+                    return false;
+                if (ftp.ReplyCode is null)
+                    return true;
+            }
+
+            if (current is TimeoutException or SocketException)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static async Task DisposeLeaseAsync(IFtpSession? session, bool disposeAfter)
+    {
+        if (!disposeAfter || session is null)
+            return;
+        try { await session.DisposeAsync().ConfigureAwait(false); }
+        catch { }
     }
 
     private void Ui(Action update, TransferJob job)
