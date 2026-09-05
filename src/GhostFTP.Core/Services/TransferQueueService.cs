@@ -164,7 +164,15 @@ public sealed class TransferQueueService : IAsyncDisposable
                     disposeAfter = false;
 
                     var delay = TimeSpan.FromMilliseconds(Math.Min(5000, 700 * Math.Pow(2, attempt)));
-                    await Task.Delay(delay, ct).ConfigureAwait(false);
+                    try
+                    {
+                        await Task.Delay(delay, ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Ui(() => job.State = TransferState.Cancelled, job);
+                        return;
+                    }
                     continue;
                 }
                 catch (Exception ex)
