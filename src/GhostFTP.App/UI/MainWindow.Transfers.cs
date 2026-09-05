@@ -45,7 +45,7 @@ public sealed partial class MainWindow
     {
         if (_queue is null) return;
         var selected = _queueList.SelectedItems.OfType<TransferJob>().ToArray();
-        foreach (var job in selected.Where(x => x.State is TransferState.Queued or TransferState.Running))
+        foreach (var job in selected.Where(x => x.State is TransferState.Queued or TransferState.Running or TransferState.Retrying))
             _queue.Cancel(job.Id);
         UpdateQueueSummary();
     }
@@ -53,7 +53,7 @@ public sealed partial class MainWindow
     private void CancelAllTransfers()
     {
         if (_queue is null) return;
-        foreach (var job in _queue.Jobs.Where(x => x.State is TransferState.Queued or TransferState.Running).ToArray())
+        foreach (var job in _queue.Jobs.Where(x => x.State is TransferState.Queued or TransferState.Running or TransferState.Retrying).ToArray())
             _queue.Cancel(job.Id);
         UpdateQueueSummary();
     }
@@ -115,11 +115,12 @@ public sealed partial class MainWindow
     {
         if (_queue is null || _queue.Jobs.Count == 0)
         {
-            _queueSummary.Text = "No transfers";
+            _queueSummary.Text = L("NoTransfers");
             return;
         }
 
         var running = _queue.Jobs.Count(x => x.State == TransferState.Running);
+        var retrying = _queue.Jobs.Count(x => x.State == TransferState.Retrying);
         var queued = _queue.Jobs.Count(x => x.State == TransferState.Queued);
         var failed = _queue.Jobs.Count(x => x.State == TransferState.Failed);
         var cancelled = _queue.Jobs.Count(x => x.State == TransferState.Cancelled);
@@ -127,6 +128,7 @@ public sealed partial class MainWindow
 
         var parts = new List<string>();
         if (running > 0) parts.Add($"{running} running");
+        if (retrying > 0) parts.Add($"{retrying} retrying");
         if (queued > 0) parts.Add($"{queued} queued");
         if (failed > 0) parts.Add($"{failed} failed");
         if (cancelled > 0) parts.Add($"{cancelled} cancelled");
@@ -176,7 +178,7 @@ public sealed partial class MainWindow
                 this,
                 "Remove saved server?",
                 $"Remove saved server '{selected.Name}' from this device?",
-                "Remove",
+                L("Remove"),
                 danger: true))
             return;
 
@@ -202,17 +204,32 @@ public sealed partial class MainWindow
         if (dialog.ShowDialog() != true) return;
 
         var showHiddenChanged = _settings.ShowHiddenFiles != dialog.ShowHiddenFiles;
+        var languageChanged = !string.Equals(_settings.LanguageCode, dialog.SelectedLanguageCode, StringComparison.OrdinalIgnoreCase);
+        var themeChanged = _settings.Theme != dialog.SelectedTheme;
+        var reliabilityChanged = _settings.AutomaticTransferRetries != dialog.AutomaticTransferRetries
+            || _settings.ConnectTimeoutSeconds != dialog.ConnectTimeoutSeconds
+            || _settings.CommandTimeoutSeconds != dialog.CommandTimeoutSeconds
+            || _settings.TransferIdleTimeoutSeconds != dialog.TransferIdleTimeoutSeconds;
+
         _settings.Theme = dialog.SelectedTheme;
+        _settings.LanguageCode = dialog.SelectedLanguageCode;
         _settings.ConfirmDeletes = dialog.ConfirmDeletes;
         _settings.ShowHiddenFiles = dialog.ShowHiddenFiles;
+        _settings.AutomaticTransferRetries = dialog.AutomaticTransferRetries;
+        _settings.ConnectTimeoutSeconds = dialog.ConnectTimeoutSeconds;
+        _settings.CommandTimeoutSeconds = dialog.CommandTimeoutSeconds;
+        _settings.TransferIdleTimeoutSeconds = dialog.TransferIdleTimeoutSeconds;
 
         if (_settingsStore is not null) await _settingsStore.SaveAsync(_settings);
         if (showHiddenChanged) RefreshLocal();
 
+        var restartNeeded = languageChanged || themeChanged || reliabilityChanged;
         GhostMessageDialog.Information(
             this,
-            "Settings saved",
-            "File-view changes apply immediately. Appearance changes apply the next time Ghost FTP starts.");
+            L("Settings"),
+            restartNeeded
+                ? "Settings were saved. File-view changes apply immediately; language, appearance and connection reliability changes apply after Ghost FTP restarts."
+                : "Settings were saved. File-view changes apply immediately.");
     }
 
     private void SetStatus(string text, string brushKey)
