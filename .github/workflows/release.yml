@@ -128,6 +128,32 @@ jobs:
         shell: pwsh
         run: ./build-release.ps1
 
+      - name: Authenticode-sign Windows release binaries
+        shell: pwsh
+        env:
+          GHOSTFTP_SIGNING_PFX_BASE64: ${{ secrets.GHOSTFTP_SIGNING_PFX_BASE64 }}
+          GHOSTFTP_SIGNING_PFX_PASSWORD: ${{ secrets.GHOSTFTP_SIGNING_PFX_PASSWORD }}
+          GHOSTFTP_TIMESTAMP_URL: ${{ secrets.GHOSTFTP_TIMESTAMP_URL }}
+        run: |
+          $requireTrusted = $env:GHOSTFTP_CHANNEL -eq 'stable'
+          ./tools/Sign-WindowsRelease.ps1 -ReleaseDirectory ./release -RequireTrustedSignature:$requireTrusted
+
+          $report = [System.Collections.Generic.List[string]]::new()
+          $report.Add("Ghost FTP $env:GHOSTFTP_VERSION $env:GHOSTFTP_CHANNEL signing report")
+          $report.Add("Generated: $([DateTimeOffset]::UtcNow.ToString('u'))")
+          $report.Add('')
+
+          foreach ($exe in Get-ChildItem ./release -Filter '*.exe' -File | Sort-Object Name) {
+            $signature = Get-AuthenticodeSignature $exe.FullName
+            if ($null -eq $signature.SignerCertificate) {
+              $report.Add("$($exe.Name): UNSIGNED")
+            }
+            else {
+              $report.Add("$($exe.Name): $($signature.Status) | $($signature.SignerCertificate.Subject) | $($signature.SignerCertificate.Thumbprint)")
+            }
+          }
+          $report | Set-Content ./release/SIGNING.txt -Encoding utf8
+
       - name: Verify required GitHub Release assets
         shell: pwsh
         run: |
@@ -140,7 +166,8 @@ jobs:
             'release/GhostFTP-Setup-win-x64.exe',
             'release/GhostFTP-Portable-win-arm64.exe',
             'release/GhostFTP-Setup-win-arm64.exe',
-            'release/SHA256SUMS.txt'
+            'release/SHA256SUMS.txt',
+            'release/SIGNING.txt'
           )
 
           foreach ($path in $required) {
@@ -160,8 +187,18 @@ jobs:
           $hashLines = Get-Content 'release/SHA256SUMS.txt'
           foreach ($exe in $required | Where-Object { $_ -like '*.exe' }) {
             $name = Split-Path $exe -Leaf
-            if (-not ($hashLines -match [regex]::Escape($name))) {
-              throw "SHA256SUMS.txt does not contain $name"
+            $expectedHash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            if (-not ($hashLines -match ('^' + [regex]::Escape($expectedHash) + '\s+' + [regex]::Escape($name) + '$'))) {
+              throw "SHA256SUMS.txt does not match final bytes for $name"
+            }
+          }
+
+          if ($env:GHOSTFTP_CHANNEL -eq 'stable') {
+            foreach ($exe in $required | Where-Object { $_ -like '*.exe' }) {
+              $signature = Get-AuthenticodeSignature $exe
+              if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+                throw "Stable release executable is not trusted-signed: $exe ($($signature.Status))"
+              }
             }
           }
 
@@ -196,7 +233,8 @@ jobs:
             'release/GhostFTP-Portable-win-x64.exe',
             'release/GhostFTP-Setup-win-arm64.exe',
             'release/GhostFTP-Portable-win-arm64.exe',
-            'release/SHA256SUMS.txt'
+            'release/SHA256SUMS.txt',
+            'release/SIGNING.txt'
           )
 
           gh release view $tag *> $null
