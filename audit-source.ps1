@@ -339,4 +339,4 @@ foreach ($file in $scanFiles) {
     }
 }
 
-Write-Host "Source audit passed for Ghost FTP $version $channel: synchronized BRENDIGO LTD identity, shared net10.0 FTP core, real Windows WPF and Linux X11/XWayland desktop renderers, zero PackageReference entries, no known telemetry/tracking SDKs, local-only settings/credentials, cross-platform path safety, Authenticode signing pipeline, architecture-explicit Linux packaging, authentic Windows screenshots and synchronized release documentation."
+Write-Host "Source audit passed for Ghost FTP $version ${channel}: synchronized BRENDIGO LTD identity, shared net10.0 FTP core, real Windows WPF and Linux X11/XWayland desktop renderers, zero PackageReference entries, no known telemetry/tracking SDKs, local-only settings/credentials, cross-platform path safety, Authenticode signing pipeline, architecture-explicit Linux packaging, authentic Windows screenshots and synchronized release documentation."
