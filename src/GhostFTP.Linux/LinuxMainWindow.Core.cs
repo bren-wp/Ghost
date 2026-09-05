@@ -389,6 +389,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
 
             Post(() =>
             {
+                KeepQuickConnectionInTabIfRequested();
                 _status = session.IsEncrypted ? "Connected · TLS" : "Connected · FTP";
                 Log(session.IsEncrypted ? "Connected with encrypted FTP control/data channels." : "Connected using plain FTP.");
             });
