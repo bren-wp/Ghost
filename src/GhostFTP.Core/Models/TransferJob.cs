@@ -75,7 +75,14 @@ public sealed class TransferJob : INotifyPropertyChanged
     public int RetryCount
     {
         get => _retryCount;
-        set => Set(ref _retryCount, Math.Max(0, value));
+        set
+        {
+            value = Math.Max(0, value);
+            if (_retryCount == value) return;
+            _retryCount = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RetryText));
+        }
     }
 
     public string? Error
