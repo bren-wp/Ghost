@@ -15,6 +15,15 @@ public static class Program
         try
         {
             using var application = new LinuxMainWindow(args);
+            if (args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase))
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(900)).ConfigureAwait(false);
+                    application.RequestSmokeTestShutdown();
+                });
+            }
+
             application.Run();
             return 0;
         }
