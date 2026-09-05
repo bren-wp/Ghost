@@ -2,7 +2,9 @@
 
 Ghost FTP is designed to operate without application telemetry, user tracking or hidden background product network activity.
 
-Ghost FTP is developed and published by **BRENDIGO LTD**. This privacy model describes the official Ghost FTP application and Setup behavior in version 1.7.0.
+Ghost FTP is developed and published by **BRENDIGO LTD**. This privacy model describes the official Ghost FTP application and Setup behavior in **version 0.1.0 Beta**.
+
+The public version-number reset does not remove or weaken privacy work completed during the preserved internal development history.
 
 ## What Ghost FTP does not do
 
@@ -72,11 +74,11 @@ Passwords are not persisted unless **Remember password** is enabled for a saved 
 
 When enabled, the password is protected with Windows DPAPI using current-user scope. Ghost FTP does not upload saved credentials or provide cloud credential synchronization.
 
-The 1.7 Site Manager uses the same existing protection path; it does not introduce a new credential store.
+The current Site Manager uses the same existing protection path; it does not introduce a new credential store.
 
 ## Connection Log privacy
 
-Ghost FTP 1.7 adds an in-memory Connection Log for user-visible session activity.
+Ghost FTP includes an in-memory Connection Log for user-visible session activity.
 
 The log may contain:
 
@@ -148,6 +150,14 @@ The GitHub Actions workflow that refreshes repository screenshots is build infra
 - optionally remove local Ghost FTP data when explicitly requested.
 
 Setup contains no installation analytics, conversion tracking, crash upload or update-service reporting.
+
+## Version/channel privacy note
+
+The active public line uses `VERSION=0.1.0` and `RELEASE_CHANNEL=beta`. The first stable release is reserved for `1.0.0`.
+
+This version/channel distinction affects release labeling and executable metadata only. It does not enable additional telemetry, analytics, account synchronization or product network traffic in Beta builds.
+
+Canonical `portable.exe` and `setup.exe` filenames remain predictable while their internal version metadata follows the active release version. A stable 1.0.0 package must not be produced from a 0.x Beta metadata state.
 
 ## Release/build infrastructure
 
