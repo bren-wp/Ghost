@@ -1,5 +1,65 @@
 # Ghost FTP changelog
 
+## 1.5.0 — 2026-09-05
+
+### Professional resizable workspace
+
+- Added real WPF splitters between Saved Servers and the main workspace, between Local and Remote file panes, and between the browser area and Transfers queue.
+- Added double-click reset behavior for the three splitter regions.
+- Explicitly enabled resize-with-grip behavior and lowered the safe main-window minimum size so the client works better on smaller desktop displays.
+- Fixed the existing responsive-column subsystem: `ConfigureResponsiveColumns()` existed but was never connected to MainWindow startup.
+- File and transfer GridView columns now resize on both list-size and main-window-size changes.
+- Kept the current Ghost FTP design language while moving the interaction model closer to a professional FileZilla-style workstation.
+
+### Parallel transfer engine
+
+- Replaced the single transfer worker with a bounded parallel worker pool.
+- Ghost FTP now processes up to three queue jobs concurrently by default, with an internal safety cap of eight workers.
+- Real FTP/FTPS jobs continue to create isolated transfer sessions so parallel work does not share or desynchronize the browsing control connection.
+- Demo mode remains safe because its local session serializes operations through its own session gate.
+- Preserved the 4,096-job queue bound, per-job cancellation, transient-only automatic retries and visible failed-job behavior when the queue is saturated.
+- Queue disposal now cancels work and awaits all worker tasks before releasing cancellation resources.
+
+### Security, privacy and dependency discipline
+
+- Preserved strict TLS 1.2/1.3 validation with no certificate-bypass option.
+- Preserved authenticated-control-host passive-data hardening, FTP command-injection guards, bounded reply/listing parsing, traversal limits, root-delete blocking and upload/download integrity checks.
+- Added no telemetry, analytics, crash upload, advertising, cloud profile synchronization, background updater or tracking SDK.
+- Shipping source remains C#-only with zero NuGet `PackageReference` entries.
+
+### Platform contract
+
+- Added `docs/PLATFORM-SUPPORT.md` to distinguish actual shipping support from future platform goals.
+- Windows x64/ARM64 remains the production WPF desktop GUI target.
+- `GhostFTP.Core` remains platform-neutral `net10.0` and is the required shared FTP/FTPS engine for future desktop renderers.
+- Android and iOS are explicitly outside the current desktop release scope; there are no shipping mobile application projects in the source tree.
+- Linux GUI parity is not falsely claimed: WPF is Windows-only and the repository currently forbids third-party package dependencies. A future Linux renderer must satisfy the documented parity/security/privacy gates before release.
+
+### Version and documentation discipline
+
+- Synchronized VERSION, assembly/file/informational metadata and Windows manifests to 1.5.0.
+- Added dedicated `docs/releases/v1.5.0.md` release notes.
+- Refreshed README for 1.5.0 features, 29-language support, parallel transfers, platform scope and workspace behavior.
+- Restored the missing 1.4.2 entry in this master changelog so version history matches the already-published detailed 1.4.2 release document.
+
+## 1.4.2 — 2026-09-05
+
+### Setup language-switch stability
+
+- Fixed a fatal WPF Setup reparenting failure that could occur when changing language from the live language ComboBox.
+- Reusable wizard controls are now detached from their previous logical parents before a new wizard tree is assembled.
+- The language dropdown is closed before rebuild, and rendering is deferred until the SelectionChanged input event has unwound.
+- Repeated language changes are coalesced so overlapping rebuild requests cannot accumulate.
+- Queued language rebuilds are ignored after the Setup window closes.
+- Normal Back/Next navigation continues to preserve wizard state without illegally reusing attached controls.
+
+### Live Setup regression coverage
+
+- The Windows WPF smoke test now opens the real Ghost FTP Setup window rather than validating only localization dictionaries.
+- The test switches English → Croatian → German → Japanese → English and pumps the WPF Dispatcher after every change.
+- It verifies that the locale remains active, the language selector remains attached, Next reaches License and Back rebuilds Welcome without a crash.
+- 1.4.2 intentionally leaves FTP/FTPS protocol behavior, transfer integrity, TLS validation, credential storage and privacy policy unchanged.
+
 ## 1.4.1 — 2026-09-05
 
 ### Publisher identity hardening
