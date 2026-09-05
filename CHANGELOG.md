@@ -1,5 +1,52 @@
 # Ghost FTP changelog
 
+## 1.7.0 — 2026-09-05
+
+### Professional FTP workstation layout
+
+- Reorganized the desktop application around a dense, predictable professional FTP workflow while retaining Ghost FTP's own premium dark/light visual design.
+- Added a permanent **File / View / Sites / Transfers / Tools / Help** menu bar so core workflows remain discoverable without relying only on icons or shortcuts.
+- Added a compact global toolbar for Connect, Disconnect, Upload, Download, Refresh, New Folder, Rename, Delete, Site Manager, Settings and Diagnostics.
+- Rebuilt the main workspace into Saved Sites, Connection Log + Quick Connect, Local/Remote file tables, Transfers and a compact status bar.
+- Reduced decorative vertical space and returned more usable area to actual file listings and transfer state.
+- Preserved resizable Saved Sites, Local/Remote and Transfers boundaries, double-click splitter reset behavior and locally persisted workspace geometry.
+- Increased the normal default workstation size while keeping a practical normalized minimum size for smaller desktop displays.
+
+### First-class Site Manager
+
+- Added a dedicated Site Manager master/detail window for managing multiple saved FTP/FTPS profiles in one place.
+- Site Manager exposes only actual implemented per-profile state: site name, host/IP, port, security mode, username, optional password, Remember password and default remote path.
+- Added an Advanced section that documents the real EPSV/PASV behavior and clarifies that timeout, retry, keepalive and concurrency policy remains centralized in Settings.
+- Built-in Ghost FTP Demo remains visible but cannot be modified or removed into a misleading real-server profile.
+- Site Manager can save local changes or immediately connect to the selected profile.
+- Password persistence remains opt-in and continues through the existing Windows DPAPI current-user protection path.
+
+### Local Connection Log and clearer file tables
+
+- Added a bounded in-memory Connection Log directly to the main workspace.
+- Connection Log records useful local events such as startup, saved-profile loading, connection attempts, TLS/plain state, directory-list completion, disconnects and visible failures.
+- Passwords, protected password data and file contents are never written to the log.
+- Connection Log can be cleared by the user and is never uploaded as telemetry.
+- Remote file tables now expose server-provided Permissions when available.
+- Rebalanced responsive Name, Type, Size, Modified and Remote Permissions columns for clearer scanning.
+
+### Authentic repository screenshots
+
+- Added `--capture-ui <directory>` to the real Ghost FTP application for deterministic documentation capture.
+- Capture mode launches the actual compiled WPF MainWindow, selects the built-in local Demo session, renders the production client and renders the production Site Manager.
+- Added canonical real-UI repository images: `assets/readme/ghostftp-client.png` and `assets/readme/ghostftp-site-manager.png`.
+- Added a GitHub Actions workflow that rebuilds and refreshes those PNGs from actual source instead of committing AI-generated mockups under the product screenshot names.
+- Added a regular CI gate that independently regenerates authentic UI images as artifacts and rejects missing/empty captures.
+- Documentation capture performs no FTP network connection, telemetry, analytics or external image-generation request.
+
+### Version, audit and documentation discipline
+
+- Synchronized VERSION, assembly/file/informational metadata and both Windows manifests to 1.7.0.
+- Added detailed `docs/releases/v1.7.0.md` release notes.
+- Updated README, architecture, UI/UX and release-policy documentation for the professional workstation, Site Manager and authentic screenshot pipeline.
+- Expanded source audit to require the 1.7 workspace primitives, real screenshot sources/assets/workflow, existing 1.6 keepalive/concurrency safety properties and synchronized release metadata.
+- Preserved zero NuGet `PackageReference` entries, no telemetry/tracking, strict FTPS validation, focus-safe destructive shortcuts, bounded transfers, Android/iOS exclusion and platform-neutral `GhostFTP.Core`.
+
 ## 1.6.0 — 2026-09-05
 
 ### Connection resilience
