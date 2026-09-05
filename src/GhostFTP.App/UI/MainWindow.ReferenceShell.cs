@@ -10,6 +10,11 @@ namespace GhostFTP.UI;
 public sealed partial class MainWindow
 {
     private ListBox? _referenceSitesList;
+    private Button? _referenceNewFolderButton;
+    private Button? _referenceRenameButton;
+    private Button? _referenceDeleteButton;
+
+    private static string R(string key) => GhostReferenceText.T(key);
 
     private UIElement BuildReferenceShell(UIElement workstation)
     {
@@ -56,6 +61,7 @@ public sealed partial class MainWindow
         {
             menu.Background = ReferenceBrush(GhostReferencePalette.Menu);
             menu.Padding = new Thickness(7, 0, 430, 0);
+            LocalizeAndOrderReferenceMenu(menu);
         }
 
         var toolbar = root.Children
@@ -70,7 +76,6 @@ public sealed partial class MainWindow
 
             if (toolbar.Child is DockPanel dock)
             {
-                // Product identity belongs to the permanent left rail in the approved shell.
                 if (dock.Children.Count > 1 && dock.Children[0] is StackPanel identity)
                     dock.Children.Remove(identity);
 
@@ -81,12 +86,35 @@ public sealed partial class MainWindow
         NormalizeReferenceWorkspace();
     }
 
-    private static void StyleReferenceToolbar(DockPanel dock)
+    private static void LocalizeAndOrderReferenceMenu(Menu menu)
+    {
+        var items = menu.Items.OfType<MenuItem>().Take(6).ToArray();
+        if (items.Length != 6)
+            return;
+
+        items[0].Header = R("FileMenu");
+        items[1].Header = R("ViewMenu");
+        items[2].Header = R("SitesMenu");
+        items[3].Header = R("TransfersMenu");
+        items[4].Header = R("ToolsMenu");
+        items[5].Header = R("HelpMenu");
+
+        menu.Items.Clear();
+        menu.Items.Add(items[0]);
+        menu.Items.Add(items[1]);
+        menu.Items.Add(items[3]);
+        menu.Items.Add(items[2]);
+        menu.Items.Add(items[4]);
+        menu.Items.Add(items[5]);
+    }
+
+    private void StyleReferenceToolbar(DockPanel dock)
     {
         var actions = dock.Children.OfType<WrapPanel>().FirstOrDefault();
         if (actions is null)
             return;
 
+        EnsureReferenceToolbarActions(actions);
         actions.Margin = new Thickness(0);
         actions.VerticalAlignment = VerticalAlignment.Stretch;
 
@@ -106,6 +134,81 @@ public sealed partial class MainWindow
             if (button.Content is string text)
                 button.Content = ReferenceToolbarContent(text);
         }
+
+        _localList.SelectionChanged += (_, _) => UpdateReferenceToolbarState();
+        _remoteList.SelectionChanged += (_, _) => UpdateReferenceToolbarState();
+        _localList.GotKeyboardFocus += (_, _) => UpdateReferenceToolbarState();
+        _remoteList.GotKeyboardFocus += (_, _) => UpdateReferenceToolbarState();
+        UpdateReferenceToolbarState();
+    }
+
+    private void EnsureReferenceToolbarActions(WrapPanel actions)
+    {
+        if (_referenceNewFolderButton is not null)
+            return;
+
+        _referenceNewFolderButton = ToolButton($"▣ {L("NewFolder")}", ReferenceNewFolderAsync);
+        _referenceRenameButton = ToolButton($"✎ {L("Rename")}", ReferenceRenameAsync);
+        _referenceDeleteButton = ToolButton($"⌫ {L("Delete")}", ReferenceDeleteAsync, danger: true);
+
+        var insertionIndex = Math.Min(5, actions.Children.Count);
+        actions.Children.Insert(insertionIndex++, _referenceNewFolderButton);
+        actions.Children.Insert(insertionIndex++, _referenceRenameButton);
+        actions.Children.Insert(insertionIndex, _referenceDeleteButton);
+    }
+
+    private bool ReferenceTargetRemote() =>
+        _remoteList.IsKeyboardFocusWithin
+        || (_remoteList.SelectedItems.Count > 0 && _localList.SelectedItems.Count == 0);
+
+    private async Task ReferenceNewFolderAsync()
+    {
+        if (ReferenceTargetRemote())
+        {
+            if (IsConnected)
+                await NewRemoteFolderAsync();
+            return;
+        }
+
+        NewLocalFolder();
+    }
+
+    private async Task ReferenceRenameAsync()
+    {
+        if (ReferenceTargetRemote())
+        {
+            if (IsConnected && _remoteList.SelectedItems.Count > 0)
+                await RenameRemoteSelectedAsync();
+            return;
+        }
+
+        if (_localList.SelectedItems.Count > 0)
+            RenameLocalSelected();
+    }
+
+    private async Task ReferenceDeleteAsync()
+    {
+        if (ReferenceTargetRemote())
+        {
+            if (IsConnected && _remoteList.SelectedItems.Count > 0)
+                await DeleteRemoteSelectedAsync();
+            return;
+        }
+
+        if (_localList.SelectedItems.Count > 0)
+            DeleteLocalSelected();
+    }
+
+    private void UpdateReferenceToolbarState()
+    {
+        if (_referenceNewFolderButton is null || _referenceRenameButton is null || _referenceDeleteButton is null)
+            return;
+
+        var remote = ReferenceTargetRemote();
+        var hasSelection = remote ? _remoteList.SelectedItems.Count > 0 : _localList.SelectedItems.Count > 0;
+        _referenceNewFolderButton.IsEnabled = !remote || IsConnected;
+        _referenceRenameButton.IsEnabled = hasSelection && (!remote || IsConnected);
+        _referenceDeleteButton.IsEnabled = hasSelection && (!remote || IsConnected);
     }
 
     private static UIElement ReferenceToolbarContent(string text)
@@ -185,8 +288,6 @@ public sealed partial class MainWindow
             || root.Children[2] is not Grid rowTwo)
             return;
 
-        // Saved-site navigation is already permanently available in the left rail. Keep
-        // Quick Connect focused on connection fields, matching the approved reference.
         var title = header.Children.OfType<StackPanel>().FirstOrDefault();
         if (title is not null)
         {
@@ -199,8 +300,6 @@ public sealed partial class MainWindow
         }
         _profilesList.Visibility = Visibility.Collapsed;
 
-        // Move username/password into the main connection row so the normal desktop layout
-        // reads Host → Port → Security → Username → Password like the approved reference.
         var username = rowTwo.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 0);
         var password = rowTwo.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 2);
         if (username is not null && password is not null)
@@ -217,7 +316,7 @@ public sealed partial class MainWindow
             rowOne.Children.Add(password);
         }
 
-        var note = GhostTheme.Text("Credentials stay local to this desktop session unless explicitly saved in Site Manager.", 9, muted: true);
+        var note = GhostTheme.Text(R("CredentialsLocal"), 9, muted: true);
         note.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(note, 0);
         Grid.SetColumnSpan(note, 3);
@@ -245,10 +344,10 @@ public sealed partial class MainWindow
         brandRow.Children.Add(GhostBrand.IconControl(38));
         var name = new StackPanel { Margin = new Thickness(9, 1, 0, 0) };
         name.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 15, weight: FontWeights.Bold));
-        name.Children.Add(GhostTheme.Text("PRIVATE FILE CLIENT", 7.5, muted: true, weight: FontWeights.SemiBold));
+        name.Children.Add(GhostTheme.Text(R("PrivateFileClient"), 7.5, muted: true, weight: FontWeights.SemiBold));
         brandRow.Children.Add(name);
         brand.Children.Add(brandRow);
-        var tagline = GhostTheme.Text("Private file transfers, simply.", 10.5, muted: true);
+        var tagline = GhostTheme.Text(R("Tagline"), 10.5, muted: true);
         tagline.Margin = new Thickness(0, 10, 0, 0);
         brand.Children.Add(tagline);
         Grid.SetRow(brand, 0);
@@ -264,7 +363,7 @@ public sealed partial class MainWindow
         savedHeader.Children.Add(add);
         nav.Children.Add(savedHeader);
 
-        nav.Children.Add(ReferenceNavButton("⌂", "Home", () =>
+        nav.Children.Add(ReferenceNavButton("⌂", R("Home"), () =>
         {
             RefreshLocal();
             if (IsConnected) _ = RefreshRemoteAsync();
@@ -273,7 +372,7 @@ public sealed partial class MainWindow
         var sitesLabel = new Grid { Margin = new Thickness(8, 8, 8, 3) };
         sitesLabel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         sitesLabel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sitesLabel.Children.Add(GhostTheme.Text("▣  This tab", 11.5, weight: FontWeights.SemiBold));
+        sitesLabel.Children.Add(GhostTheme.Text("▣  " + R("ThisTab"), 11.5, weight: FontWeights.SemiBold));
         var count = GhostTheme.Text("0", 10.5, muted: true);
         count.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Count") { Source = _profiles });
         Grid.SetColumn(count, 1);
@@ -299,14 +398,14 @@ public sealed partial class MainWindow
         };
         nav.Children.Add(_referenceSitesList);
 
-        var empty = GhostTheme.Text("No saved connection in this tab.", 10, muted: true);
+        var empty = GhostTheme.Text(R("NoSavedConnection"), 10, muted: true);
         empty.Margin = new Thickness(24, 4, 8, 12);
         empty.Visibility = _profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         _profiles.CollectionChanged += (_, _) =>
             empty.Visibility = _profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         nav.Children.Add(empty);
-        nav.Children.Add(ReferenceNavButton("☆", "Favorites in this tab", () => _ = OpenSiteManagerAsync()));
-        nav.Children.Add(ReferenceNavButton("◷", "Recent connections in this tab", () => _ = ShowConnectionDiagnosticsAsync()));
+        nav.Children.Add(ReferenceNavButton("☆", R("FavoritesInTab"), () => _ = OpenSiteManagerAsync()));
+        nav.Children.Add(ReferenceNavButton("◷", R("RecentInTab"), () => _ = ShowConnectionDiagnosticsAsync()));
         Grid.SetRow(nav, 1);
         root.Children.Add(nav);
 
@@ -320,8 +419,8 @@ public sealed partial class MainWindow
             CornerRadius = new CornerRadius(GhostReferencePalette.CardRadius)
         };
         var privacyStack = new StackPanel();
-        privacyStack.Children.Add(GhostTheme.Text("◇  Account not required", 10.5, weight: FontWeights.Bold));
-        var privacyText = GhostTheme.Text("Connection data exists only in local memory and local profile storage. Nothing is sent to a Ghost FTP account.", 9.25, muted: true);
+        privacyStack.Children.Add(GhostTheme.Text("◇  " + R("AccountNotRequired"), 10.5, weight: FontWeights.Bold));
+        var privacyText = GhostTheme.Text(R("PrivacyDescription"), 9.25, muted: true);
         privacyText.Margin = new Thickness(0, 5, 0, 0);
         privacyStack.Children.Add(privacyText);
         privacy.Child = privacyStack;
@@ -404,13 +503,24 @@ public sealed partial class MainWindow
         var icon = GhostTheme.Text("⌕", 19, muted: true);
         Grid.SetColumn(icon, 0);
         searchGrid.Children.Add(icon);
+
+        var watermark = GhostTheme.Text(R("SearchRemote"), 10.5, muted: true);
+        watermark.VerticalAlignment = VerticalAlignment.Center;
+        watermark.IsHitTestVisible = false;
+        Grid.SetColumn(watermark, 1);
+        searchGrid.Children.Add(watermark);
+
         var search = GhostTheme.TextBox();
         search.Background = Brushes.Transparent;
         search.BorderThickness = new Thickness(0);
         search.Padding = new Thickness(0);
         search.MinHeight = 34;
-        search.ToolTip = "Search remote files";
-        search.TextChanged += (_, _) => _remoteFilter.Text = search.Text;
+        search.ToolTip = R("SearchRemote");
+        search.TextChanged += (_, _) =>
+        {
+            watermark.Visibility = string.IsNullOrEmpty(search.Text) ? Visibility.Visible : Visibility.Collapsed;
+            _remoteFilter.Text = search.Text;
+        };
         Grid.SetColumn(search, 1);
         searchGrid.Children.Add(search);
         searchHost.Child = searchGrid;
