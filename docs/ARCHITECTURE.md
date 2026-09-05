@@ -1,8 +1,32 @@
 # Ghost FTP Architecture
 
-Ghost FTP 1.7.0 is a Windows-production, C#-only FTP/FTPS client organized around a platform-neutral protocol core, local persistence, bounded parallel transfers, a dense professional WPF workstation, authentic UI documentation capture and zero third-party runtime package dependencies.
+Ghost FTP **0.1.0 Beta** is a Windows-production, C#-only FTP/FTPS client organized around a platform-neutral protocol core, local persistence, bounded parallel transfers, a dense professional WPF workstation, authentic UI documentation capture and zero third-party runtime package dependencies.
+
+The public version-line reset does not remove architectural work completed during the preserved internal 1.x development history. The architecture below describes the current source tree and current 0.1.0 Beta product line.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
+
+## Version and release-channel architecture
+
+Release identity is defined by two root files:
+
+```text
+VERSION
+RELEASE_CHANNEL
+```
+
+The current values are:
+
+```text
+VERSION=0.1.0
+RELEASE_CHANNEL=beta
+```
+
+`Directory.Build.props` synchronizes the numeric assembly/file version and the Beta informational version. The current build therefore uses `0.1.0.0` assembly/file metadata and `0.1.0-beta` informational metadata.
+
+All pre-1.0 releases remain Beta. The first stable release is **1.0.0**. Canonical package filenames stay stable while their internal version metadata advances. This keeps download URLs predictable without allowing a 0.x Beta package to claim stable 1.0.0 metadata.
+
+See `docs/VERSIONING.md`.
 
 ## Solution projects
 
@@ -84,7 +108,7 @@ The application is split into responsibility-specific partial classes:
 
 `SiteManagerDialog.cs` is the first-class saved-site master/detail editor.
 
-The 1.7 workstation hierarchy is:
+The current workstation hierarchy is:
 
 ```text
 Menu bar
@@ -289,7 +313,7 @@ Persistence is treated as untrusted input:
 
 ## Authentic documentation capture
 
-Ghost FTP 1.7.0 treats repository screenshots as build artifacts derived from real UI source.
+The current Beta line treats repository screenshots as build artifacts derived from real UI source.
 
 `Program.cs` recognizes:
 
@@ -309,7 +333,7 @@ Capture mode:
 8. writes `ghostftp-client.png` and `ghostftp-site-manager.png`;
 9. disposes queue/session state and exits.
 
-`.github/workflows/capture-ui.yml` rebuilds the client and commits refreshed images under `assets/readme/`. The regular CI workflow independently regenerates captures into an artifact and validates that both are non-empty.
+`.github/workflows/capture-ui.yml` rebuilds the client and refreshes those images from source. The regular CI workflow independently regenerates captures into an artifact and validates that both are non-empty.
 
 This design prevents repository marketing images from drifting into unrelated mockups: screenshots are a rendering of production UI code.
 
@@ -363,21 +387,23 @@ Transfer metrics, Connection Log entries and documentation capture remain local.
 
 `build-release.ps1` publishes self-contained single-file Windows builds for `win-x64` and `win-arm64`. Each architecture receives a matching Setup payload. Canonical and architecture-explicit names plus SHA-256 checksums are produced.
 
+The release workflow verifies that the resulting executable file versions match the active numeric `VERSION`. During the Beta line this means 0.x.y.0 Windows file versions. When Ghost FTP is promoted to stable 1.0.0, the canonical `portable.exe` and `setup.exe` family must verify as 1.0.0.0 binaries.
+
 ## Release gates
 
 The pipeline requires:
 
 1. restore;
 2. warning-as-error Release build;
-3. dependency/version/privacy/product/publisher/platform audit;
+3. dependency/version/channel/privacy/product/publisher/platform audit;
 4. Core security/correctness tests;
 5. bounded parallel queue/session/cancellation tests;
 6. WPF editable-input tests;
 7. app localization tests;
 8. Setup localization/live-rebuild tests;
 9. authentic compiled MainWindow + Site Manager capture;
-10. x64/ARM64 packaging;
-11. required executable verification;
+10. x64/ARM64 packaging for official release publication;
+11. required executable and executable-version verification;
 12. SHA-256 manifest generation;
 13. verified artifact/release publication.
 
