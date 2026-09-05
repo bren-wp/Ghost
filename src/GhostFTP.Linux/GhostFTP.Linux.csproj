@@ -4,9 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>GhostFTP.Linux</RootNamespace>
     <AssemblyName>GhostFTP</AssemblyName>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>
