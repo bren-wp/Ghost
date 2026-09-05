@@ -1,47 +1,105 @@
-Ghost FTP vlasnička licenca izvornog koda
-Verzija 1.3 — Sva prava pridržana
+GHOST FTP END USER AND SOURCE-AVAILABLE LICENSE
+Version 1.4 — 2026
 
-Copyright (c) 2026 Ghost FTP. Sva prava pridržana.
+Copyright © 2026 BRENDIGO LTD. All rights reserved.
 
-1. VLASNIŠTVO
+Licensor:
+BRENDIGO LTD
+Company number: 16545639
+Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom
 
-Ghost FTP, uključujući izvorni kod, objektni kod, korisničko sučelje, dokumentaciju, grafiku, ikone, build skripte i povezane materijale (zajedno: „Softver”), vlasnički je softver projekta Ghost FTP i zaštićen je primjenjivim autorskim i drugim pravima intelektualnog vlasništva.
+Product: Ghost FTP
+Website: https://ghostftp.com
+Repository: https://github.com/bren-wp/Ghost
 
-2. OGRANIČENO DOPUŠTENJE
+IMPORTANT — PLEASE READ CAREFULLY
 
-Dopušteno je pregledavati izvorni kod u ovom repozitoriju te preuzeti i koristiti službena, neizmijenjena binarna Ghost FTP izdanja za njihovu namijenjenu svrhu, pod uvjetima ove Licence.
+By installing, copying, launching, or otherwise using an official Ghost FTP binary release, or by using source code made available in the Ghost FTP repository beyond merely viewing it, you agree to the terms of this License. If you do not agree, do not install or use the Software.
 
-Izvorni kod objavljen je radi transparentnosti, sigurnosne provjere i evaluacije. Sama objava izvornog koda ne čini Ghost FTP open-source softverom i ne daje opće pravo izmjene, redistribucije ili izrade izvedenih djela.
+1. DEFINITIONS
 
-3. ZABRANJENO BEZ PRETHODNOG PISANOG DOPUŠTENJA
+“Software” means Ghost FTP, including its source code, object code, executable files, setup program, user interface, documentation, graphics, icons, build scripts, tests and associated materials.
 
-Osim prava koja se prema zakonu ne mogu ograničiti, bez prethodnog pisanog dopuštenja nije dopušteno mijenjati, redistribuirati, rebrandirati, sublicencirati, prodavati, uključivati izvorni kod u drugi proizvod ili tvrditi autorstvo odnosno vlasništvo nad Softverom ili njegovim bitnim dijelom.
+“Official Binary” means an unmodified Ghost FTP executable or setup package distributed by BRENDIGO LTD through an official Ghost FTP distribution channel.
 
-4. JAVNI REPOZITORIJ
+2. OWNERSHIP
 
-Ako je repozitorij javan, prava koja platforma za hosting izvornog koda daje radi pregleda i forkanja ne predstavljaju dodatnu licencu za distribuciju, komercijalizaciju ili izvedene proizvode.
+The Software is proprietary software of BRENDIGO LTD and is protected by applicable copyright, intellectual-property and other laws. No ownership rights are transferred to you under this License.
 
-5. DOPRINOSI
+3. FREE-OF-CHARGE BINARY USE
 
-Doprinosi izvornom kodu dopušteni su samo kada ih projekt Ghost FTP izričito zatraži ili odobri. Doprinosi ne smiju sadržavati kod treće strane koji se ne može zakonito distribuirati prema ovom modelu licence.
+Subject to this License, BRENDIGO LTD grants you a limited, non-exclusive, non-transferable and revocable right to install and use Official Binaries free of charge for lawful personal, educational and internal business purposes.
 
-6. SLUŽBENA IZDANJA
+You may install Official Binaries on multiple devices that you own, control or are authorised to administer.
 
-Službena su samo izdanja koja projekt Ghost FTP distribuira kroz službene Ghost FTP kanale. Izmijenjeni, prepakirani ili rebrandirani buildovi nisu službena izdanja.
+This permission does not grant a right to sell, rebrand, sublicense, redistribute modified builds, or represent the Software as your own product.
 
-7. BEZ JAMSTVA I OGRANIČENJE ODGOVORNOSTI
+4. SOURCE-AVAILABLE ACCESS
 
-U najvećoj mjeri dopuštenoj zakonom Softver se daje „kakav jest”, bez izričitih ili prešutnih jamstava. Projekt Ghost FTP ne odgovara za neizravnu, slučajnu, posebnu, posljedičnu ili kaznenu štetu niti za gubitak podataka, dobiti, poslovanja ili mogućnosti uporabe nastale iz ili u vezi sa Softverom.
+Source code may be publicly visible for transparency, security review, evaluation and approved contribution purposes. Public availability of source code does not make Ghost FTP open-source software and does not grant rights normally associated with an OSI-approved open-source licence.
 
-8. PRESTANAK PRAVA
+Except where applicable law gives you a right that cannot lawfully be excluded, you may not, without prior written permission from BRENDIGO LTD:
 
-Prava dana ovom Licencom prestaju kršenjem njezinih uvjeta.
+- redistribute or republish the source code or substantial parts of it;
+- distribute modified or derivative builds;
+- rebrand, white-label or sublicense the Software;
+- sell or commercially license the Software or a derivative product;
+- incorporate substantial parts of the source code into another distributed product;
+- remove or misrepresent copyright, licence, publisher or attribution notices; or
+- claim authorship or ownership of the Software or a substantial part of it.
 
-9. POSEBNO DOPUŠTENJE
+5. OFFICIAL BUILDS AND MODIFIED BUILDS
 
-Za izmjene, redistribuciju, integraciju, white-labeling, komercijalno licenciranje ili druga posebna prava potrebno je prethodno pisano dopuštenje projekta Ghost FTP.
+Only builds distributed by BRENDIGO LTD through official Ghost FTP channels are Official Binaries. Modified, repackaged, unofficially signed or rebranded builds are not official Ghost FTP releases and must not be presented as such.
 
-Projekt: https://ghostftp.com
-Repozitorij: https://github.com/bren-wp/Ghost
+6. SERVER ACCESS AND USER RESPONSIBILITY
 
-Ovaj repozitorij je source-available/vlasnički i NIJE licenciran pod OSI odobrenom open-source licencom.
+Ghost FTP is a client for connecting to FTP and FTPS servers. You are responsible for ensuring that you are authorised to access every server, account, file and directory that you use with the Software.
+
+You are responsible for backups and for reviewing destructive operations such as overwrite, rename and delete actions before confirming them.
+
+7. PRIVACY DESIGN
+
+Official Ghost FTP builds are designed without application telemetry, analytics, advertising SDKs, user tracking or background behaviour intended to report application usage to BRENDIGO LTD. Network connections initiated for FTP/FTPS activity are made to servers selected by the user. Opening an external Ghost FTP website link is also a user-initiated action.
+
+This section does not create a guarantee concerning networks, operating systems, hosting providers, FTP servers, proxies or other third-party infrastructure outside the Software.
+
+8. UPDATES
+
+BRENDIGO LTD may release updates, security fixes or new versions. Unless explicitly stated otherwise, the Software does not require an always-running background updater. Installing a new version may update an existing installation while preserving compatible local settings.
+
+9. THIRD-PARTY RIGHTS
+
+You must not use the Software to infringe third-party rights or to access, transfer, delete or modify data without proper authorisation.
+
+10. NO WARRANTY
+
+To the maximum extent permitted by applicable law, the Software is provided “as is” and “as available”, without warranties or conditions of any kind, whether express, implied or statutory, including warranties of merchantability, satisfactory quality, fitness for a particular purpose, non-infringement or uninterrupted operation.
+
+Nothing in this License excludes or limits rights that cannot lawfully be excluded or limited, including mandatory consumer rights where applicable.
+
+11. LIMITATION OF LIABILITY
+
+To the maximum extent permitted by applicable law, BRENDIGO LTD and its officers, employees, contractors and contributors will not be liable for indirect, incidental, special, exemplary, punitive or consequential loss, or for loss of data, profits, revenue, business, goodwill or use arising from or related to the Software.
+
+Where liability cannot lawfully be excluded, it is limited only to the extent permitted by applicable law.
+
+12. TERMINATION
+
+The rights granted by this License terminate automatically if you materially breach its terms. On termination, you must stop using rights granted under this License that are affected by the breach.
+
+13. CONTRIBUTIONS
+
+Source-code contributions are accepted only when requested or approved by the Ghost FTP project. Contributors must have the legal right to submit their contribution and must not knowingly include third-party code that cannot lawfully be distributed under the Ghost FTP licensing model.
+
+14. GOVERNING LAW
+
+Subject to any mandatory law that applies to you and cannot be displaced by contract, this License is governed by the laws of England and Wales, and disputes are subject to the jurisdiction of the courts of England and Wales.
+
+15. ENTIRE AGREEMENT
+
+This License forms the agreement governing the rights granted here for Ghost FTP unless BRENDIGO LTD provides you with a separate written agreement covering the same subject matter.
+
+For additional redistribution, integration, white-label, commercial or other special permissions, written permission from BRENDIGO LTD is required.
+
+This repository is source-available/proprietary and is NOT licensed under an OSI-approved open-source licence.
