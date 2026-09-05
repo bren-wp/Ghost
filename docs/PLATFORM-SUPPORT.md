@@ -37,6 +37,28 @@ Shared behavior includes:
 
 The FTP implementation is not duplicated per operating system.
 
+## Shared desktop reference
+
+Windows, Windows portable mode, Windows Setup and Linux use the same Ghost FTP reference palette and information hierarchy. The canonical design tokens live in `src/GhostFTP.Design/GhostReferencePalette.cs`.
+
+The normal workstation hierarchy is:
+
+```text
+permanent left rail
+→ menu
+→ global action toolbar
+→ Connection Log + Quick Connect
+→ Local + Remote file panes
+→ Transfers
+→ compact status/privacy state
+```
+
+The approved normal-desktop geometry uses a 292 px left rail, 38 px menu and 70 px toolbar. Windows and Linux consume the same reference colors rather than maintaining unrelated visual identities. Setup uses the same palette and control language while retaining its installer-specific workflow.
+
+The installed Windows application and `portable.exe` are packaging modes of the same `GhostFTP.App` renderer. Portable mode may change local data paths, but it must not change the application UI, FTP behavior, privacy rules or security controls.
+
+See `docs/UI-PARITY.md` for the complete visual contract and validation rules.
+
 ## Windows
 
 **Status: supported desktop implementation; public packages remain Beta during the 0.x line.**
@@ -77,7 +99,7 @@ See `docs/CODE-SIGNING.md`.
 
 **Status: native desktop implementation present; current public Linux packages remain Beta during the 0.x line.**
 
-The Linux desktop client is `src/GhostFTP.Linux`. It uses the same `GhostFTP.Core` engine and shared product/localization definitions from `GhostFTP.Design`.
+The Linux desktop client is `src/GhostFTP.Linux`. It uses the same `GhostFTP.Core` engine and shared product/localization/reference-design definitions from `GhostFTP.Design`.
 
 The Linux renderer is implemented directly against the standard X11 client ABI instead of introducing a third-party NuGet UI framework. This preserves the repository's zero-third-party-`PackageReference` shipping rule.
 
@@ -121,12 +143,11 @@ This prevents plaintext credential storage and detects ciphertext tampering. It 
 
 ### Linux workspace parity
 
-The Linux implementation follows the same professional FTP workstation hierarchy:
+The Linux implementation follows the same professional FTP workstation hierarchy and reference palette as the Windows client:
 
+- permanent product/saved-site/privacy rail;
 - top application menu / global actions;
-- Quick Connect;
-- saved sites and Site Manager;
-- local Connection Log;
+- Connection Log and Quick Connect side by side at normal desktop width;
 - Local / Remote file panes;
 - create / rename / delete / refresh actions;
 - upload and download queue;
@@ -135,7 +156,7 @@ The Linux implementation follows the same professional FTP workstation hierarchy
 - local-only persistence;
 - no telemetry or tracking.
 
-Visual implementation details are platform-specific. Parity means equivalent user capability, security rules and information hierarchy—not claiming that WPF and X11 are pixel-identical toolkits.
+The renderer remains native X11/XWayland rather than WPF, so font rasterization, OS window chrome and native text metrics can differ by desktop environment. Those operating-system differences do not permit changing the product palette, feature placement, security model or core workstation hierarchy.
 
 ## Android and iOS
 
@@ -155,6 +176,7 @@ Features that must remain behaviorally aligned across Windows and Linux include:
 - destructive-operation safeguards;
 - localization fallback policy;
 - privacy guarantees;
+- reference desktop hierarchy and palette;
 - release/version documentation;
 - no hidden product networking.
 
@@ -162,7 +184,7 @@ Platform-specific UI and OS integration code remains outside `GhostFTP.Core`.
 
 ## Privacy and networking
 
-Platform expansion must never be used as a reason to add analytics, telemetry, crash uploading, advertising, automatic profile synchronization or hidden background requests.
+Platform expansion and UI parity work must never be used as a reason to add analytics, telemetry, crash uploading, advertising, automatic profile synchronization, embedded web UI or hidden background requests.
 
 Ghost FTP application network traffic remains user-driven FTP/FTPS traffic, documented keepalive/diagnostics against the user-selected server, plus explicit user-opened website links. Code-signing and release packaging are build-time operations and do not create a runtime signing-service dependency.
 
