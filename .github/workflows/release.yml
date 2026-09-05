@@ -24,7 +24,7 @@ env:
   NUGET_XMLDOC_MODE: skip
 
 jobs:
-  release:
+  windows-release:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -86,7 +86,7 @@ jobs:
       - name: Build
         run: dotnet build GhostFTP.sln -c Release --no-restore
 
-      - name: Dependency, version, channel, privacy and brand audit
+      - name: Dependency, version, channel, privacy, platform and signing audit
         shell: pwsh
         run: ./audit-source.ps1
 
@@ -119,12 +119,12 @@ jobs:
       - name: Upload authentic release UI captures
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}-Authentic-UI
+          name: GhostFTP-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}-Authentic-Windows-UI
           path: artifacts/ui/*.png
           if-no-files-found: error
           retention-days: 30
 
-      - name: Build release packages
+      - name: Build Windows release packages
         shell: pwsh
         run: ./build-release.ps1
 
@@ -154,7 +154,7 @@ jobs:
           }
           $report | Set-Content ./release/SIGNING.txt -Encoding utf8
 
-      - name: Verify required GitHub Release assets
+      - name: Verify required Windows GitHub Release assets
         shell: pwsh
         run: |
           $required = @(
@@ -206,15 +206,15 @@ jobs:
             Write-Host 'Verified first stable portable.exe and setup.exe family as Ghost FTP 1.0.0.'
           }
 
-      - name: Upload release artifacts
+      - name: Upload verified Windows release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: GhostFTP-release-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
+          name: GhostFTP-Windows-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
           path: release/*
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish GitHub release
+      - name: Create or synchronize GitHub release with Windows assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -239,7 +239,7 @@ jobs:
 
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists; synchronizing detailed notes and verified assets."
+            Write-Host "Release $tag already exists; synchronizing detailed notes and verified Windows assets."
             if ($channel -eq 'beta') {
               gh release edit $tag --title $title --notes-file $notes --prerelease
             }
@@ -248,7 +248,7 @@ jobs:
             }
             if ($LASTEXITCODE -ne 0) { throw "Failed to update GitHub Release notes for $tag." }
             gh release upload $tag @assets --clobber
-            if ($LASTEXITCODE -ne 0) { throw "Failed to refresh GitHub Release assets for $tag." }
+            if ($LASTEXITCODE -ne 0) { throw "Failed to refresh Windows GitHub Release assets for $tag." }
           }
           else {
             if ($channel -eq 'beta') {
@@ -259,3 +259,113 @@ jobs:
             }
             if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $tag." }
           }
+
+  linux-release:
+    needs: windows-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve and validate Linux release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n ' < VERSION)"
+          channel="$(tr '[:upper:]' '[:lower:]' < RELEASE_CHANNEL | tr -d '\r\n ')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION: $version" >&2; exit 1; }
+          [[ "$channel" == "beta" || "$channel" == "stable" ]] || { echo "Invalid RELEASE_CHANNEL: $channel" >&2; exit 1; }
+          if [[ "${version%%.*}" == "0" && "$channel" != "beta" ]]; then
+            echo 'Every Ghost FTP 0.x release must remain Beta.' >&2
+            exit 1
+          fi
+          tag="v$version"
+          if [[ "$channel" == "beta" ]]; then tag="$tag-beta"; fi
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "$tag" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match expected $tag." >&2
+            exit 1
+          fi
+          echo "GHOSTFTP_VERSION=$version" >> "$GITHUB_ENV"
+          echo "GHOSTFTP_CHANNEL=$channel" >> "$GITHUB_ENV"
+          echo "GHOSTFTP_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Restore Linux renderer and shared tests
+        shell: bash
+        run: |
+          dotnet restore src/GhostFTP.Linux/GhostFTP.Linux.csproj
+          dotnet restore tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj
+          dotnet restore tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj
+
+      - name: Build Linux desktop client
+        run: dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
+
+      - name: Core self-test on Linux
+        run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-restore
+
+      - name: Parallel transfer queue self-test on Linux
+        run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-restore
+
+      - name: Cross-platform release source audit
+        shell: pwsh
+        run: ./audit-source.ps1
+
+      - name: Build Linux x64 and ARM64 release packages
+        shell: bash
+        run: |
+          chmod +x ./build-linux-release.sh
+          ./build-linux-release.sh
+
+      - name: Verify Linux packages and final SHA-256 manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            release-linux/GhostFTP-linux-x64
+            release-linux/GhostFTP-linux-arm64
+            release-linux/GhostFTP-linux-x64.tar.gz
+            release-linux/GhostFTP-linux-arm64.tar.gz
+            release-linux/GhostFTP-${GHOSTFTP_VERSION}-${GHOSTFTP_CHANNEL}-linux-x64.tar.gz
+            release-linux/GhostFTP-${GHOSTFTP_VERSION}-${GHOSTFTP_CHANNEL}-linux-arm64.tar.gz
+            release-linux/SHA256SUMS-linux.txt
+            release-linux/BUILD-INFO.txt
+          )
+          for path in "${required[@]}"; do
+            [[ -s "$path" ]] || { echo "Missing/empty Linux release asset: $path" >&2; exit 1; }
+          done
+          [[ -x release-linux/GhostFTP-linux-x64 ]] || { echo 'linux-x64 binary is not executable.' >&2; exit 1; }
+          [[ -x release-linux/GhostFTP-linux-arm64 ]] || { echo 'linux-arm64 binary is not executable.' >&2; exit 1; }
+          (cd release-linux && sha256sum -c SHA256SUMS-linux.txt)
+          file release-linux/GhostFTP-linux-x64
+          file release-linux/GhostFTP-linux-arm64
+
+      - name: Upload verified Linux release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: GhostFTP-Linux-${{ env.GHOSTFTP_VERSION }}-${{ env.GHOSTFTP_CHANNEL }}
+          path: release-linux/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach verified Linux assets to GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$GHOSTFTP_TAG" >/dev/null
+          gh release upload "$GHOSTFTP_TAG" \
+            release-linux/GhostFTP-linux-x64 \
+            release-linux/GhostFTP-linux-arm64 \
+            release-linux/GhostFTP-linux-x64.tar.gz \
+            release-linux/GhostFTP-linux-arm64.tar.gz \
+            "release-linux/GhostFTP-${GHOSTFTP_VERSION}-${GHOSTFTP_CHANNEL}-linux-x64.tar.gz" \
+            "release-linux/GhostFTP-${GHOSTFTP_VERSION}-${GHOSTFTP_CHANNEL}-linux-arm64.tar.gz" \
+            release-linux/SHA256SUMS-linux.txt \
+            release-linux/BUILD-INFO.txt \
+            --clobber
