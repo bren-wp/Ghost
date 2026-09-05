@@ -361,7 +361,7 @@ internal sealed class SettingsDialog : GhostDialog
 
 internal sealed class AboutDialog : GhostDialog
 {
-    public AboutDialog(Window owner) : base(owner, $"{L("About")} {GhostBrand.DisplayName}", 560, 520)
+    public AboutDialog(Window owner) : base(owner, $"{L("About")} {GhostBrand.DisplayName}", 580, 600)
     {
         ResizeMode = ResizeMode.NoResize;
         var body = new StackPanel();
@@ -381,8 +381,20 @@ internal sealed class AboutDialog : GhostDialog
             }
         }, new Thickness(12), 10));
 
-        body.Children.Add(Spacer(16));
-        body.Children.Add(GhostTheme.Text(GhostBrand.ProductName, 12.5, weight: FontWeights.SemiBold));
+        body.Children.Add(Spacer(14));
+        body.Children.Add(GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text("Developer and publisher", 11, muted: true),
+                GhostTheme.Text(GhostBrand.Publisher, 12.5, weight: FontWeights.SemiBold),
+                GhostTheme.Text($"Company number: {GhostBrand.CompanyNumber}", 10.5, muted: true),
+                GhostTheme.Text(GhostBrand.RegisteredOffice, 10.5, muted: true)
+            }
+        }, new Thickness(12), 10));
+
+        body.Children.Add(Spacer(14));
+        body.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 12.5, weight: FontWeights.SemiBold));
         body.Children.Add(GhostTheme.Text("ghostftp.com", 11.5, muted: true));
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) };

@@ -151,11 +151,11 @@ if ($targets -notmatch 'ApplicationIcon' -or $targets -notmatch 'generate-ghostf
     throw 'Ghost FTP executable icon generation must remain connected to the build.'
 }
 
+# Ban actual contiguous legacy product identifiers. Do not ban ordinary language such as
+# "created by FTP/FTPS actions", which is not a product identity.
 $forbiddenProductTokens = @(
     ('My' + 'FTP'),
-    ('My' + ' FTP'),
-    ('By' + 'FTP'),
-    ('By' + ' FTP')
+    ('By' + 'FTP')
 )
 $textExtensions = @('.cs','.csproj','.props','.targets','.md','.txt','.yml','.yaml','.json','.xml','.ps1','.bat','.svg')
 $scanFiles = Get-ChildItem $root -Recurse -File | Where-Object {
