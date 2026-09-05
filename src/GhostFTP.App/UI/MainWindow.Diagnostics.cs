@@ -1,4 +1,5 @@
 using GhostFTP.Core.Models;
+using GhostFTP.Core.Protocol;
 using GhostFTP.Design;
 
 namespace GhostFTP.UI;
