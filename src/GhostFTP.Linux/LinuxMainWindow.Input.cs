@@ -63,19 +63,25 @@ internal sealed partial class LinuxMainWindow
 
     private void HandleWheel(int x, int y, int delta)
     {
-        if (_modalKind != ModalKind.None) return;
-        var contentTop = MenuHeight + ToolbarHeight + 6;
-        var logHeight = Math.Clamp((int)(_height * 0.14), 92, 132);
-        var panesTop = contentTop + logHeight + 7 + 126 + 7;
+        if (_modalKind != ModalKind.None || x < SidebarWidth)
+            return;
+
+        var mainX = SidebarWidth + OuterGap;
+        var contentWidth = Math.Max(700, _width - mainX - OuterGap);
+        var contentTop = MenuHeight + ToolbarHeight + OuterGap;
+        var topHeight = Math.Clamp((int)(_height * 0.23), 180, 215);
+        var panesTop = contentTop + topHeight + 8;
         var transferHeight = Math.Clamp((int)_settings.TransferPanelHeight, 128, 220);
         var panesHeight = Math.Max(240, _height - StatusHeight - panesTop - OuterGap - transferHeight - 7);
         var transferTop = panesTop + panesHeight + 7;
 
         if (y >= transferTop)
+        {
             _transferScroll = Math.Max(0, _transferScroll + delta);
+        }
         else if (y >= panesTop)
         {
-            var split = (int)((_width - OuterGap * 2 - 7) * Math.Clamp(_settings.LocalPaneFraction, 0.25, 0.75)) + OuterGap;
+            var split = mainX + (int)((contentWidth - 7) * Math.Clamp(_settings.LocalPaneFraction, 0.25, 0.75));
             if (x < split) _localScroll = Math.Max(0, _localScroll + delta);
             else _remoteScroll = Math.Max(0, _remoteScroll + delta);
         }
@@ -523,6 +529,7 @@ internal sealed partial class LinuxMainWindow
         _settings.LanguageCode = language.Code;
         GhostLocalization.SetLanguage(language.Code);
         ApplyPalette();
+        _referencePaletteApplied = false;
         try { _settingsStore.SaveAsync(_settings).GetAwaiter().GetResult(); }
         catch (Exception ex) { Log("Could not save settings: " + ex.Message); }
         Log("Settings saved. Transfer concurrency/retry changes apply to the next connection.");
