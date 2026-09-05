@@ -12,6 +12,7 @@ internal sealed partial class LinuxMainWindow
     private const int OuterGap = 10;
     private const int SidebarWidth = 292;
     private bool _referencePaletteApplied;
+    private bool _keepQuickConnectInTab;
     private nuint _cMenu;
     private nuint _cToolbar;
 
@@ -80,15 +81,15 @@ internal sealed partial class LinuxMainWindow
 
         DrawText("G", 20, 43, _cAccent);
         DrawText(GhostProduct.DisplayName, 47, 37, _cText);
-        DrawText("PRIVATE FILE CLIENT", 47, 51, _cMuted);
-        DrawText("Private file transfers, simply.", 20, 79, _cMuted);
+        DrawText(R("PrivateFileClient"), 47, 51, _cMuted);
+        DrawText(R("Tagline"), 20, 79, _cMuted);
         DrawLine(0, 108, SidebarWidth - 1, 108, _cBorder);
 
         DrawText(L("SavedServers"), 20, 142, _cText);
         DrawButton(new RectI(SidebarWidth - 49, 122, 34, 34), "+", OpenSiteManager);
-        DrawButton(new RectI(14, 169, SidebarWidth - 28, 34), "⌂  " + L("Home"), RefreshAll);
+        DrawButton(new RectI(14, 169, SidebarWidth - 28, 34), "⌂  " + R("Home"), RefreshAll);
 
-        DrawText($"▣  This tab                                      {_profiles.Count}", 20, 235, _cText);
+        DrawText($"▣  {R("ThisTab")}                                      {_profiles.Count}", 20, 235, _cText);
         var sy = 252;
         foreach (var pair in _profiles.Take(5).Select((profile, index) => (profile, index)))
         {
@@ -105,20 +106,20 @@ internal sealed partial class LinuxMainWindow
             sy += 30;
         }
         if (_profiles.Count == 0)
-            DrawText("No saved connection in this tab.", 36, sy + 18, _cMuted);
+            DrawText(R("NoSavedConnection"), 36, sy + 18, _cMuted);
 
         sy += _profiles.Count == 0 ? 42 : 12;
-        DrawButton(new RectI(14, sy, SidebarWidth - 28, 34), "☆  Favorites in this tab", OpenSiteManager);
-        DrawButton(new RectI(14, sy + 40, SidebarWidth - 28, 34), "◷  Recent connections in this tab", () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
+        DrawButton(new RectI(14, sy, SidebarWidth - 28, 34), "☆  " + R("FavoritesInTab"), OpenSiteManager);
+        DrawButton(new RectI(14, sy + 40, SidebarWidth - 28, 34), "◷  " + R("RecentInTab"), () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
 
         var privacyY = Math.Max(sy + 88, _height - 164);
         var privacy = new RectI(12, privacyY, SidebarWidth - 24, 104);
         Fill(privacy, _cSurface2);
         Border(privacy, _cBorder);
-        DrawText("◇  Account not required", privacy.X + 14, privacy.Y + 25, _cText);
-        DrawText("Profiles and settings stay local.", privacy.X + 14, privacy.Y + 48, _cMuted);
-        DrawText("No telemetry · no tracking.", privacy.X + 14, privacy.Y + 65, _cMuted);
-        DrawText("No Ghost FTP cloud account.", privacy.X + 14, privacy.Y + 82, _cMuted);
+        DrawText("◇  " + R("AccountNotRequired"), privacy.X + 14, privacy.Y + 25, _cText);
+        DrawText(Ellipsize(R("PrivacyDescription"), 34), privacy.X + 14, privacy.Y + 48, _cMuted);
+        DrawText(R("NoTelemetry"), privacy.X + 14, privacy.Y + 65, _cMuted);
+        DrawText(R("SessionOnly"), privacy.X + 14, privacy.Y + 82, _cMuted);
 
         var footerY = _height - 50;
         Fill(new RectI(0, footerY, SidebarWidth, 50), _cSurface);
@@ -128,7 +129,7 @@ internal sealed partial class LinuxMainWindow
         {
             _modalKind = ModalKind.Confirm;
             _modalTitle = GhostProduct.DisplayName;
-            _modalText = $"{GhostProduct.InformationalVersion} · BRENDIGO LTD · No telemetry · No tracking";
+            _modalText = $"{GhostProduct.InformationalVersion} · BRENDIGO LTD · {R("NoTelemetry")}";
             _modalCallback = _ => { };
             RequestRedraw();
         });
@@ -139,7 +140,7 @@ internal sealed partial class LinuxMainWindow
         Fill(new RectI(left, 0, Math.Max(1, _width - left), MenuHeight), _cMenu);
         DrawLine(left, MenuHeight - 1, _width, MenuHeight - 1, _cBorder);
         var x = left + 16;
-        foreach (var label in new[] { "File", "View", "Sites", "Transfers", "Tools", "Help" })
+        foreach (var label in new[] { R("FileMenu"), R("ViewMenu"), R("TransfersMenu"), R("SitesMenu"), R("ToolsMenu"), R("HelpMenu") })
         {
             DrawText(label, x, 25, _cText);
             x += label.Length * 9 + 22;
@@ -164,23 +165,117 @@ internal sealed partial class LinuxMainWindow
         var searchX = _width - searchWidth - 14;
         var actionRight = searchX - 8;
         var x = left + 1;
+        var remoteTarget = ToolbarTargetsRemote();
+        var renameDeleteEnabled = remoteTarget ? _connected && _remoteSelected >= 0 : _localSelected >= 0;
 
         x += DrawToolbarButton(new RectI(x, top, compact ? 72 : 92, ToolbarHeight - 1), "⚡", L("Connect"), () => _ = RunBackground(ConnectCoreAsync), primary: true).Width;
         x += DrawToolbarButton(new RectI(x, top, compact ? 76 : 100, ToolbarHeight - 1), "⏻", L("Disconnect"), () => _ = RunBackground(() => DisconnectCoreAsync()), enabled: _connected).Width;
         x += DrawToolbarButton(new RectI(x, top, compact ? 64 : 86, ToolbarHeight - 1), "↑", L("Upload"), QueueUploadSelected, enabled: _connected).Width;
         x += DrawToolbarButton(new RectI(x, top, compact ? 70 : 96, ToolbarHeight - 1), "↓", L("Download"), QueueDownloadSelected, enabled: _connected).Width;
         x += DrawToolbarButton(new RectI(x, top, compact ? 66 : 88, ToolbarHeight - 1), "↻", L("Refresh"), RefreshAll).Width;
+
+        if (x + (compact ? 72 : 96) < actionRight)
+            x += DrawToolbarButton(new RectI(x, top, compact ? 72 : 96, ToolbarHeight - 1), "+", L("NewFolder"), ToolbarNewFolder, enabled: !remoteTarget || _connected).Width;
+        if (x + (compact ? 66 : 82) < actionRight)
+            x += DrawToolbarButton(new RectI(x, top, compact ? 66 : 82, ToolbarHeight - 1), "✎", L("Rename"), ToolbarRename, enabled: renameDeleteEnabled).Width;
+        if (x + (compact ? 62 : 78) < actionRight)
+            x += DrawToolbarButton(new RectI(x, top, compact ? 62 : 78, ToolbarHeight - 1), "×", L("Delete"), ToolbarDelete, enabled: renameDeleteEnabled).Width;
         if (x + (compact ? 78 : 108) < actionRight)
-            x += DrawToolbarButton(new RectI(x, top, compact ? 78 : 108, ToolbarHeight - 1), "▣", "Site Manager", OpenSiteManager).Width;
+            x += DrawToolbarButton(new RectI(x, top, compact ? 78 : 108, ToolbarHeight - 1), "▣", R("SiteManager"), OpenSiteManager).Width;
         if (x + (compact ? 68 : 92) < actionRight)
             x += DrawToolbarButton(new RectI(x, top, compact ? 68 : 92, ToolbarHeight - 1), "⚙", L("Settings"), OpenSettings).Width;
         if (!compact && x + 100 < actionRight)
-            _ = DrawToolbarButton(new RectI(x, top, 100, ToolbarHeight - 1), "◉", "Diagnostics", () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
+            _ = DrawToolbarButton(new RectI(x, top, 100, ToolbarHeight - 1), "◉", R("Diagnostics"), () => _ = RunBackground(ShowDiagnosticsAsync), enabled: _connected);
 
         if (searchWidth >= 210 && searchX > left + 450)
         {
             DrawText("⌕", searchX + 9, top + 39, _cMuted);
-            DrawField("remoteFilter", new RectI(searchX + 30, top + 14, searchWidth - 30, 42));
+            var searchRect = new RectI(searchX + 30, top + 14, searchWidth - 30, 42);
+            DrawField("remoteFilter", searchRect);
+            if (string.IsNullOrEmpty(_fields["remoteFilter"].Value))
+                DrawText(Ellipsize(R("SearchRemote"), Math.Max(8, (searchRect.Width - 12) / 8)), searchRect.X + 7, searchRect.Y + 26, _cMuted);
+        }
+    }
+
+    private bool ToolbarTargetsRemote() =>
+        _focusedFieldId is "remotePath" or "remoteFilter"
+        || (_remoteSelected >= 0 && _localSelected < 0);
+
+    private void ToolbarNewFolder()
+    {
+        if (ToolbarTargetsRemote())
+        {
+            if (_connected) NewRemoteFolder();
+            return;
+        }
+        NewLocalFolder();
+    }
+
+    private void ToolbarRename()
+    {
+        if (ToolbarTargetsRemote())
+        {
+            if (_connected && _remoteSelected >= 0) RenameRemote();
+            return;
+        }
+        if (_localSelected >= 0) RenameLocal();
+    }
+
+    private void ToolbarDelete()
+    {
+        if (ToolbarTargetsRemote())
+        {
+            if (_connected && _remoteSelected >= 0) DeleteRemote();
+            return;
+        }
+        if (_localSelected >= 0) DeleteLocal();
+    }
+
+    private void KeepQuickConnectionInTabIfRequested()
+    {
+        if (!_keepQuickConnectInTab || !_connected || _activeOptions is null)
+            return;
+
+        var selected = _profiles.ElementAtOrDefault(_siteSelected);
+        if (selected is not null
+            && string.Equals(selected.Host, _activeOptions.Host, StringComparison.OrdinalIgnoreCase)
+            && selected.Port == _activeOptions.Port
+            && string.Equals(selected.Username, _activeOptions.Username, StringComparison.Ordinal)
+            && selected.Security == _activeOptions.Security)
+        {
+            return;
+        }
+
+        var existingIndex = _profiles.FindIndex(profile =>
+            profile.IsSessionOnly
+            && string.Equals(profile.Host, _activeOptions.Host, StringComparison.OrdinalIgnoreCase)
+            && profile.Port == _activeOptions.Port
+            && string.Equals(profile.Username, _activeOptions.Username, StringComparison.Ordinal)
+            && profile.Security == _activeOptions.Security);
+
+        if (existingIndex < 0)
+        {
+            var profile = new ServerProfile
+            {
+                Name = _activeOptions.Host,
+                Host = _activeOptions.Host,
+                Port = _activeOptions.Port,
+                Username = _activeOptions.Username,
+                Security = _activeOptions.Security,
+                InitialPath = string.IsNullOrWhiteSpace(_remotePath) ? "/" : _remotePath,
+                RememberPassword = false,
+                ProtectedPassword = null,
+                IsDemo = false,
+                IsSessionOnly = true
+            };
+            _profiles.Add(profile);
+            _siteSelected = _profiles.Count - 1;
+            Log($"Kept {_activeOptions.Host}:{_activeOptions.Port} in this tab for this session only; no saved-site record was written.");
+        }
+        else
+        {
+            _profiles[existingIndex].InitialPath = string.IsNullOrWhiteSpace(_remotePath) ? "/" : _remotePath;
+            _siteSelected = existingIndex;
         }
     }
 
@@ -200,10 +295,10 @@ internal sealed partial class LinuxMainWindow
     private void DrawConnectionLog(RectI rect)
     {
         DrawCard(rect);
-        DrawText("Connection Log", rect.X + 10, rect.Y + 20, _cText);
+        DrawText(R("ConnectionLog"), rect.X + 10, rect.Y + 20, _cText);
         if (rect.Width > 440)
-            DrawText("local session activity · credentials never logged", rect.X + 126, rect.Y + 20, _cMuted);
-        DrawButton(new RectI(rect.X + rect.Width - 66, rect.Y + 6, 54, 25), "Clear", () =>
+            DrawText(R("LocalSessionActivity"), rect.X + 126, rect.Y + 20, _cMuted);
+        DrawButton(new RectI(rect.X + rect.Width - 66, rect.Y + 6, 54, 25), R("Clear"), () =>
         {
             _connectionLog.Clear();
             RequestRedraw();
@@ -229,7 +324,7 @@ internal sealed partial class LinuxMainWindow
         var y = rect.Y + 10;
         DrawText(L("QuickConnect"), x, y + 15, _cText);
         if (rect.Width > 410)
-            DrawText("FTPS Explicit recommended", x + 110, y + 15, _cMuted);
+            DrawText(R("ExplicitFtpsRecommended"), x + 110, y + 15, _cMuted);
 
         y += 42;
         var available = Math.Max(1, rect.Width - 20);
@@ -272,8 +367,20 @@ internal sealed partial class LinuxMainWindow
 
         if (y + 36 < rect.Y + rect.Height)
         {
-            DrawText(Ellipsize("Credentials remain local. FTPS Explicit is recommended.", Math.Max(12, (rect.Width - 155) / 8)), x, y + 18, _cMuted);
-            DrawButton(new RectI(rect.X + rect.Width - 126, y, 114, 32), _connected ? L("Disconnect") : L("Connect"),
+            var connectX = rect.X + rect.Width - 126;
+            var toggleWidth = Math.Min(174, Math.Max(130, rect.Width / 4));
+            var toggleX = Math.Max(x + 120, connectX - toggleWidth - 8);
+            var noteWidth = Math.Max(80, toggleX - x - 8);
+            DrawText(Ellipsize(R("CredentialsLocal"), Math.Max(10, noteWidth / 8)), x, y + 18, _cMuted);
+            DrawButton(
+                new RectI(toggleX, y, toggleWidth, 32),
+                (_keepQuickConnectInTab ? "[x] " : "[ ] ") + R("KeepInTab"),
+                () =>
+                {
+                    _keepQuickConnectInTab = !_keepQuickConnectInTab;
+                    RequestRedraw();
+                });
+            DrawButton(new RectI(connectX, y, 114, 32), _connected ? L("Disconnect") : L("Connect"),
                 _connected ? () => _ = RunBackground(() => DisconnectCoreAsync()) : () => _ = RunBackground(ConnectCoreAsync),
                 primary: !_connected,
                 danger: _connected);
@@ -300,7 +407,7 @@ internal sealed partial class LinuxMainWindow
         if (!remote && rect.Width >= 500)
         {
             var bx = rect.X + rect.Width - 230;
-            DrawButton(new RectI(bx, y, 68, 24), L("Home"), () => NavigateLocal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
+            DrawButton(new RectI(bx, y, 68, 24), R("Home"), () => NavigateLocal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
             DrawButton(new RectI(bx + 72, y, 74, 24), L("Desktop"), () => NavigateLocal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop")));
             DrawButton(new RectI(bx + 150, y, 70, 24), "Downl.", () => NavigateLocal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")));
         }
@@ -322,7 +429,7 @@ internal sealed partial class LinuxMainWindow
 
         y += 35;
         DrawField(remote ? "remoteFilter" : "localFilter", new RectI(x, y, Math.Max(60, rect.Width - 84), 28));
-        DrawButton(new RectI(rect.X + rect.Width - 77, y, 67, 28), "Clear", () =>
+        DrawButton(new RectI(rect.X + rect.Width - 77, y, 67, 28), R("Clear"), () =>
         {
             _fields[remote ? "remoteFilter" : "localFilter"].Value = string.Empty;
             if (remote) _remoteScroll = 0; else _localScroll = 0;
@@ -349,7 +456,7 @@ internal sealed partial class LinuxMainWindow
             DrawLocalRows(new RectI(table.X, table.Y + 26, table.Width, table.Height - 26));
 
         var count = remote ? FilteredRemote().Count() : FilteredLocal().Count();
-        DrawText($"{count} items", x, rect.Y + rect.Height - 8, _cMuted);
+        DrawText($"{count} {R("Items")}", x, rect.Y + rect.Height - 8, _cMuted);
     }
 
     private void DrawLocalRows(RectI rect)
@@ -366,7 +473,7 @@ internal sealed partial class LinuxMainWindow
             DrawText(Ellipsize((item.IsDirectory ? "▸ " : "  ") + item.Name, Math.Max(8, (rect.Width - 270) / 8)), rr.X + 6, rr.Y + 17, _cText);
             if (rect.Width >= 360)
             {
-                DrawText(item.IsDirectory ? "Folder" : "File", rect.X + Math.Max(145, rect.Width - 260), rr.Y + 17, _cMuted);
+                DrawText(item.IsDirectory ? R("Folder") : R("File"), rect.X + Math.Max(145, rect.Width - 260), rr.Y + 17, _cMuted);
                 DrawText(item.IsDirectory ? "" : FormatBytes(item.Size), rect.X + Math.Max(210, rect.Width - 180), rr.Y + 17, _cMuted);
                 DrawText(item.Modified.LocalDateTime.ToString("MM-dd HH:mm"), rect.X + Math.Max(275, rect.Width - 100), rr.Y + 17, _cMuted);
             }
@@ -388,7 +495,7 @@ internal sealed partial class LinuxMainWindow
             DrawText(Ellipsize((item.IsDirectory ? "▸ " : "  ") + item.Name, Math.Max(8, (rect.Width - 270) / 8)), rr.X + 6, rr.Y + 17, _cText);
             if (rect.Width >= 360)
             {
-                DrawText(item.IsDirectory ? "Folder" : "File", rect.X + Math.Max(145, rect.Width - 260), rr.Y + 17, _cMuted);
+                DrawText(item.IsDirectory ? R("Folder") : R("File"), rect.X + Math.Max(145, rect.Width - 260), rr.Y + 17, _cMuted);
                 DrawText(item.IsDirectory ? "" : FormatBytes(item.Size), rect.X + Math.Max(210, rect.Width - 180), rr.Y + 17, _cMuted);
                 DrawText(item.ModifiedUtc?.LocalDateTime.ToString("MM-dd HH:mm") ?? "", rect.X + Math.Max(275, rect.Width - 100), rr.Y + 17, _cMuted);
             }
@@ -450,7 +557,7 @@ internal sealed partial class LinuxMainWindow
         Fill(new RectI(SidebarWidth, y, Math.Max(1, _width - SidebarWidth), StatusHeight), _cSurface);
         DrawLine(SidebarWidth, y, _width, y, _cBorder);
         if (_width - SidebarWidth > 520)
-            DrawText($"{GhostProduct.DisplayName} {GhostProduct.InformationalVersion} · No telemetry · No tracking", SidebarWidth + 10, y + 19, _cMuted);
+            DrawText($"{GhostProduct.DisplayName} {GhostProduct.InformationalVersion} · {R("NoTelemetry")}", SidebarWidth + 10, y + 19, _cMuted);
         DrawText(_status, Math.Max(SidebarWidth + 10, _width - 190), y + 19, _connected ? _cSuccess : _cMuted);
     }
 
@@ -495,7 +602,7 @@ internal sealed partial class LinuxMainWindow
 
     private void DrawSiteManagerModal(RectI rect)
     {
-        DrawText("Site Manager", rect.X + 20, rect.Y + 32, _cText);
+        DrawText(R("SiteManager"), rect.X + 20, rect.Y + 32, _cText);
         DrawText("Saved locally · passwords protected with a user-private AES key on Linux", rect.X + 120, rect.Y + 32, _cMuted);
         var list = new RectI(rect.X + 20, rect.Y + 54, rect.Width - 40, rect.Height - 130);
         Fill(list, _cSurface2);
@@ -507,7 +614,12 @@ internal sealed partial class LinuxMainWindow
             if (i == _siteSelected) Fill(row, _cAccentSoft);
             var profile = _profiles[i];
             DrawText(profile.Name, row.X + 8, row.Y + 20, _cText);
-            DrawText(profile.IsDemo ? "Local demo" : $"{profile.Host}:{profile.Port} · {profile.Security}", row.X + 220, row.Y + 20, _cMuted);
+            var detail = profile.IsDemo
+                ? "Local demo"
+                : profile.IsSessionOnly
+                    ? $"{profile.Host}:{profile.Port} · {profile.Security} · {R("SessionOnly")}"
+                    : $"{profile.Host}:{profile.Port} · {profile.Security}";
+            DrawText(Ellipsize(detail, Math.Max(20, (row.Width - 230) / 8)), row.X + 220, row.Y + 20, _cMuted);
             var captured = i;
             Register(row, () =>
             {
@@ -654,4 +766,5 @@ internal sealed partial class LinuxMainWindow
     }
 
     private static string L(string key) => GhostLocalization.T(key);
+    private static string R(string key) => GhostReferenceText.T(key);
 }
