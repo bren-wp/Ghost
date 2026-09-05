@@ -18,15 +18,8 @@ public sealed partial class MainWindow
 
         Directory.CreateDirectory(_captureDirectory);
         WindowState = WindowState.Normal;
-        SizeToContent = SizeToContent.WidthAndHeight;
         Left = 20;
         Top = 20;
-
-        if (Content is FrameworkElement referenceRoot)
-        {
-            referenceRoot.Width = ReferenceCaptureWidth;
-            referenceRoot.Height = ReferenceCaptureHeight;
-        }
 
         var demo = _profiles.FirstOrDefault(x => x.IsDemo);
         if (demo is not null)
@@ -48,9 +41,28 @@ public sealed partial class MainWindow
 
         var clientPath = Path.Combine(_captureDirectory, "ghostftp-client.png");
         if (Content is FrameworkElement captureRoot)
-            CaptureReferenceRootToPng(captureRoot, clientPath);
+        {
+            // GitHub-hosted Windows runners expose a desktop smaller than the canonical
+            // 1914×907 reference. A live Window is constrained by that virtual work area,
+            // so rendering its attached Content would capture only the visible runner-sized
+            // portion and leave the remainder of the bitmap empty. Detach the real compiled
+            // visual tree only for the render pass, lay it out at the canonical viewport,
+            // then restore it to the Window. No mock/staged UI is created here.
+            Content = null;
+            try
+            {
+                CaptureReferenceRootToPng(captureRoot, clientPath);
+            }
+            finally
+            {
+                Content = captureRoot;
+                UpdateLayout();
+            }
+        }
         else
+        {
             throw new InvalidOperationException("Ghost FTP documentation capture requires a framework root element.");
+        }
 
         if (_profileStore is not null)
         {
@@ -102,6 +114,13 @@ public sealed partial class MainWindow
         element.Measure(new Size(ReferenceCaptureWidth, ReferenceCaptureHeight));
         element.Arrange(new Rect(0, 0, ReferenceCaptureWidth, ReferenceCaptureHeight));
         element.UpdateLayout();
+
+        if (Math.Abs(element.ActualWidth - ReferenceCaptureWidth) > 0.5
+            || Math.Abs(element.ActualHeight - ReferenceCaptureHeight) > 0.5)
+        {
+            throw new InvalidOperationException(
+                $"Reference visual did not arrange to {ReferenceCaptureWidth}x{ReferenceCaptureHeight}; actual {element.ActualWidth:0.#}x{element.ActualHeight:0.#}.");
+        }
 
         var bitmap = new RenderTargetBitmap(
             ReferenceCaptureWidth,
