@@ -194,12 +194,15 @@ public sealed partial class MainWindow
 
     private void UpdateQueueManagementUi()
     {
+        if (_queuePauseMenuItem is null)
+            return;
+
         var paused = _queue?.IsQueuePaused == true;
-        _queuePauseButton.Content = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
-        _queuePauseButton.ToolTip = paused
+        _queuePauseMenuItem.Header = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
+        _queuePauseMenuItem.ToolTip = paused
             ? "Resume dispatch of queued and retrying transfers."
             : GhostTransferText.T("RunningContinue");
-        _queuePauseButton.IsEnabled = _queue is not null;
+        _queuePauseMenuItem.IsEnabled = _queue is not null;
     }
 
     private void UpdateQueueSummary()
