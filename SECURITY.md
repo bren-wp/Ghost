@@ -44,11 +44,17 @@ A `.ghostftp.part` file is eligible for REST resume only when Ghost FTP has a bo
 
 The resume metadata format is versioned and capped at **16 KiB** before deserialization. It does not contain usernames, passwords, tokens or transferred file contents.
 
-If metadata is missing, malformed, oversized or does not match the selected endpoint/remote revision, Ghost FTP deletes the stale partial state and restarts from byte zero rather than appending unverified bytes.
+If metadata is missing, malformed, oversized or does not match the selected endpoint/remote revision, Ghost FTP treats both the sidecar and staged bytes as untrusted. Their removal is a required safety operation. If the filesystem refuses deletion, Ghost FTP aborts before REST or RETR; it does not fall back to the legacy length-only resume path.
 
-If the server does not expose both usable `SIZE` and `MDTM`, Ghost FTP can still download the file but does not retain an interrupted partial as trusted resumable state.
+If the server does not expose both usable `SIZE` and `MDTM`, Ghost FTP can still perform a fresh download but does not retain an interrupted partial as trusted resumable state.
 
-For downloads with a verifiable identity, Ghost FTP re-queries `SIZE` and `MDTM` after transfer. If the remote object changed while bytes were in flight, the locally completed result is deleted and the operation fails with an integrity error.
+### Staged destination commit
+
+A verifiable download remains in `.ghostftp.part` after the data stream completes. Ghost FTP re-queries `SIZE` and `MDTM` while the previous destination, if one exists, remains untouched.
+
+Only a matching remote revision allows the staged file to replace the final destination. If the remote object changed while bytes were in flight, staged bytes and their resume metadata are discarded and the operation fails with an integrity error. An existing local destination is preserved byte-for-byte.
+
+A full-length validated partial is still considered staged and must pass the same revision check before promotion.
 
 FTP metadata is not a cryptographic content identity. A server whose `MDTM` granularity cannot distinguish two same-size replacements inside the same reported timestamp inherently provides a weaker identity signal; Ghost FTP does not overstate that limitation.
 
@@ -80,7 +86,7 @@ FTP data paths reuse bounded 128 KiB pooled buffers to reduce repeated large-obj
 
 Ghost FTP normalizes and contains local paths before write/delete operations. Remote root protections and bounded recursive operations reduce destructive traversal risk. User-facing destructive operations require confirmation when configured.
 
-Downloads use partial files and identity/size validation where server metadata permits it. Uploads use temporary remote paths, size verification where available and rollback-oriented replacement semantics for an existing destination.
+Downloads use staged partial files and identity/size validation where server metadata permits it. Uploads use temporary remote paths, size verification where available and rollback-oriented replacement semantics for an existing destination.
 
 ## Credential protection
 
@@ -114,7 +120,7 @@ Shipping application targets are Windows and Linux. Android, iOS, MacCatalyst/ma
 
 `GhostFTP.HardeningSelfTest` uses process-local loopback FTP listeners and no Internet dependency to verify session/queue disposal, malformed replies, LIST/MLSD bounds, safe symlink parsing, EPSV/PASV behavior and real control/data flow.
 
-`GhostFTP.ResumeSelfTest` is isolated from the general hardening executable and validates exact safe REST resume, stale remote-identity restart from zero, byte-for-byte output and in-flight remote revision rejection. It also uses loopback only and has no third-party package dependency.
+`GhostFTP.ResumeSelfTest` is isolated from the general hardening executable and validates exact safe REST resume, stale remote-identity restart from zero, byte-for-byte output, in-flight remote revision rejection, preservation of an existing destination and fail-closed stale-partial cleanup before REST/RETR. It also uses loopback only and has no third-party package dependency.
 
 The built-in Demo regression remains local-only and opens no external FTP, analytics or telemetry connection.
 
@@ -128,4 +134,4 @@ Include the affected Ghost FTP version, platform, reproducible steps and expecte
 
 ## Release gate
 
-Ghost FTP 0.1.6 is release-ready only after exact-head Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow, transfer queue regression, protocol/parser/settings hardening self-test, dedicated safe-resume integrity self-test, renderer smoke tests, authentic UI capture, packaging and checksum/runtime verification.
+Ghost FTP 0.1.6 is release-ready only after exact-head Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow, transfer queue regression, protocol/parser/settings hardening self-test, dedicated safe-resume integrity self-test, renderer smoke tests, authentic UI capture, packaging and checksum/runtime verification. The publication workflow independently reruns the safe-resume suite on Windows and Linux before official assets can be considered complete.
