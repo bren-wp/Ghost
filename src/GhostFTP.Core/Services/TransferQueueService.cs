@@ -26,10 +26,27 @@ public sealed class TransferQueueService : IAsyncDisposable
     private readonly Task[] _workers;
     private readonly SynchronizationContext? _uiContext;
     private readonly int _maxAutomaticRetries;
+    private TaskCompletionSource<bool> _resumeSignal = CreateCompletedSignal();
+    private bool _isQueuePaused;
 
     public ObservableCollection<TransferJob> Jobs { get; } = [];
     public event EventHandler<TransferJob>? JobUpdated;
+    public event EventHandler? QueueStateChanged;
     public int ConcurrentTransferLimit { get; }
+
+    /// <summary>
+    /// True when dispatch of queued/retrying transfers is paused. Transfers that were already running
+    /// continue to completion so Ghost FTP never pretends that an FTP data stream can be safely paused
+    /// when the remote server has not negotiated resumable transfer semantics.
+    /// </summary>
+    public bool IsQueuePaused
+    {
+        get
+        {
+            lock (_sync)
+                return _isQueuePaused;
+        }
+    }
 
     public TransferQueueService(
         Func<CancellationToken, Task<(IFtpSession Session, bool DisposeAfter)>> sessionFactory,
@@ -74,6 +91,46 @@ public sealed class TransferQueueService : IAsyncDisposable
         return job;
     }
 
+    /// <summary>
+    /// Stops workers from starting additional queued/retrying transfers. Running transfers are not
+    /// interrupted; callers can cancel those explicitly when that is the intended action.
+    /// </summary>
+    public void PauseQueue()
+    {
+        var changed = false;
+        lock (_sync)
+        {
+            if (!_isQueuePaused && !_shutdown.IsCancellationRequested)
+            {
+                _isQueuePaused = true;
+                _resumeSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                changed = true;
+            }
+        }
+
+        if (changed)
+            RaiseQueueStateChanged();
+    }
+
+    public void ResumeQueue()
+    {
+        TaskCompletionSource<bool>? signal = null;
+        lock (_sync)
+        {
+            if (_isQueuePaused)
+            {
+                _isQueuePaused = false;
+                signal = _resumeSignal;
+            }
+        }
+
+        if (signal is null)
+            return;
+
+        signal.TrySetResult(true);
+        RaiseQueueStateChanged();
+    }
+
     public void Cancel(Guid jobId)
     {
         lock (_sync)
@@ -83,12 +140,14 @@ public sealed class TransferQueueService : IAsyncDisposable
         }
     }
 
-    public void ClearFinished()
-    {
-        var finished = Jobs.Where(x => x.State is TransferState.Completed or TransferState.Cancelled or TransferState.Failed).ToArray();
-        foreach (var job in finished)
-            Jobs.Remove(job);
-    }
+    public void ClearFinished() =>
+        ClearStates(TransferState.Completed, TransferState.Cancelled, TransferState.Failed);
+
+    public int ClearCompleted() => ClearStates(TransferState.Completed);
+
+    public int ClearFailed() => ClearStates(TransferState.Failed);
+
+    public int ClearCancelled() => ClearStates(TransferState.Cancelled);
 
     private void Enqueue(TransferJob job)
     {
@@ -144,6 +203,9 @@ public sealed class TransferQueueService : IAsyncDisposable
                 try
                 {
                     ct.ThrowIfCancellationRequested();
+                    await WaitForDispatchAsync(ct).ConfigureAwait(false);
+                    ct.ThrowIfCancellationRequested();
+
                     var lease = await _sessionFactory(ct).ConfigureAwait(false);
                     transferSession = lease.Session;
                     disposeAfter = lease.DisposeAfter;
@@ -236,6 +298,18 @@ public sealed class TransferQueueService : IAsyncDisposable
         }
     }
 
+    private Task WaitForDispatchAsync(CancellationToken cancellationToken)
+    {
+        Task signalTask;
+        lock (_sync)
+        {
+            if (!_isQueuePaused)
+                return Task.CompletedTask;
+            signalTask = _resumeSignal.Task;
+        }
+        return signalTask.WaitAsync(cancellationToken);
+    }
+
     private async Task ExecuteTransferAsync(TransferJob job, IFtpSession transferSession, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -290,6 +364,15 @@ public sealed class TransferQueueService : IAsyncDisposable
             if (job.IsDirectory) await transferSession.DownloadDirectoryAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
             else await transferSession.DownloadFileAsync(job.Source, job.Destination, progress, ct).ConfigureAwait(false);
         }
+    }
+
+    private int ClearStates(params TransferState[] states)
+    {
+        var stateSet = states.ToHashSet();
+        var matches = Jobs.Where(job => stateSet.Contains(job.State)).ToArray();
+        foreach (var job in matches)
+            Jobs.Remove(job);
+        return matches.Length;
     }
 
     private static bool IsTransient(Exception exception)
@@ -352,8 +435,33 @@ public sealed class TransferQueueService : IAsyncDisposable
         }, null);
     }
 
+    private void RaiseQueueStateChanged()
+    {
+        if (_uiContext is null)
+        {
+            QueueStateChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        _uiContext.Post(_ => QueueStateChanged?.Invoke(this, EventArgs.Empty), null);
+    }
+
+    private static TaskCompletionSource<bool> CreateCompletedSignal()
+    {
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.TrySetResult(true);
+        return signal;
+    }
+
     public async ValueTask DisposeAsync()
     {
+        TaskCompletionSource<bool> resumeSignal;
+        lock (_sync)
+        {
+            _isQueuePaused = false;
+            resumeSignal = _resumeSignal;
+        }
+        resumeSignal.TrySetResult(true);
+
         _channel.Writer.TryComplete();
         _shutdown.Cancel();
         lock (_sync)
