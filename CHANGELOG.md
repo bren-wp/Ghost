@@ -2,6 +2,40 @@
 
 This file tracks the active public Ghost FTP version line. The original pre-reset engineering changelog is preserved verbatim in [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md); detailed release bodies remain under [`docs/releases/`](docs/releases/).
 
+## 0.1.6 Beta — 2026-09-06
+
+### Safe download resume integrity
+
+- Added bounded local `.ghostftp.part.meta` sidecars for resumable downloads.
+- Resume identity is tied to host, port, FTP security mode, normalized remote path, server `SIZE` and server `MDTM` timestamp.
+- Pre-0.1.6, corrupt, oversized, stale or mismatched partial state now restarts from byte zero instead of being appended blindly.
+- Servers without both usable `SIZE` and `MDTM` still support fresh download, but interrupted unverified partials are not retained as resumable state.
+- Recursive directory downloads route every file through the same identity-aware resume path.
+
+### In-flight remote mutation protection
+
+- When a remote object has a verifiable `SIZE` + `MDTM` identity, Ghost FTP rechecks that identity after transfer.
+- If the remote revision changes while bytes are in flight, the locally completed result is discarded and the transfer reports an integrity error.
+- Resume metadata contains no username, password, token or transferred file content and is capped at 16 KiB.
+
+### Deterministic regression coverage
+
+- Added package-free `GhostFTP.ResumeSelfTest` using process-local loopback FTP servers only.
+- Added exact REST-offset validation for a valid partial.
+- Added stale-MDTM coverage proving changed remote identity restarts from zero without mixing old bytes.
+- Added same-size in-flight mutation coverage proving a completed local file is removed when post-transfer `MDTM` changes.
+- Added dedicated Windows and Linux CI gates for the resume-integrity suite.
+
+### Security, privacy and scope retained
+
+- Preserved strict Explicit/Implicit FTPS behavior, TLS certificate/hostname validation and no silent FTPS-to-FTP downgrade.
+- Preserved `PBSZ 0`, `PROT P`, required `TYPE I`, strict EPSV/PASV parsing, listing/traversal bounds, local path containment and command-injection guards.
+- Preserved local-only profiles/settings, session-only Quick Connect by default, current-user DPAPI on Windows and AES-256-GCM local key protection on Linux.
+- Preserved zero application telemetry/tracking and zero third-party NuGet `PackageReference` dependencies in shipping/regression projects.
+- Preserved Windows/Linux-only shipping scope and the 29-language local catalog with English as primary/default/fallback.
+
+Detailed notes: [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md)
+
 ## 0.1.5 Beta — 2026-09-06
 
 ### Listing/parser hardening
