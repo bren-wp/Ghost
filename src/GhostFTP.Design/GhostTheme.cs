@@ -30,32 +30,32 @@ public static class GhostTheme
     {
         IsDark = dark;
         var resources = Application.Current.Resources;
-        resources["Bg"] = Brush(dark ? "#0A0C10" : "#F3F5F8");
-        resources["Surface"] = Brush(dark ? "#10141B" : "#FFFFFF");
-        resources["Surface2"] = Brush(dark ? "#151A23" : "#F7F9FC");
-        resources["Surface3"] = Brush(dark ? "#1B2230" : "#EEF2F7");
-        resources["SurfaceHover"] = Brush(dark ? "#202938" : "#E8EDF5");
-        resources["Text"] = Brush(dark ? "#F7F8FB" : "#151922");
-        resources["Muted"] = Brush(dark ? "#98A4B5" : "#667085");
-        resources["Subtle"] = Brush(dark ? "#748196" : "#7B8494");
-        resources["Border"] = Brush(dark ? "#263043" : "#D8DEE8");
-        resources["BorderStrong"] = Brush(dark ? "#344158" : "#C7CFDC");
-        resources["Accent"] = Brush("#6F5BFF");
-        resources["AccentHover"] = Brush("#806EFF");
-        resources["AccentPressed"] = Brush("#5D49EA");
-        resources["AccentSoft"] = Brush(dark ? "#28214A" : "#ECE9FF");
-        resources["Success"] = Brush("#2EB67D");
-        resources["SuccessSoft"] = Brush(dark ? "#15382C" : "#E5F7F0");
-        resources["Danger"] = Brush("#E85461");
-        resources["DangerSoft"] = Brush(dark ? "#3A1D24" : "#FDECEE");
-        resources["Warning"] = Brush("#D99A31");
-        resources["WarningSoft"] = Brush(dark ? "#3A2C16" : "#FFF4DE");
+        resources["Bg"] = Brush(dark ? GhostReferencePalette.Background : "#F3F5F8");
+        resources["Surface"] = Brush(dark ? GhostReferencePalette.Surface : "#FFFFFF");
+        resources["Surface2"] = Brush(dark ? GhostReferencePalette.Surface2 : "#F7F9FC");
+        resources["Surface3"] = Brush(dark ? GhostReferencePalette.Surface3 : "#EEF2F7");
+        resources["SurfaceHover"] = Brush(dark ? GhostReferencePalette.SurfaceHover : "#E8EDF5");
+        resources["Text"] = Brush(dark ? GhostReferencePalette.Text : "#151922");
+        resources["Muted"] = Brush(dark ? GhostReferencePalette.Muted : "#667085");
+        resources["Subtle"] = Brush(dark ? GhostReferencePalette.Subtle : "#7B8494");
+        resources["Border"] = Brush(dark ? GhostReferencePalette.Border : "#D8DEE8");
+        resources["BorderStrong"] = Brush(dark ? GhostReferencePalette.BorderStrong : "#C7CFDC");
+        resources["Accent"] = Brush(GhostReferencePalette.Accent);
+        resources["AccentHover"] = Brush(GhostReferencePalette.AccentHover);
+        resources["AccentPressed"] = Brush(GhostReferencePalette.AccentPressed);
+        resources["AccentSoft"] = Brush(dark ? GhostReferencePalette.AccentSoft : "#ECE9FF");
+        resources["Success"] = Brush(GhostReferencePalette.Success);
+        resources["SuccessSoft"] = Brush(dark ? GhostReferencePalette.SuccessSoft : "#E5F7F0");
+        resources["Danger"] = Brush(GhostReferencePalette.Danger);
+        resources["DangerSoft"] = Brush(dark ? GhostReferencePalette.DangerSoft : "#FDECEE");
+        resources["Warning"] = Brush(GhostReferencePalette.Warning);
+        resources["WarningSoft"] = Brush(dark ? GhostReferencePalette.WarningSoft : "#FFF4DE");
         ApplyGlobalStyles(resources);
     }
 
     public static Brush R(string key) => (Brush)Application.Current.Resources[key];
 
-    public static Border Card(UIElement child, Thickness? padding = null, double radius = 14)
+    public static Border Card(UIElement child, Thickness? padding = null, double radius = GhostReferencePalette.CardRadius)
     {
         return new Border
         {
@@ -63,13 +63,13 @@ public static class GhostTheme
             BorderBrush = R("Border"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(radius),
-            Padding = padding ?? new Thickness(16),
+            Padding = padding ?? new Thickness(14),
             Child = child,
             SnapsToDevicePixels = true
         };
     }
 
-    public static Border Surface(UIElement child, Thickness? padding = null, double radius = 10)
+    public static Border Surface(UIElement child, Thickness? padding = null, double radius = GhostReferencePalette.FieldRadius)
     {
         return new Border
         {
@@ -77,8 +77,9 @@ public static class GhostTheme
             BorderBrush = R("Border"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(radius),
-            Padding = padding ?? new Thickness(12),
-            Child = child
+            Padding = padding ?? new Thickness(11),
+            Child = child,
+            SnapsToDevicePixels = true
         };
     }
 
@@ -102,7 +103,7 @@ public static class GhostTheme
     {
         var stack = new StackPanel();
         stack.Children.Add(Caption(label));
-        if (input is FrameworkElement element) element.Margin = new Thickness(0, 6, 0, 0);
+        if (input is FrameworkElement element) element.Margin = new Thickness(0, 5, 0, 0);
         stack.Children.Add(input);
         if (!string.IsNullOrWhiteSpace(hint))
         {
@@ -122,14 +123,14 @@ public static class GhostTheme
         {
             Content = text,
             FontFamily = UiFont,
-            FontSize = 12.5,
+            FontSize = 12.25,
             FontWeight = FontWeights.SemiBold,
             Foreground = foreground,
             Background = background,
             BorderBrush = border,
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(13, 7, 13, 7),
-            MinHeight = 34,
+            Padding = new Thickness(11, 6, 11, 6),
+            MinHeight = GhostReferencePalette.CompactRowHeight,
             Cursor = Cursors.Hand,
             Template = RoundedButtonTemplate()
         };
@@ -189,13 +190,13 @@ public static class GhostTheme
         {
             Background = R(backgroundKey),
             CornerRadius = new CornerRadius(999),
-            Padding = new Thickness(9, 4, 9, 4),
+            Padding = new Thickness(8, 3, 8, 3),
             Child = new TextBlock
             {
                 Text = text,
                 Foreground = R(foregroundKey),
                 FontFamily = UiFont,
-                FontSize = 11,
+                FontSize = 10.75,
                 FontWeight = FontWeights.SemiBold
             }
         };
@@ -223,9 +224,9 @@ public static class GhostTheme
         gridHeader.Setters.Add(new Setter(Control.ForegroundProperty, R("Muted")));
         gridHeader.Setters.Add(new Setter(Control.BorderBrushProperty, R("Border")));
         gridHeader.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0, 0, 1, 1)));
-        gridHeader.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 7, 10, 7)));
+        gridHeader.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(9, 6, 9, 6)));
         gridHeader.Setters.Add(new Setter(Control.FontFamilyProperty, UiFont));
-        gridHeader.Setters.Add(new Setter(Control.FontSizeProperty, 11.5));
+        gridHeader.Setters.Add(new Setter(Control.FontSizeProperty, 11.25));
         gridHeader.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
         gridHeader.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left));
         resources[typeof(GridViewColumnHeader)] = gridHeader;
@@ -249,7 +250,7 @@ public static class GhostTheme
         var listBoxItem = new Style(typeof(ListBoxItem));
         listBoxItem.Setters.Add(new Setter(Control.ForegroundProperty, R("Text")));
         listBoxItem.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-        listBoxItem.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 8, 10, 8)));
+        listBoxItem.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(9, 7, 9, 7)));
         listBoxItem.Setters.Add(new Setter(Control.MarginProperty, new Thickness(0, 1, 0, 1)));
         listBoxItem.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
         var listHover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
@@ -309,7 +310,7 @@ public static class GhostTheme
         border.SetBinding(Border.BackgroundProperty, new Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
         border.SetBinding(Border.BorderBrushProperty, new Binding("BorderBrush") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
         border.SetBinding(Border.BorderThicknessProperty, new Binding("BorderThickness") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
         border.SetValue(Border.SnapsToDevicePixelsProperty, true);
         var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
         presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -318,13 +319,16 @@ public static class GhostTheme
         border.AppendChild(presenter);
         var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = border };
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Control.OpacityProperty, 0.9));
+        hover.Setters.Add(new Setter(Control.OpacityProperty, 0.92));
         template.Triggers.Add(hover);
         var pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
-        pressed.Setters.Add(new Setter(Control.OpacityProperty, 0.74));
+        pressed.Setters.Add(new Setter(Control.OpacityProperty, 0.82));
         template.Triggers.Add(pressed);
+        var focused = new Trigger { Property = UIElement.IsKeyboardFocusWithinProperty, Value = true };
+        focused.Setters.Add(new Setter(Control.BorderBrushProperty, R("Accent")));
+        template.Triggers.Add(focused);
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
-        disabled.Setters.Add(new Setter(Control.OpacityProperty, 0.42));
+        disabled.Setters.Add(new Setter(Control.OpacityProperty, 0.48));
         template.Triggers.Add(disabled);
         return template;
 #pragma warning restore CS0618
