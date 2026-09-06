@@ -21,7 +21,7 @@ internal sealed class SiteManagerDialog : GhostDialog
     private readonly TextBox _initialPath = GhostTheme.TextBox("/");
     private readonly CheckBox _remember;
     private readonly TextBlock _selectionHint = GhostTheme.Text(
-        "Select a saved site to edit its connection details.",
+        R("SelectSavedSite"),
         10.5,
         muted: true);
     private readonly ContentControl _pageHost = new();
@@ -35,11 +35,13 @@ internal sealed class SiteManagerDialog : GhostDialog
     public IReadOnlyDictionary<Guid, string> Passwords => _passwords;
     public Guid? ConnectProfileId { get; private set; }
 
+    private static string R(string key) => GhostReferenceText.T(key);
+
     public SiteManagerDialog(
         Window owner,
         IEnumerable<ServerProfile> profiles,
         Func<ServerProfile, string> passwordGetter)
-        : base(owner, "Site Manager", 980, 650)
+        : base(owner, R("SiteManager"), 980, 650)
     {
         ResizeMode = ResizeMode.CanResizeWithGrip;
         MinWidth = 820;
@@ -66,9 +68,9 @@ internal sealed class SiteManagerDialog : GhostDialog
     private UIElement BuildContent()
     {
         var root = new Grid { Margin = new Thickness(16) };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300), MinWidth = 250, MaxWidth = 340 });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 430 });
 
         var left = BuildSiteList();
         Grid.SetColumn(left, 0);
@@ -84,9 +86,9 @@ internal sealed class SiteManagerDialog : GhostDialog
     {
         var dock = new DockPanel();
         var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        heading.Children.Add(GhostTheme.Text("Saved sites", 18, weight: FontWeights.SemiBold));
+        heading.Children.Add(GhostTheme.Text(R("SavedSites"), 18, weight: FontWeights.SemiBold));
         heading.Children.Add(GhostTheme.Text(
-            "Manage FTP and FTPS connection profiles on this device.",
+            R("ManageSavedSites"),
             10.5,
             muted: true));
         DockPanel.SetDock(heading, Dock.Top);
@@ -97,7 +99,7 @@ internal sealed class SiteManagerDialog : GhostDialog
         actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
         actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var add = GhostTheme.Button("＋ New site", primary: true);
+        var add = GhostTheme.Button("＋ " + R("NewSite"), primary: true);
         add.Click += (_, _) => AddSite();
         var remove = GhostTheme.Button(L("Remove"), danger: true);
         remove.Click += (_, _) => RemoveSelected();
@@ -152,7 +154,7 @@ internal sealed class SiteManagerDialog : GhostDialog
         dock.Children.Add(footer);
 
         var body = new StackPanel();
-        body.Children.Add(GhostTheme.Text("Site Manager", 22, weight: FontWeights.SemiBold));
+        body.Children.Add(GhostTheme.Text(R("SiteManager"), 22, weight: FontWeights.SemiBold));
         body.Children.Add(_selectionHint);
         body.Children.Add(Spacer(14));
 
@@ -187,10 +189,10 @@ internal sealed class SiteManagerDialog : GhostDialog
         selector.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
         selector.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
 
-        _generalPageButton = GhostTheme.Button("General", subtle: true);
+        _generalPageButton = GhostTheme.Button(R("General"), subtle: true);
         _generalPageButton.MinHeight = 34;
         _generalPageButton.Click += (_, _) => SetEditorPage(advanced: false);
-        _advancedPageButton = GhostTheme.Button("Advanced", subtle: true);
+        _advancedPageButton = GhostTheme.Button(R("Advanced"), subtle: true);
         _advancedPageButton.MinHeight = 34;
         _advancedPageButton.Click += (_, _) => SetEditorPage(advanced: true);
 
@@ -218,7 +220,7 @@ internal sealed class SiteManagerDialog : GhostDialog
     private UIElement BuildGeneralPage()
     {
         var panel = new StackPanel { Margin = new Thickness(14) };
-        panel.Children.Add(GhostTheme.Field("Site name", _name));
+        panel.Children.Add(GhostTheme.Field(R("SiteName"), _name));
         panel.Children.Add(Spacer(10));
 
         var hostRow = new Grid();
@@ -226,9 +228,9 @@ internal sealed class SiteManagerDialog : GhostDialog
         hostRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
         hostRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
         var hostField = GhostTheme.Field(
-            "Host / IP / URL",
+            R("HostUrl"),
             _host,
-            "Hostname or IP address; do not include ftp://.");
+            R("HostHint"));
         var portField = GhostTheme.Field(L("Port"), _port);
         Grid.SetColumn(hostField, 0);
         Grid.SetColumn(portField, 2);
@@ -240,7 +242,7 @@ internal sealed class SiteManagerDialog : GhostDialog
         panel.Children.Add(GhostTheme.Field(
             L("Security"),
             _security,
-            "Explicit FTPS is recommended. Invalid TLS certificates are never bypassed."));
+            R("ExplicitFtpsRecommended") + ". Invalid TLS certificates are never bypassed."));
         panel.Children.Add(Spacer(10));
 
         var authRow = new Grid();
@@ -263,18 +265,18 @@ internal sealed class SiteManagerDialog : GhostDialog
     {
         var panel = new StackPanel { Margin = new Thickness(14) };
         panel.Children.Add(GhostTheme.Field(
-            "Default remote path",
+            R("DefaultRemotePath"),
             _initialPath,
-            "Use / for the server root."));
+            R("ServerRootHint")));
         panel.Children.Add(Spacer(14));
 
         var passive = GhostTheme.Surface(new StackPanel
         {
             Children =
             {
-                GhostTheme.Text("Passive data connections", 12.5, weight: FontWeights.SemiBold),
+                GhostTheme.Text(R("PassiveConnections"), 12.5, weight: FontWeights.SemiBold),
                 GhostTheme.Text(
-                    "Ghost FTP prefers EPSV and safely falls back to PASV. PASV host redirection is not trusted; data channels stay on the authenticated control host.",
+                    R("PassiveDescription"),
                     10.5,
                     muted: true)
             }
@@ -286,9 +288,9 @@ internal sealed class SiteManagerDialog : GhostDialog
         {
             Children =
             {
-                GhostTheme.Text("Timeouts and retries", 12.5, weight: FontWeights.SemiBold),
+                GhostTheme.Text(R("TimeoutsRetries"), 12.5, weight: FontWeights.SemiBold),
                 GhostTheme.Text(
-                    "Connection timeout, transfer retry, keepalive and concurrent-transfer limits are controlled centrally in Settings so behavior stays predictable across saved sites.",
+                    R("TimeoutsDescription"),
                     10.5,
                     muted: true)
             }
@@ -303,7 +305,7 @@ internal sealed class SiteManagerDialog : GhostDialog
         var profile = new ServerProfile
         {
             Id = Guid.NewGuid(),
-            Name = "New server",
+            Name = R("NewSite"),
             Port = 21,
             Security = FtpSecurityMode.ExplicitTls,
             InitialPath = "/"
@@ -337,8 +339,8 @@ internal sealed class SiteManagerDialog : GhostDialog
 
         SetEditorEnabled(!selected.IsDemo);
         _selectionHint.Text = selected.IsDemo
-            ? "Ghost FTP Demo is a built-in local profile and cannot be modified."
-            : "Edit this site and save it locally, or connect immediately.";
+            ? R("DemoLocked")
+            : R("EditSavedSite");
         _name.Text = selected.Name;
         _host.Text = selected.Host;
         _port.Text = selected.Port.ToString();
