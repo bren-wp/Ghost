@@ -96,15 +96,19 @@ Queue regression must verify paused dispatch does not create a new transfer sess
 
 The package-free `GhostFTP.HardeningSelfTest` must run on Windows and Linux and verify concurrent session/queue disposal, malformed reply framing, bounded preliminary greetings, strict EPSV/PASV behavior, real loopback LIST data flow, pathological LIST/MLSD bounds, safe Unix symlink-name handling and settings backup/value normalization.
 
-## Safe resume regression requirement
+## Safe resume integrity regression requirement
 
 The package-free `GhostFTP.ResumeSelfTest` must run independently on Windows and Linux and verify at least:
 
 - a matching partial uses exactly the validated REST offset and produces byte-for-byte correct output;
 - changed remote identity causes a restart from byte zero and does not mix stale bytes;
 - a same-size remote revision change during transfer is detected by post-transfer metadata validation;
-- a rejected changing remote object is not left as a completed local file;
+- a rejected changing remote object never replaces an existing local destination;
+- staged bytes are not committed until final revision validation succeeds;
+- failure to remove an untrusted stale partial aborts before either REST or RETR;
 - the test uses process-local loopback only and no external FTP service.
+
+This **resume integrity** gate must execute again in the publication workflow; a green PR-only run is not sufficient for an official release.
 
 ## Authentic UI rule
 
@@ -114,7 +118,7 @@ README product screenshots come from the compiled Windows application capture pa
 
 A release preserves fail-closed FTP security selection, strict `AUTH TLS`, TLS certificate/hostname validation, no FTPS downgrade, `PBSZ 0` / `PROT P`, required `TYPE I`, strict/bounded reply and EPSV/PASV parsing, authenticated-control-host passive data routing, bounded LIST/MLSD/traversal/queue resources, deterministic shutdown, cleared pooled transfer buffers, no credential logging, no telemetry/tracking SDK, no cloud account/profile requirement and zero third-party NuGet `PackageReference` dependencies.
 
-0.1.6 additionally requires fail-closed partial-download identity validation. Resume sidecars must be bounded and credential-free; untrusted legacy/stale partials must not be appended blindly; post-transfer revision mismatch must not leave a completed local file.
+0.1.6 additionally requires fail-closed partial-download identity validation. Resume sidecars must be bounded and credential-free; untrusted legacy/stale partials must not be appended blindly; untrusted cleanup failure must abort before data transfer; and post-transfer revision mismatch must discard staged bytes while preserving any previous destination.
 
 ## Platform release invariant
 
