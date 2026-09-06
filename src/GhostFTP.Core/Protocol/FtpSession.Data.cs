@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -9,6 +10,7 @@ namespace GhostFTP.Core.Protocol;
 public sealed partial class FtpSession
 {
     private const int MaxListingPayloadBytes = 16 * 1024 * 1024;
+    private const int DataBufferSize = 128 * 1024;
 
     private async Task EnsureBinaryTransferModeAsync(CancellationToken cancellationToken)
     {
@@ -54,23 +56,32 @@ public sealed partial class FtpSession
 
         await using (var dataStream = await CreateDataStreamAsync(data, cancellationToken).ConfigureAwait(false))
         {
-            var buffer = new byte[1024 * 128];
-            long transferred = initialBytes;
-            while (true)
+            var buffer = ArrayPool<byte>.Shared.Rent(DataBufferSize);
+            try
             {
-                var read = await dataStream.ReadAsync(buffer, cancellationToken)
-                    .AsTask()
-                    .WaitAsync(_options.TransferTimeout, cancellationToken)
-                    .ConfigureAwait(false);
-                if (read == 0)
-                    break;
+                long transferred = initialBytes;
+                while (true)
+                {
+                    var read = await dataStream.ReadAsync(buffer.AsMemory(0, DataBufferSize), cancellationToken)
+                        .AsTask()
+                        .WaitAsync(_options.TransferTimeout, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (read == 0)
+                        break;
 
-                if (maxBytes is > 0 && (transferred > maxBytes.Value - read))
-                    throw new FtpException($"FTP directory listing exceeded the safety limit of {maxBytes.Value / (1024 * 1024)} MiB.");
+                    if (maxBytes is > 0 && transferred > maxBytes.Value - read)
+                        throw new FtpException($"FTP directory listing exceeded the safety limit of {maxBytes.Value / (1024 * 1024)} MiB.");
 
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                transferred = checked(transferred + read);
-                progress?.Report((transferred, total));
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    transferred = checked(transferred + read);
+                    progress?.Report((transferred, total));
+                }
+            }
+            finally
+            {
+                // Transfer buffers may contain private file contents. Reuse them to reduce GC pressure,
+                // but clear the rented array before it becomes available to another pool consumer.
+                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
             }
         }
 
@@ -96,21 +107,28 @@ public sealed partial class FtpSession
 
         await using (var dataStream = await CreateDataStreamAsync(data, cancellationToken).ConfigureAwait(false))
         {
-            var buffer = new byte[1024 * 128];
-            long transferred = 0;
-            while (true)
+            var buffer = ArrayPool<byte>.Shared.Rent(DataBufferSize);
+            try
             {
-                var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                    break;
-                await dataStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
-                    .AsTask()
-                    .WaitAsync(_options.TransferTimeout, cancellationToken)
-                    .ConfigureAwait(false);
-                transferred = checked(transferred + read);
-                progress?.Report((transferred, total));
+                long transferred = 0;
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer.AsMemory(0, DataBufferSize), cancellationToken).ConfigureAwait(false);
+                    if (read == 0)
+                        break;
+                    await dataStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                        .AsTask()
+                        .WaitAsync(_options.TransferTimeout, cancellationToken)
+                        .ConfigureAwait(false);
+                    transferred = checked(transferred + read);
+                    progress?.Report((transferred, total));
+                }
+                await dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
-            await dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+            }
         }
 
         var final = await ReadReplyAsync(cancellationToken).ConfigureAwait(false);
