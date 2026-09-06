@@ -1,6 +1,6 @@
 # Ghost FTP Localization Architecture
 
-The current **Ghost FTP 0.1.6 Beta** line includes a shared dependency-free localization layer used by Windows, Linux and Windows Setup.
+The current **Ghost FTP 0.1.7 Beta** line includes a shared dependency-free localization layer used by Windows, Linux and Windows Setup.
 
 ## Primary language and fallback
 
@@ -26,15 +26,17 @@ Windows and Linux consume the same `GhostLocalization.CurrentLanguageCode` state
 
 ## Reference shell copy
 
-`GhostReferenceText` contains workstation-specific shared text for menu names, Connection Log, Site Manager, Quick Connect helper copy, session-only/local privacy wording, search and sidebar concepts.
+`GhostReferenceText` contains workstation-specific shared text for menu names, Connection Log, Site Manager, Quick Connect helper copy, session-only/local privacy wording, search/sidebar concepts and compact workspace guidance.
 
-English is authoritative. Croatian has explicit reference-shell overrides. Other languages safely fall back to English where a dedicated override is not present.
+0.1.7 expands this catalog with local/remote double-click hints, splitter resize/reset guidance, connection-status diagnostics text, TLS-first wording and the principal Site Manager section/description strings.
+
+English is authoritative. Croatian has explicit reference-shell overrides. Other configured languages safely fall back locally to English where a dedicated override is not present. This fallback never performs a network request.
 
 ## Transfer-management copy
 
 `GhostTransferText` isolates queue-management labels such as Pause queue, Resume queue, Retry failed, selective cleanup and paused/active state. English remains authoritative; Croatian has explicit overrides and other configured languages receive guaranteed English fallback for missing transfer keys.
 
-0.1.6 retains the visible Windows Pause queue / Resume queue action and the shared queue semantics established in the preceding release line without introducing another localization source.
+0.1.7 retains the visible Windows Pause queue / Resume queue action and the shared queue semantics established in the preceding release line without introducing another localization source.
 
 ## Resume-integrity messages
 
@@ -50,19 +52,23 @@ Setup uses `GhostLocalization` plus `GhostSetupLocalization` for wizard-specific
 
 Security-sensitive behavior is never inferred from translated labels. FTP security mode is represented by typed `FtpSecurityMode` values and validated independently of UI language.
 
-Plain FTP warnings, TLS validation, malformed-reply rejection, passive-mode validation, parser limits, destructive confirmations and 0.1.6 resume-integrity enforcement remain functional when a label falls back to English.
+Plain FTP warnings, TLS validation, malformed-reply rejection, passive-mode validation, parser limits, destructive confirmations and safe resume-integrity enforcement remain functional when a label falls back to English.
 
 ## Linux font/input considerations
 
 The native Linux X11/XWayland renderer initializes a locale-aware Xlib font set and Unicode-capable fallback patterns. It draws UTF-8 strings through `Xutf8DrawString` while consuming the same language codes/resources as Windows.
 
+The 0.1.7 window/theme changes do not introduce a second Linux localization source. Appearance and geometry remain local renderer state while labels still resolve through the shared catalog/reference-text fallback.
+
 ## Windows text rendering
 
-Windows uses WPF/Segoe UI Variable/Segoe UI fallback through the shared design layer. Explanatory copy and dialogs wrap where longer localized strings require additional height.
+Windows uses WPF/Segoe UI Variable/Segoe UI fallback through the shared design layer. Explanatory copy and dialogs wrap where longer localized strings require additional height. Native WPF editor templates remain intact for text entry and selection behavior.
 
 ## Setup/layout resilience
 
 The Windows application and Setup are resizable. Layouts use flexible grid columns, wrapping and compact controls to reduce clipping risk for languages with longer text. Persisted workstation dimensions are bounded before use; localization must not depend on one saved splitter size.
+
+0.1.7 also gives workspace splitters localized tooltips and visible hover feedback, keeping resize behavior discoverable without permanently adding more text to the main layout.
 
 ## Adding or improving a translation
 
@@ -80,7 +86,9 @@ When a language override is extended:
 
 Source audit verifies English default code, representative language entries, the exact 29-language count and Setup consumption of the shared list. Windows UI smoke tests verify editable controls/localization behavior; Linux CI runs the native renderer with the same language layer.
 
-0.1.6 additionally runs the safe download resume integrity suite on Windows and Linux. That test is language-independent by design, proving that integrity behavior cannot drift with renderer or localization state.
+0.1.7 UI smoke additionally verifies required reference-shell English copy, explicit Croatian reference text and local English fallback for configured languages without dedicated reference overrides.
+
+The safe download resume integrity suite continues to run on Windows and Linux. That test is language-independent by design, proving that integrity behavior cannot drift with renderer or localization state.
 
 Authentic Windows capture is inspected after meaningful layout changes so longer copy does not cause visible overlap or clipping in the canonical shell.
 
