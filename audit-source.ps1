@@ -78,7 +78,7 @@ if ($mobileTfms) {
     throw 'Android/iOS/MacCatalyst shipping targets are outside the Ghost FTP desktop scope.'
 }
 
-# Keep shipping source C#-centric. Native platform access is limited to the audited X11 P/Invoke layer.
+# Keep shipping source C#-centric. Native platform access is limited to audited platform P/Invoke layers.
 foreach ($pattern in @('*.xaml','*.axaml','*.go','*.rs','*.cpp','*.c','*.cc','*.java','*.kt','*.swift')) {
     $matches = Get-ChildItem $src -Recurse -File -Filter $pattern
     if ($matches) {
@@ -121,17 +121,21 @@ $requiredFiles = @(
     'src/GhostFTP.Core/Services/AppData.cs',
     'src/GhostFTP.Core/Services/ProfileStore.cs',
     'src/GhostFTP.Core/Services/AesFileSecretProtector.cs',
+    'src/GhostFTP.Core/Services/TransferQueueService.cs',
     'src/GhostFTP.Design/GhostFTP.Design.csproj',
     'src/GhostFTP.Design/GhostProduct.cs',
     'src/GhostFTP.Design/GhostBrand.cs',
     'src/GhostFTP.Design/GhostLocalization.cs',
     'src/GhostFTP.Design/GhostReferencePalette.cs',
     'src/GhostFTP.Design/GhostReferenceText.cs',
+    'src/GhostFTP.Design/GhostTransferText.cs',
     'src/GhostFTP.App/GhostFTP.App.csproj',
     'src/GhostFTP.App/UI/MainWindow.Layout.cs',
     'src/GhostFTP.App/UI/MainWindow.ReferenceShell.cs',
     'src/GhostFTP.App/UI/MainWindow.Responsive.cs',
     'src/GhostFTP.App/UI/MainWindow.Connection.cs',
+    'src/GhostFTP.App/UI/MainWindow.Transfers.cs',
+    'src/GhostFTP.App/UI/MainWindow.QueueUx.cs',
     'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs',
     'src/GhostFTP.App/UI/SiteManagerDialog.cs',
     'src/GhostFTP.Linux/GhostFTP.Linux.csproj',
@@ -194,11 +198,32 @@ $connection = Require-Text 'src/GhostFTP.App/UI/MainWindow.Connection.cs' @(
     'Plain FTP is not encrypted'
 )
 
+# Transfer queue must keep bounded parallelism and 0.1.3 dispatch-pause semantics.
+$queue = Require-Text 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
+    'MaxQueuedTransfers = 4096',
+    'MaxParallelTransfers = 8',
+    'IsQueuePaused',
+    'PauseQueue()',
+    'ResumeQueue()',
+    'QueueStateChanged',
+    'WaitForDispatchAsync',
+    'ClearCompleted()',
+    'ClearFailed()',
+    'ClearCancelled()'
+)
+$queueTest = Require-Text 'tests/GhostFTP.QueueSelfTest/Program.cs' @(
+    'TestPauseResumeAndSelectiveClearAsync',
+    'A paused queue started a new transfer before ResumeQueue.',
+    'Selective completed-transfer cleanup',
+    'Selective cancelled-transfer cleanup',
+    'Selective failed-transfer cleanup'
+)
+
 # Local persistence and saved-password protection remain opt-in and local only.
 $appData = Require-Text 'src/GhostFTP.Core/Services/AppData.cs' @('ConcurrentTransfers','KeepAliveSeconds','PrivateFilePermissions')
 $profiles = Require-Text 'src/GhostFTP.Core/Services/ProfileStore.cs' @('profile.IsSessionOnly','ProtectedPassword','EnsureDemo')
 $aes = Require-Text 'src/GhostFTP.Core/Services/AesFileSecretProtector.cs' @('AesGcm','RandomNumberGenerator','PrivateFilePermissions.TryHardenFile')
-$dpapi = Require-Text 'src/GhostFTP.App/Services/DpapiSecretProtector.cs' @('ProtectedData','DataProtectionScope.CurrentUser')
+$dpapi = Require-Text 'src/GhostFTP.App/Services/DpapiSecretProtector.cs' @('ProtectedData','DataProtectionScope.CurrentUser','RtlSecureZeroMemory')
 
 # 29-language local catalog: English is authoritative and no online translation path exists.
 $localization = Require-Text 'src/GhostFTP.Design/GhostLocalization.cs' @(
@@ -209,8 +234,23 @@ $localization = Require-Text 'src/GhostFTP.Design/GhostLocalization.cs' @(
 )
 $languageCount = ([regex]::Matches($localization, 'new\("[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?",')).Count
 if ($languageCount -lt 20) { throw "Ghost FTP must expose at least 20 local languages; found $languageCount." }
-if ($languageCount -ne 29) { throw "Ghost FTP 0.1.2 release contract expects 29 selectable languages; found $languageCount." }
-$setupSource = Require-Text 'src/GhostFTP.Setup/SetupWindow.cs' @('GhostLocalization.SupportedLanguages','GhostComboBox','ResizeMode.CanResizeWithGrip')
+if ($languageCount -ne 29) { throw "Ghost FTP $version release contract expects 29 selectable languages; found $languageCount." }
+$transferText = Require-Text 'src/GhostFTP.Design/GhostTransferText.cs' @(
+    'PauseQueue',
+    'ResumeQueue',
+    'RetryFailed',
+    'ClearCompleted',
+    'Croatian',
+    'GhostLocalization.CurrentLanguageCode'
+)
+$setupSource = Require-Text 'src/GhostFTP.Setup/SetupWindow.cs' @(
+    'GhostLocalization.SupportedLanguages',
+    'GhostComboBox',
+    'ResizeMode.CanResizeWithGrip',
+    'StepProgressText',
+    'Local-only Setup',
+    'Transactional maintenance'
+)
 
 # Clean Windows workstation: contextual file operations live in Local/Remote panes, not duplicated globally.
 $referenceShell = Require-Text 'src/GhostFTP.App/UI/MainWindow.ReferenceShell.cs' @(
@@ -234,6 +274,20 @@ $responsive = Require-Text 'src/GhostFTP.App/UI/MainWindow.Responsive.cs' @(
     'ResizeBehavior = GridResizeBehavior.PreviousAndNext'
 )
 $layout = Require-Text 'src/GhostFTP.App/UI/MainWindow.Layout.cs' @('BuildTopMenu','BuildMainToolbar','BuildConnectionLog','BuildFilePanes','BuildTransfers')
+$windowsTransfers = Require-Text 'src/GhostFTP.App/UI/MainWindow.Transfers.cs' @(
+    'ToggleQueuePause',
+    'RetryAllFailedTransfers',
+    'ClearCompletedTransfers',
+    'ClearFailedTransfers',
+    'ClearCancelledTransfers',
+    'aggregateSpeed'
+)
+$queueUx = Require-Text 'src/GhostFTP.App/UI/MainWindow.QueueUx.cs' @(
+    'GhostTransferText.T("PauseQueue")',
+    'RetryAllFailedTransfers',
+    'CopySelectedTransferSource',
+    'CopySelectedTransferDestination'
+)
 $capture = Require-Text 'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs' @(
     'ReferenceCaptureWidth = 1914',
     'ReferenceCaptureHeight = 907',
@@ -241,7 +295,7 @@ $capture = Require-Text 'src/GhostFTP.App/UI/MainWindow.DocumentationCapture.cs'
     'ghostftp-site-manager.png'
 )
 
-# Linux must remain a real native renderer using the shared protocol, palette, localization and transfer queue.
+# Linux must remain a real native renderer using shared protocol, palette, localization and transfer queue.
 $linuxCore = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Core.cs' @(
     'ProfileStore',
     'AesFileSecretProtector',
@@ -250,6 +304,14 @@ $linuxCore = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Core.cs' @(
     'DemoFtpSession',
     'GhostLocalization.SupportedLanguages'
 )
+$linuxInput = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Input.cs' @(
+    'ActivateTransferRow',
+    'ToggleTransferQueuePause',
+    'RetryFailedTransfers',
+    'ClearCompletedTransfers',
+    'ClearFailedTransfers',
+    'ClearCancelledTransfers'
+)
 $linuxDraw = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Draw.cs' @(
     'GhostReferencePalette.Background',
     'R("ConnectionLog")',
@@ -257,7 +319,10 @@ $linuxDraw = Require-Text 'src/GhostFTP.Linux/LinuxMainWindow.Draw.cs' @(
     'R("KeepInTab")',
     'DrawFilePanes',
     'DrawTransfers',
-    'DrawQuickConnect'
+    'DrawQuickConnect',
+    'GhostTransferText.T',
+    'ToggleTransferQueuePause',
+    'ActivateTransferRow'
 )
 
 # Authentic product images must be real captured application output.
@@ -268,4 +333,4 @@ foreach ($image in @('assets/readme/ghostftp-client.png','assets/readme/ghostftp
     }
 }
 
-Write-Host "Ghost FTP $version $channel source audit passed: Windows/Linux-only scope, no third-party PackageReference dependencies, no telemetry SDKs, 29 local languages with English fallback, strict FTP/FTPS input and TLS boundaries, local credential protection, clean resizable workstation shell, native Linux renderer and authentic UI capture contract."
+Write-Host "Ghost FTP $version $channel source audit passed: Windows/Linux-only scope, no third-party PackageReference dependencies, no telemetry SDKs, 29 local languages with English fallback, strict FTP/FTPS input and TLS boundaries, local credential protection, bounded pause/resume transfer queue, clean resizable Windows workstation, transfer-management parity in native Linux, premium Setup contract and authentic UI capture contract."
