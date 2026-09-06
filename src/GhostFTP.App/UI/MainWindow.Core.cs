@@ -42,7 +42,6 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<LocalItem> _localItems = [];
     private readonly ObservableCollection<RemoteItem> _remoteItems = [];
     private readonly ObservableCollection<string> _connectionLog = [];
-    private readonly HashSet<Guid> _completedHandled = [];
 
     private ProfileStore? _profileStore;
     private AppSettingsStore? _settingsStore;
@@ -51,6 +50,7 @@ public sealed partial class MainWindow : Window
     private IFtpSession? _session;
     private FtpConnectionOptions? _activeOptions;
     private CancellationTokenSource? _connectionCts;
+    private CancellationTokenSource? _completionRefreshCts;
     private string _localPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     private string _remotePath = "/";
     private bool _busy;
