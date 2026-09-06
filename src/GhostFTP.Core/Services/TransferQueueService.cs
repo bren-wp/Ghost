@@ -310,7 +310,9 @@ public sealed class TransferQueueService : IAsyncDisposable
         }
         finally
         {
-            Ui(() => { }, job);
+            // Every terminal state already publishes its authoritative JobUpdated event above.
+            // Do not emit a second no-op notification here: large batches otherwise trigger
+            // redundant renderer work and duplicate completion refreshes.
             lock (_sync) _cancellations.Remove(job.Id);
             queued.Cancellation.Dispose();
         }
