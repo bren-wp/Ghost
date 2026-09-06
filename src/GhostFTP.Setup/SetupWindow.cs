@@ -48,9 +48,9 @@ public sealed class SetupWindow : Window
         _licenseText = LoadLicenseText();
 
         Icon = GhostBrand.IconSource;
-        Width = 900;
-        Height = 680;
-        MinWidth = 820;
+        Width = 940;
+        Height = 700;
+        MinWidth = 840;
         MinHeight = 620;
         ResizeMode = ResizeMode.CanResizeWithGrip;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -83,7 +83,7 @@ public sealed class SetupWindow : Window
         _status = GhostTheme.Text(string.Empty, 11.5, muted: true);
         _progress = new ProgressBar
         {
-            Height = 4,
+            Height = 5,
             Minimum = 0,
             Maximum = 100,
             IsIndeterminate = true,
@@ -93,10 +93,13 @@ public sealed class SetupWindow : Window
         };
 
         _back = GhostTheme.Button(string.Empty);
+        _back.MinWidth = 88;
         _back.Click += (_, _) => Back();
         _secondary = GhostTheme.Button(string.Empty);
+        _secondary.MinWidth = 88;
         _secondary.Click += (_, _) => Close();
         _primary = GhostTheme.Button(string.Empty, primary: !uninstallMode, danger: uninstallMode);
+        _primary.MinWidth = 112;
         _primary.Click += async (_, _) => await NextAsync();
 
         Render();
@@ -117,9 +120,6 @@ public sealed class SetupWindow : Window
             return;
 
         GhostLocalization.SetLanguage(language.Code);
-
-        // SelectionChanged is raised while the ComboBox popup and old logical tree are still active.
-        // Close the popup and defer the full wizard rebuild until that input event has unwound.
         _language.IsDropDownOpen = false;
         QueueLanguageRender();
     }
@@ -144,9 +144,6 @@ public sealed class SetupWindow : Window
         _rebuilding = true;
         try
         {
-            // Several controls intentionally preserve state across wizard steps. A detached root still
-            // owns its descendants logically, so explicitly remove those controls from the old parent
-            // before adding them to the newly built tree.
             DetachReusableControls();
             Content = null;
             Title = _uninstallMode
@@ -199,9 +196,9 @@ public sealed class SetupWindow : Window
 
     private UIElement BuildLayout()
     {
-        var root = new Grid { Margin = new Thickness(16) };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        var root = new Grid { Margin = new Thickness(14) };
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var brand = BuildBrandPanel();
@@ -217,15 +214,20 @@ public sealed class SetupWindow : Window
     private Border BuildBrandPanel()
     {
         var stack = new StackPanel();
-        stack.Children.Add(GhostBrand.IconControl(68));
-        stack.Children.Add(new Border { Height = 14 });
-        stack.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 25, weight: FontWeights.SemiBold));
+        stack.Children.Add(GhostBrand.IconControl(64));
+        stack.Children.Add(new Border { Height = 13 });
+        stack.Children.Add(GhostTheme.Text(GhostBrand.DisplayName, 24, weight: FontWeights.SemiBold));
         stack.Children.Add(GhostTheme.Text(GhostBrand.PrivacyTagline, 11, muted: true));
-        stack.Children.Add(new Border { Height = 26 });
+        stack.Children.Add(new Border { Height = 22 });
         stack.Children.Add(Feature(GhostLocalization.T("TlsValidation")));
         stack.Children.Add(Feature(GhostLocalization.T("NoTelemetryOrTracking")));
         stack.Children.Add(Feature(GhostLocalization.T("PerUserInstallation")));
         stack.Children.Add(Feature(GhostLocalization.T("SelfContainedRuntime")));
+
+        var localOnly = GhostTheme.Badge("Local-only Setup", "AccentSoft", "Text");
+        localOnly.Margin = new Thickness(0, 6, 0, 0);
+        localOnly.HorizontalAlignment = HorizontalAlignment.Left;
+        stack.Children.Add(localOnly);
 
         var publisher = GhostTheme.Surface(new StackPanel
         {
@@ -236,14 +238,14 @@ public sealed class SetupWindow : Window
                 GhostTheme.Text($"Company no. {GhostBrand.CompanyNumber}", 10.5, muted: true),
                 GhostTheme.Text("London, United Kingdom", 10.5, muted: true)
             }
-        }, new Thickness(12), 10);
+        }, new Thickness(12), 9);
         publisher.Margin = new Thickness(0, 18, 0, 0);
         stack.Children.Add(publisher);
 
         var identity = GhostTheme.Text("ghostftp.com", 10.5, muted: true);
-        identity.Margin = new Thickness(0, 18, 0, 0);
+        identity.Margin = new Thickness(0, 16, 0, 0);
         stack.Children.Add(identity);
-        return GhostTheme.Card(stack, new Thickness(20), 16);
+        return GhostTheme.Card(stack, new Thickness(18), 12);
     }
 
     private Border BuildContentPanel()
@@ -255,7 +257,7 @@ public sealed class SetupWindow : Window
 
         var body = new Grid();
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
+        body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         var header = BuildStepHeader();
@@ -267,21 +269,32 @@ public sealed class SetupWindow : Window
         body.Children.Add(stepBody);
 
         root.Children.Add(body);
-        return GhostTheme.Card(root, new Thickness(24), 16);
+        return GhostTheme.Card(root, new Thickness(22), 12);
     }
 
     private UIElement BuildStepHeader()
     {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
         var stack = new StackPanel();
         var version = typeof(SetupWindow).Assembly.GetName().Version?.ToString(3) ?? "Unknown";
-        stack.Children.Add(GhostTheme.Text(StepTitle(), 27, weight: FontWeights.SemiBold));
+        stack.Children.Add(GhostTheme.Text(StepTitle(), 26, weight: FontWeights.SemiBold));
         stack.Children.Add(GhostTheme.Text(
             _uninstallMode
                 ? $"{GhostBrand.DisplayName} {version} · {GhostBrand.Publisher}"
                 : $"Version {version} · {GhostBrand.Publisher}",
             11,
             muted: true));
-        return stack;
+        grid.Children.Add(stack);
+
+        var progressBadge = GhostTheme.Badge(StepProgressText(), "AccentSoft", "Text");
+        progressBadge.VerticalAlignment = VerticalAlignment.Top;
+        progressBadge.Margin = new Thickness(12, 2, 0, 0);
+        Grid.SetColumn(progressBadge, 1);
+        grid.Children.Add(progressBadge);
+        return grid;
     }
 
     private UIElement BuildStepBody()
@@ -309,11 +322,25 @@ public sealed class SetupWindow : Window
             muted: true);
         intro.TextWrapping = TextWrapping.Wrap;
         stack.Children.Add(intro);
-        stack.Children.Add(new Border { Height = 20 });
+        stack.Children.Add(new Border { Height = 18 });
         stack.Children.Add(GhostTheme.Field(
             GhostSetupLocalization.T("ClientLanguage"),
             _language,
             GhostSetupLocalization.T("ChooseLanguage")));
+
+        if (!_uninstallMode)
+        {
+            var safety = GhostTheme.Surface(new StackPanel
+            {
+                Children =
+                {
+                    GhostTheme.Text("Private by default", 12.5, weight: FontWeights.SemiBold),
+                    GhostTheme.Text("Setup does not create an account, send installation analytics or contact a Ghost FTP service. Installation state remains on this Windows profile.", 10.75, muted: true)
+                }
+            }, new Thickness(13), 9);
+            safety.Margin = new Thickness(0, 18, 0, 0);
+            stack.Children.Add(safety);
+        }
 
         var legal = GhostTheme.Surface(new StackPanel
         {
@@ -323,8 +350,8 @@ public sealed class SetupWindow : Window
                 GhostTheme.Text($"Company number: {GhostBrand.CompanyNumber}", 11, muted: true),
                 GhostTheme.Text(GhostBrand.RegisteredOffice, 11, muted: true)
             }
-        }, new Thickness(14), 10);
-        legal.Margin = new Thickness(0, 22, 0, 0);
+        }, new Thickness(13), 9);
+        legal.Margin = new Thickness(0, 18, 0, 0);
         stack.Children.Add(legal);
         return stack;
     }
@@ -333,9 +360,9 @@ public sealed class SetupWindow : Window
     {
         var grid = new Grid();
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var note = GhostTheme.Text(
@@ -374,20 +401,31 @@ public sealed class SetupWindow : Window
     {
         var stack = new StackPanel();
         stack.Children.Add(GhostTheme.Text(GhostLocalization.T("InstallLocation"), 11.5, weight: FontWeights.SemiBold));
-        var path = GhostTheme.Surface(GhostTheme.Text(_installer.InstallDirectory, 11.5), new Thickness(12, 10, 12, 10), 10);
-        path.Margin = new Thickness(0, 7, 0, 14);
+        var path = GhostTheme.Surface(GhostTheme.Text(_installer.InstallDirectory, 11.5), new Thickness(12, 10, 12, 10), 9);
+        path.Margin = new Thickness(0, 6, 0, 12);
         stack.Children.Add(path);
         stack.Children.Add(_desktopShortcut);
+
+        var maintenance = GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text("Install, update and uninstall in one Setup", 12, weight: FontWeights.SemiBold),
+                GhostTheme.Text("The installed GhostFTP-Setup.exe is the maintenance entry used by Windows Apps & features. Ghost FTP does not create a separate uninstaller executable.", 10.75, muted: true)
+            }
+        }, new Thickness(13), 9);
+        maintenance.Margin = new Thickness(0, 16, 0, 0);
+        stack.Children.Add(maintenance);
 
         var privacy = GhostTheme.Surface(new StackPanel
         {
             Children =
             {
                 GhostTheme.Text(GhostLocalization.T("PrivacyByDesign"), 12, weight: FontWeights.SemiBold),
-                GhostTheme.Text("Ghost FTP contains no telemetry, analytics, ads, tracking SDK, crash upload or background update checker. Network access occurs only for user-initiated FTP/FTPS connections and links opened by the user.", 11, muted: true)
+                GhostTheme.Text("Ghost FTP contains no telemetry, analytics, ads, tracking SDK, crash upload or background update checker. Network access occurs only for user-initiated FTP/FTPS connections and links opened by the user.", 10.75, muted: true)
             }
-        }, new Thickness(14), 10);
-        privacy.Margin = new Thickness(0, 20, 0, 0);
+        }, new Thickness(13), 9);
+        privacy.Margin = new Thickness(0, 12, 0, 0);
         stack.Children.Add(privacy);
         return stack;
     }
@@ -403,7 +441,7 @@ public sealed class SetupWindow : Window
                 GhostTheme.Text("Local Ghost FTP data", 12, weight: FontWeights.SemiBold),
                 GhostTheme.Text("Leave this unchecked to preserve saved profiles and settings for a future reinstall. Saved passwords, when enabled, remain protected by Windows DPAPI for the current user.", 11, muted: true)
             }
-        }, new Thickness(14), 10);
+        }, new Thickness(14), 9);
         note.Margin = new Thickness(0, 16, 0, 0);
         stack.Children.Add(note);
         return stack;
@@ -419,8 +457,8 @@ public sealed class SetupWindow : Window
             title.Foreground = GhostTheme.R("Danger");
             var message = GhostTheme.Text(_lastError, 11, muted: true);
             message.TextWrapping = TextWrapping.Wrap;
-            var error = GhostTheme.Surface(new StackPanel { Children = { title, message } }, new Thickness(14), 10);
-            error.Margin = new Thickness(0, 0, 0, 16);
+            var error = GhostTheme.Surface(new StackPanel { Children = { title, message } }, new Thickness(14), 9);
+            error.Margin = new Thickness(0, 0, 0, 14);
             stack.Children.Add(error);
         }
 
@@ -446,10 +484,10 @@ public sealed class SetupWindow : Window
         var ready = GhostTheme.Surface(GhostTheme.Text(
             _uninstallMode
                 ? "Click Uninstall to remove Ghost FTP. The same GhostFTP-Setup.exe handles uninstall; no separate uninstaller executable is generated."
-                : "Click Install to begin. Setup validates the embedded Ghost FTP payload, updates the application safely and registers the same Setup executable for future uninstall operations.",
-            11.5,
-            muted: true), new Thickness(14), 10);
-        ready.Margin = new Thickness(0, 20, 0, 0);
+                : "Click Install to begin. Setup validates the embedded Ghost FTP payload, updates application and maintenance binaries transactionally, and preserves rollback copies until registration succeeds.",
+            11.25,
+            muted: true), new Thickness(13), 9);
+        ready.Margin = new Thickness(0, 16, 0, 0);
         stack.Children.Add(ready);
         return stack;
     }
@@ -457,8 +495,30 @@ public sealed class SetupWindow : Window
     private UIElement BuildProgressStep()
     {
         var stack = new StackPanel();
-        stack.Children.Add(_status);
-        stack.Children.Add(_progress);
+        var progressCard = GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text(_uninstallMode ? "Removing local installation" : "Applying verified Ghost FTP package", 12.5, weight: FontWeights.SemiBold),
+                _status,
+                _progress
+            }
+        }, new Thickness(14), 9);
+        stack.Children.Add(progressCard);
+
+        var transaction = GhostTheme.Surface(new StackPanel
+        {
+            Children =
+            {
+                GhostTheme.Text("Transactional maintenance", 11.5, weight: FontWeights.SemiBold),
+                GhostTheme.Text(_uninstallMode
+                    ? "Setup removes registered application files and shortcuts without starting background network activity."
+                    : "Application and maintenance binaries are staged and validated before replacement; an installation failure triggers local rollback where possible.", 10.5, muted: true)
+            }
+        }, new Thickness(13), 9);
+        transaction.Margin = new Thickness(0, 12, 0, 0);
+        stack.Children.Add(transaction);
+
         var note = GhostTheme.Text("Do not close Setup while files and Windows registration are being updated.", 10.5, muted: true);
         note.Margin = new Thickness(0, 12, 0, 0);
         stack.Children.Add(note);
@@ -468,10 +528,10 @@ public sealed class SetupWindow : Window
     private UIElement BuildFinishStep()
     {
         var stack = new StackPanel();
-        stack.Children.Add(GhostTheme.Text(
+        var title = GhostTheme.Text(
             _uninstallMode ? GhostLocalization.T("RemovedSuccessfully") : GhostLocalization.T("InstalledReady"),
             15,
-            weight: FontWeights.SemiBold));
+            weight: FontWeights.SemiBold);
         var detail = GhostTheme.Text(
             _uninstallMode
                 ? "Ghost FTP has been removed from Windows. Any local data you chose to preserve remains in your user profile."
@@ -479,14 +539,21 @@ public sealed class SetupWindow : Window
             11.5,
             muted: true);
         detail.TextWrapping = TextWrapping.Wrap;
-        detail.Margin = new Thickness(0, 10, 0, 0);
-        stack.Children.Add(detail);
+        detail.Margin = new Thickness(0, 8, 0, 0);
+        stack.Children.Add(GhostTheme.Surface(new StackPanel { Children = { title, detail } }, new Thickness(16), 9));
+
+        if (!_uninstallMode)
+        {
+            var privacy = GhostTheme.Text("No account required · no telemetry · no tracking · local profiles stay on this device", 10.5, muted: true);
+            privacy.Margin = new Thickness(2, 14, 0, 0);
+            stack.Children.Add(privacy);
+        }
         return stack;
     }
 
     private Grid BuildFooter()
     {
-        var footer = new Grid { Margin = new Thickness(0, 20, 0, 0) };
+        var footer = new Grid { Margin = new Thickness(0, 18, 0, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -683,9 +750,35 @@ public sealed class SetupWindow : Window
         };
     }
 
+    private string StepProgressText()
+    {
+        var index = _uninstallMode
+            ? _step switch
+            {
+                WizardStep.Welcome => 1,
+                WizardStep.Options => 2,
+                WizardStep.Ready => 3,
+                WizardStep.Progress => 4,
+                WizardStep.Finish => 4,
+                _ => 1
+            }
+            : _step switch
+            {
+                WizardStep.Welcome => 1,
+                WizardStep.License => 2,
+                WizardStep.Options => 3,
+                WizardStep.Ready => 4,
+                WizardStep.Progress => 5,
+                WizardStep.Finish => 5,
+                _ => 1
+            };
+        var total = _uninstallMode ? 4 : 5;
+        return $"{index} / {total}";
+    }
+
     private static Border SummaryRow(string label, string value)
     {
-        var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 7) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(135) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.Children.Add(GhostTheme.Text(label, 11, muted: true));
@@ -698,7 +791,7 @@ public sealed class SetupWindow : Window
 
     private static Border Feature(string text)
     {
-        var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 9) };
         line.Children.Add(GhostTheme.Text("✓", 12, weight: FontWeights.Bold));
         var label = GhostTheme.Text(text, 11, muted: true);
         label.Margin = new Thickness(8, 0, 0, 0);
@@ -714,7 +807,7 @@ public sealed class SetupWindow : Window
             IsChecked = selected,
             Foreground = GhostTheme.R("Text"),
             FontFamily = GhostTheme.UiFont,
-            FontSize = 12.5,
+            FontSize = 12.25,
             VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 4, 0, 4)
         };

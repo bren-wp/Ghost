@@ -266,6 +266,18 @@ internal sealed partial class LinuxMainWindow
         RequestRedraw();
     }
 
+    private void ActivateTransferRow(int index)
+    {
+        var count = _queue?.Jobs.Count ?? 0;
+        if (index < 0 || index >= count)
+            return;
+        _transferSelected = index;
+        _localSelected = -1;
+        _remoteSelected = -1;
+        _focusedFieldId = null;
+        RequestRedraw();
+    }
+
     private bool IsDoubleClick(string target)
     {
         var now = DateTimeOffset.UtcNow;
@@ -417,6 +429,45 @@ internal sealed partial class LinuxMainWindow
         });
     }
 
+    private void ToggleTransferQueuePause()
+    {
+        if (_queue is null)
+            return;
+
+        if (_queue.IsQueuePaused)
+        {
+            _queue.ResumeQueue();
+            Log("Transfer queue resumed. Queued transfers may start again.");
+        }
+        else
+        {
+            _queue.PauseQueue();
+            Log("Transfer queue paused. Running transfers continue; new dispatch waits until resumed.");
+        }
+        RequestRedraw();
+    }
+
+    private void RetryFailedTransfers()
+    {
+        if (_queue is null || !_connected)
+            return;
+
+        var failed = _queue.Jobs.Where(x => x.State == TransferState.Failed).ToArray();
+        if (failed.Length == 0)
+            return;
+
+        foreach (var job in failed)
+        {
+            if (job.Direction == TransferDirection.Upload)
+                _queue.EnqueueUpload(job.Source, job.Destination, job.IsDirectory);
+            else
+                _queue.EnqueueDownload(job.Source, job.Destination, job.IsDirectory, job.TotalBytes);
+        }
+
+        Log($"Queued {failed.Length} failed transfer(s) for retry.");
+        RequestRedraw();
+    }
+
     private void CancelSelectedTransfer()
     {
         if (_queue is null) return;
@@ -432,6 +483,27 @@ internal sealed partial class LinuxMainWindow
         if (_queue is null) return;
         foreach (var job in _queue.Jobs.Where(x => x.State is TransferState.Queued or TransferState.Running or TransferState.Retrying).ToArray())
             _queue.Cancel(job.Id);
+        RequestRedraw();
+    }
+
+    private void ClearCompletedTransfers()
+    {
+        _queue?.ClearCompleted();
+        _transferSelected = -1;
+        RequestRedraw();
+    }
+
+    private void ClearFailedTransfers()
+    {
+        _queue?.ClearFailed();
+        _transferSelected = -1;
+        RequestRedraw();
+    }
+
+    private void ClearCancelledTransfers()
+    {
+        _queue?.ClearCancelled();
+        _transferSelected = -1;
         RequestRedraw();
     }
 

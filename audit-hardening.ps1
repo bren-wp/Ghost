@@ -41,6 +41,33 @@ if (($data | Select-String -Pattern 'EnsureBinaryTransferModeAsync\(cancellation
     throw 'Binary mode must be enforced for both receive and send data paths.'
 }
 
+# 0.1.3 queue management must pause dispatch without pretending to suspend live FTP data streams.
+$queue = Require-Tokens 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
+    'MaxQueuedTransfers = 4096',
+    'MaxParallelTransfers = 8',
+    'IsQueuePaused',
+    'PauseQueue()',
+    'ResumeQueue()',
+    'QueueStateChanged',
+    'WaitForDispatchAsync',
+    'ClearCompleted()',
+    'ClearFailed()',
+    'ClearCancelled()',
+    'Transfers that were already running'
+)
+if ($queue -match 'Thread\.Sleep\(') {
+    throw 'Transfer queue pause/resume must not use thread sleep polling.'
+}
+
+$queueTest = Require-Tokens 'tests/GhostFTP.QueueSelfTest/Program.cs' @(
+    'TestPauseResumeAndSelectiveClearAsync',
+    'A paused queue started a new transfer before ResumeQueue.',
+    'A paused queue created a transfer session before dispatch resumed.',
+    'Selective completed-transfer cleanup',
+    'Selective cancelled-transfer cleanup',
+    'Selective failed-transfer cleanup'
+)
+
 $linuxCore = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Core.cs' @(
     'Plain FTP is not encrypted',
     '_plainFtpApproved',
@@ -58,7 +85,17 @@ $linuxKeepAlive = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.KeepAlive.c
 $linuxInput = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Input.cs' @(
     'if (_transferSelected >= 0)',
     'CancelSelectedTransfer()',
-    '_transferSelected = -1'
+    '_transferSelected = -1',
+    'ActivateTransferRow',
+    'ToggleTransferQueuePause',
+    'RetryFailedTransfers'
+)
+$linuxDraw = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Draw.cs' @(
+    'GhostTransferText.T',
+    'ToggleTransferQueuePause',
+    'ActivateTransferRow',
+    'TransferState.Failed',
+    'TransferState.Completed'
 )
 
 $installer = Require-Tokens 'src/GhostFTP.Setup/Services/InstallerService.cs' @(
@@ -77,8 +114,26 @@ if ($installer -match 'SetValue\("QuietUninstallString"') {
     throw 'Setup must not advertise QuietUninstallString until true silent uninstall exists.'
 }
 if (($installer | Select-String -Pattern 'EnsureNotDowngrade\(' -AllMatches).Matches.Count -lt 3) {
-    throw 'Installer downgrade protection must cover the staged application and maintenance Setup binaries.'
+    throw 'Installer downgrade protection must cover staged application and maintenance Setup binaries.'
 }
+
+$setupUx = Require-Tokens 'src/GhostFTP.Setup/SetupWindow.cs' @(
+    'StepProgressText',
+    'Local-only Setup',
+    'Transactional maintenance',
+    'GhostFTP-Setup.exe',
+    'no telemetry',
+    'rollback'
+)
+
+$dpapi = Require-Tokens 'src/GhostFTP.App/Services/DpapiSecretProtector.cs' @(
+    'CryptProtectData',
+    'CryptUnprotectData',
+    'DataProtectionScope.CurrentUser',
+    'RtlSecureZeroMemory',
+    'SecureHGlobalFree',
+    'SecureLocalFree'
+)
 
 $readme = Require-Tokens 'README.md' @(
     '<img src="assets/readme/ghostftp-client.png"',
@@ -93,7 +148,7 @@ if ($readme -match 'ghostftp-hero\.svg') {
     throw 'README still references the stale decorative Ghost FTP hero.'
 }
 if (Test-Path (Join-Path $root 'assets/readme/ghostftp-hero.svg') -PathType Leaf) {
-    throw 'Stale decorative README hero must not remain in the active repository assets.'
+    throw 'Stale decorative README hero must not remain in active repository assets.'
 }
 
 foreach ($relative in @(
@@ -101,6 +156,7 @@ foreach ($relative in @(
     'tests/GhostFTP.DemoSelfTest/Program.cs',
     'tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj',
     'tests/GhostFTP.LiveSmoke/Program.cs',
+    'tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj',
     '.github/workflows/live-smoke.yml',
     'docs/LIVE-SMOKE-TEST.md',
     'docs/HISTORICAL-CHANGELOG.md',
@@ -139,7 +195,8 @@ $demo = Require-Tokens 'tests/GhostFTP.DemoSelfTest/Program.cs' @(
 $ci = Require-Tokens '.github/workflows/ci.yml' @(
     'Complete local Demo workflow self-test',
     'Complete local Demo workflow self-test on Linux',
-    'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj'
+    'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj',
+    'Parallel transfer queue self-test'
 )
 
 $live = Require-Tokens 'tests/GhostFTP.LiveSmoke/Program.cs' @(
@@ -233,4 +290,4 @@ $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
     '(FtpSecurityMode)999'
 )
 
-Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/focus safety, transactional Windows application/Setup rollback with downgrade protection, authentic README capture, preserved historical changelog, non-destructive secret-backed live smoke harness, synchronized Windows/Linux release documentation and canonical public Release assets."
+Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, bounded dispatch-pause transfer queue with selective cleanup regression, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/selected-transfer safety, transactional Windows application/Setup rollback with downgrade protection, protected Windows DPAPI memory cleanup, authentic README capture, preserved historical changelog, non-destructive secret-backed live smoke harness, synchronized Windows/Linux release documentation and canonical public Release assets."

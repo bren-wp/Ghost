@@ -481,17 +481,37 @@ internal sealed partial class LinuxMainWindow
         DrawCard(rect);
         DrawText(L("Transfers"), rect.X + 10, rect.Y + 20, _cText);
         var jobs = _queue?.Jobs.ToArray() ?? [];
+        var paused = _queue?.IsQueuePaused == true;
         var running = jobs.Count(x => x.State == TransferState.Running);
+        var retrying = jobs.Count(x => x.State == TransferState.Retrying);
         var queued = jobs.Count(x => x.State == TransferState.Queued);
         var failed = jobs.Count(x => x.State == TransferState.Failed);
-        if (rect.Width > 580)
-            DrawText($"{jobs.Length} total · {running} running · {queued} queued · {failed} failed", rect.X + 86, rect.Y + 20, _cMuted);
-
-        if (rect.Width > 500)
+        var cancelled = jobs.Count(x => x.State == TransferState.Cancelled);
+        var completed = jobs.Count(x => x.State == TransferState.Completed);
+        if (rect.Width > 760)
         {
-            DrawButton(new RectI(rect.X + rect.Width - 282, rect.Y + 6, 82, 26), "Cancel", CancelSelectedTransfer, enabled: jobs.Length > 0);
-            DrawButton(new RectI(rect.X + rect.Width - 194, rect.Y + 6, 82, 26), "Cancel all", CancelAllTransfers, enabled: jobs.Length > 0);
-            DrawButton(new RectI(rect.X + rect.Width - 106, rect.Y + 6, 94, 26), "Clear done", ClearFinishedTransfers, enabled: jobs.Length > 0);
+            var summary = $"{jobs.Length} total · {running} running · {queued} queued";
+            if (retrying > 0) summary += $" · {retrying} retrying";
+            if (failed > 0) summary += $" · {failed} failed";
+            if (paused) summary = GhostTransferText.T("QueuePaused") + " · " + summary;
+            DrawText(Ellipsize(summary, Math.Max(20, (rect.Width - 620) / 8)), rect.X + 86, rect.Y + 20, paused ? _cAccent : _cMuted);
+        }
+
+        if (rect.Width > 1040)
+        {
+            var bx = rect.X + rect.Width - 600;
+            DrawButton(new RectI(bx, rect.Y + 6, 94, 26), GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue"), ToggleTransferQueuePause, enabled: _queue is not null, primary: paused);
+            DrawButton(new RectI(bx + 100, rect.Y + 6, 94, 26), GhostTransferText.T("RetryFailed"), RetryFailedTransfers, enabled: _connected && failed > 0);
+            DrawButton(new RectI(bx + 200, rect.Y + 6, 78, 26), "Cancel", CancelSelectedTransfer, enabled: jobs.Length > 0);
+            DrawButton(new RectI(bx + 284, rect.Y + 6, 86, 26), "Cancel all", CancelAllTransfers, enabled: jobs.Any(x => x.State is TransferState.Queued or TransferState.Running or TransferState.Retrying));
+            DrawButton(new RectI(bx + 376, rect.Y + 6, 100, 26), GhostTransferText.T("ClearFailed"), ClearFailedTransfers, enabled: failed > 0);
+            DrawButton(new RectI(bx + 482, rect.Y + 6, 106, 26), L("ClearFinished"), ClearFinishedTransfers, enabled: completed + failed + cancelled > 0);
+        }
+        else if (rect.Width > 620)
+        {
+            DrawButton(new RectI(rect.X + rect.Width - 300, rect.Y + 6, 92, 26), GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue"), ToggleTransferQueuePause, enabled: _queue is not null, primary: paused);
+            DrawButton(new RectI(rect.X + rect.Width - 202, rect.Y + 6, 88, 26), "Cancel all", CancelAllTransfers, enabled: jobs.Any(x => x.State is TransferState.Queued or TransferState.Running or TransferState.Retrying));
+            DrawButton(new RectI(rect.X + rect.Width - 108, rect.Y + 6, 96, 26), L("ClearFinished"), ClearFinishedTransfers, enabled: completed + failed + cancelled > 0);
         }
 
         var table = new RectI(rect.X + 9, rect.Y + 36, Math.Max(1, rect.Width - 18), Math.Max(1, rect.Height - 45));
@@ -509,18 +529,23 @@ internal sealed partial class LinuxMainWindow
 
         var rows = Math.Max(1, (table.Height - 25) / 23);
         _transferScroll = Math.Clamp(_transferScroll, 0, Math.Max(0, jobs.Length - rows));
+        _transferSelected = Math.Clamp(_transferSelected, -1, jobs.Length - 1);
         for (var row = 0; row < rows && _transferScroll + row < jobs.Length; row++)
         {
-            var job = jobs[_transferScroll + row];
-            var yy = table.Y + 25 + row * 23;
-            DrawText(Ellipsize(Path.GetFileName(job.Source), Math.Max(8, table.Width / 28)), table.X + 7, yy + 16, _cText);
+            var index = _transferScroll + row;
+            var job = jobs[index];
+            var rr = new RectI(table.X + 1, table.Y + 25 + row * 23, Math.Max(1, table.Width - 2), 23);
+            if (index == _transferSelected)
+                Fill(rr, _cAccentSoft);
+            DrawText(Ellipsize(Path.GetFileName(job.Source), Math.Max(8, table.Width / 28)), rr.X + 6, rr.Y + 16, _cText);
             if (table.Width >= 500)
             {
-                DrawText(job.Direction.ToString(), table.X + Math.Max(180, table.Width / 3), yy + 16, _cMuted);
-                DrawText(job.State.ToString(), table.X + Math.Max(300, table.Width / 2), yy + 16, job.State == TransferState.Failed ? _cDanger : _cMuted);
-                DrawText(job.ProgressText, table.X + Math.Max(420, table.Width * 2 / 3), yy + 16, _cMuted);
-                DrawText(job.SpeedText, table.X + Math.Max(540, table.Width - 150), yy + 16, _cMuted);
+                DrawText(job.Direction.ToString(), table.X + Math.Max(180, table.Width / 3), rr.Y + 16, _cMuted);
+                DrawText(job.State.ToString(), table.X + Math.Max(300, table.Width / 2), rr.Y + 16, job.State == TransferState.Failed ? _cDanger : job.State == TransferState.Completed ? _cSuccess : _cMuted);
+                DrawText(job.ProgressText, table.X + Math.Max(420, table.Width * 2 / 3), rr.Y + 16, _cMuted);
+                DrawText(job.SpeedText, table.X + Math.Max(540, table.Width - 150), rr.Y + 16, _cMuted);
             }
+            Register(rr, () => ActivateTransferRow(index));
         }
     }
 

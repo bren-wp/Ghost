@@ -12,39 +12,42 @@ Copyright © 2026 BRENDIGO LTD. All rights reserved.
 Product website: https://ghostftp.com  
 Source repository: https://github.com/bren-wp/Ghost
 
-The source code in this repository is source-available/proprietary and is governed by the repository [LICENSE](LICENSE). Publication of source code does not grant general permission to redistribute, rebrand, sublicense or commercialize the source or modified builds.
+The source code in this repository is source-available/proprietary and is governed by the repository [`LICENSE`](LICENSE). Publication of source code does not grant general permission to redistribute, rebrand, sublicense or commercialize the source or modified builds.
 
 Official unmodified Ghost FTP binaries are distributed through official Ghost FTP release channels under the terms stated in the LICENSE.
 
 ## Current public release status
 
-The active source line is **Ghost FTP 0.1.2 Beta**. The public 0.x series is pre-1.0 software; the first stable target is 1.0.0.
+The source tree is prepared for **Ghost FTP 0.1.3 Beta**.
 
-Expected release identity:
+Public 0.x versions remain Beta software. Version 1.0.0 is reserved for the first stable release.
 
-- semantic version: **0.1.2**;
-- informational version: **0.1.2-beta**;
-- Windows file/assembly version: **0.1.2.0**;
-- expected GitHub tag: **v0.1.2-beta**.
+Ghost FTP 0.1.3 Beta targets Windows and Linux desktop systems only. Android, iOS and MacCatalyst application targets are not part of the shipping repository scope.
 
-## Product scope
+## Product privacy statement
 
-Ghost FTP 0.1.2 ships native desktop applications for Windows and Linux. Android, iOS, MacCatalyst and web/browser client targets are not part of the current shipping product line.
+Ghost FTP is designed without application telemetry, advertising SDKs, usage analytics, hidden crash upload, fingerprinting, cloud profile synchronization or a required Ghost FTP account.
 
-The software supports FTP and FTPS. Plain FTP is inherently unencrypted; users should prefer FTPS where server support is available.
+Saved profiles/settings remain local. Saved-password protection is opt-in and platform-local. User-selected FTP/FTPS servers are third-party endpoints and are not operated by BRENDIGO LTD unless explicitly identified otherwise.
 
-## Privacy representation
+## Product security statement
 
-The shipping application is designed without application telemetry, analytics, advertising SDKs, tracking SDKs, automatic crash-upload services, cloud profile synchronization or hidden background update checks. Connection/profile data remains local except for network data necessarily exchanged with the FTP/FTPS server selected by the user.
+Ghost FTP supports FTP, Explicit FTPS and Implicit FTPS. SFTP/SSH is not represented as an FTP mode. FTPS certificate/hostname validation is not silently bypassed, and the product does not intentionally downgrade a failed FTPS connection to plain FTP.
 
-## Third-party dependency representation
+## Release artifacts
 
-Shipping projects intentionally contain zero third-party NuGet `PackageReference` entries. The Windows and Linux applications use .NET framework/runtime facilities and audited operating-system integration required for their native renderers.
+Official release artifacts may include Windows Setup/Portable x64/ARM64 packages and Linux x64/ARM64 packages. Canonical Windows names include `setup.exe` and `portable.exe`; the Windows Setup executable is also used for installed maintenance/uninstall rather than generating a separate uninstaller executable.
 
-## Trademarks and third-party names
+Release artifacts are produced through repository CI/release workflows with version, test, audit, package and checksum gates.
 
-Third-party product, protocol, operating-system and service names referenced in source or documentation remain the property of their respective owners. Such references are descriptive and do not imply sponsorship or endorsement.
+## Documentation precedence
 
-## Warranty and liability
+For operational details see:
 
-The applicable warranty, liability, redistribution and licensing terms are defined by the repository LICENSE and any separate terms accompanying official binary distribution. Users are responsible for maintaining backups and for confirming server permissions before destructive file operations.
+- [`LICENSE`](LICENSE)
+- [`SECURITY.md`](SECURITY.md)
+- [`PRIVACY.md`](PRIVACY.md)
+- [`docs/releases/v0.1.3.md`](docs/releases/v0.1.3.md)
+- [`docs/RELEASE-POLICY.md`](docs/RELEASE-POLICY.md)
+
+Nothing in README or marketing-style product copy overrides the repository LICENSE.

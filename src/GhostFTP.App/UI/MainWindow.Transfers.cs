@@ -16,6 +16,7 @@ public sealed partial class MainWindow
             foreach (var item in _localList.SelectedItems.OfType<LocalItem>())
                 _queue.EnqueueUpload(item.FullPath, FtpListingParser.CombineRemote(_remotePath, item.Name), item.IsDirectory);
             UpdateQueueSummary();
+            UpdateQueueManagementUi();
         }
         catch (Exception ex)
         {
@@ -34,11 +35,32 @@ public sealed partial class MainWindow
                 _queue.EnqueueDownload(item.FullPath, destination, item.IsDirectory, item.IsDirectory ? null : item.Entry.Size);
             }
             UpdateQueueSummary();
+            UpdateQueueManagementUi();
         }
         catch (Exception ex)
         {
             ShowOperationError("Could not queue all selected downloads. Items queued before the error remain in the transfer list.", ex);
         }
+    }
+
+    private void ToggleQueuePause()
+    {
+        if (_queue is null)
+            return;
+
+        if (_queue.IsQueuePaused)
+        {
+            _queue.ResumeQueue();
+            AppendConnectionLog("Transfer queue resumed. Queued transfers may start again.", "QUEUE");
+        }
+        else
+        {
+            _queue.PauseQueue();
+            AppendConnectionLog("Transfer queue paused. Running transfers continue; new transfer dispatch waits until resumed.", "QUEUE");
+        }
+
+        UpdateQueueManagementUi();
+        UpdateQueueSummary();
     }
 
     private void CancelSelectedTransfer()
@@ -70,18 +92,76 @@ public sealed partial class MainWindow
         try
         {
             foreach (var job in retryable)
-            {
-                if (job.Direction == TransferDirection.Upload)
-                    _queue.EnqueueUpload(job.Source, job.Destination, job.IsDirectory);
-                else
-                    _queue.EnqueueDownload(job.Source, job.Destination, job.IsDirectory, job.TotalBytes);
-            }
+                RequeueTransfer(job);
             UpdateQueueSummary();
+            UpdateQueueManagementUi();
         }
         catch (Exception ex)
         {
             ShowOperationError("Could not retry all selected transfers.", ex);
         }
+    }
+
+    private void RetryAllFailedTransfers()
+    {
+        if (_queue is null)
+            return;
+
+        var failed = _queue.Jobs.Where(job => job.State == TransferState.Failed).ToArray();
+        if (failed.Length == 0)
+            return;
+
+        try
+        {
+            foreach (var job in failed)
+                RequeueTransfer(job);
+            AppendConnectionLog($"Queued {failed.Length} failed transfer(s) for retry.", "QUEUE");
+            UpdateQueueSummary();
+            UpdateQueueManagementUi();
+        }
+        catch (Exception ex)
+        {
+            ShowOperationError("Could not retry all failed transfers.", ex);
+        }
+    }
+
+    private void RequeueTransfer(TransferJob job)
+    {
+        if (_queue is null)
+            return;
+
+        if (job.Direction == TransferDirection.Upload)
+            _queue.EnqueueUpload(job.Source, job.Destination, job.IsDirectory);
+        else
+            _queue.EnqueueDownload(job.Source, job.Destination, job.IsDirectory, job.TotalBytes);
+    }
+
+    private void ClearCompletedTransfers()
+    {
+        _queue?.ClearCompleted();
+        UpdateQueueSummary();
+        UpdateQueueManagementUi();
+    }
+
+    private void ClearFailedTransfers()
+    {
+        _queue?.ClearFailed();
+        UpdateQueueSummary();
+        UpdateQueueManagementUi();
+    }
+
+    private void ClearCancelledTransfers()
+    {
+        _queue?.ClearCancelled();
+        UpdateQueueSummary();
+        UpdateQueueManagementUi();
+    }
+
+    private void ClearFinishedTransfers()
+    {
+        _queue?.ClearFinished();
+        UpdateQueueSummary();
+        UpdateQueueManagementUi();
     }
 
     private void CopySelectedTransferSource()
@@ -97,6 +177,7 @@ public sealed partial class MainWindow
     private async void QueueJobUpdated(object? sender, TransferJob job)
     {
         UpdateQueueSummary();
+        UpdateQueueManagementUi();
         if (job.State == TransferState.Completed && _completedHandled.Add(job.Id))
         {
             try
@@ -111,11 +192,32 @@ public sealed partial class MainWindow
         }
     }
 
+    private void UpdateQueueManagementUi()
+    {
+        if (_queuePauseMenuItem is null)
+            return;
+
+        var paused = _queue?.IsQueuePaused == true;
+        _queuePauseMenuItem.Header = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
+        _queuePauseMenuItem.ToolTip = paused
+            ? "Resume dispatch of queued and retrying transfers."
+            : GhostTransferText.T("RunningContinue");
+        _queuePauseMenuItem.IsEnabled = _queue is not null;
+    }
+
     private void UpdateQueueSummary()
     {
-        if (_queue is null || _queue.Jobs.Count == 0)
+        if (_queue is null)
         {
             _queueSummary.Text = L("NoTransfers");
+            return;
+        }
+
+        if (_queue.Jobs.Count == 0)
+        {
+            _queueSummary.Text = _queue.IsQueuePaused
+                ? $"{GhostTransferText.T("QueuePaused")} · {L("NoTransfers").ToLowerInvariant()}"
+                : L("NoTransfers");
             return;
         }
 
@@ -130,6 +232,7 @@ public sealed partial class MainWindow
             .Sum(x => Math.Max(0, x.SpeedBytesPerSecond));
 
         var parts = new List<string>();
+        if (_queue.IsQueuePaused) parts.Add(GhostTransferText.T("QueuePaused"));
         if (running > 0) parts.Add($"{running} running");
         if (retrying > 0) parts.Add($"{retrying} retrying");
         if (queued > 0) parts.Add($"{queued} queued");

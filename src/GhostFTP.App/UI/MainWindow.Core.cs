@@ -78,6 +78,7 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock _queueSummary = GhostTheme.Text(GhostLocalization.T("NoTransfers"), 11.5, muted: true);
     private readonly TextBlock _localSummary = GhostTheme.Text("0 items", 11, muted: true);
     private readonly TextBlock _remoteSummary = GhostTheme.Text("0 items", 11, muted: true);
+    private MenuItem? _queuePauseMenuItem;
 
     private Grid? _workspaceContent;
     private Grid? _filePanesGrid;
