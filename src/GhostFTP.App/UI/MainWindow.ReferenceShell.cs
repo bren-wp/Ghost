@@ -10,10 +10,8 @@ namespace GhostFTP.UI;
 public sealed partial class MainWindow
 {
     private ListBox? _referenceSitesList;
-    private Button? _referenceNewFolderButton;
-    private Button? _referenceRenameButton;
-    private Button? _referenceDeleteButton;
     private CheckBox? _referenceKeepInTab;
+    private ColumnDefinition? _referenceSidebarColumn;
 
     private static string R(string key) => GhostReferenceText.T(key);
 
@@ -25,22 +23,53 @@ public sealed partial class MainWindow
         {
             Background = GhostTheme.R("Bg")
         };
-        root.ColumnDefinitions.Add(new ColumnDefinition
+
+        _referenceSidebarColumn = new ColumnDefinition
         {
             Width = new GridLength(GhostReferencePalette.SidebarWidth),
-            MinWidth = 250,
-            MaxWidth = 360
-        });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            MinWidth = 220,
+            MaxWidth = 380
+        };
+        root.ColumnDefinitions.Add(_referenceSidebarColumn);
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 760 });
 
         var sidebar = BuildReferenceSidebar();
         Grid.SetColumn(sidebar, 0);
         root.Children.Add(sidebar);
 
+        var sidebarSplitter = new GridSplitter
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            ResizeDirection = GridResizeDirection.Columns,
+            ResizeBehavior = GridResizeBehavior.PreviousAndNext,
+            Background = ReferenceBrush(GhostReferencePalette.Border),
+            Cursor = Cursors.SizeWE,
+            Focusable = false,
+            Opacity = 0.72,
+            ToolTip = "Drag to resize the server sidebar · double-click to reset"
+        };
+        sidebarSplitter.MouseDoubleClick += (_, _) =>
+            _referenceSidebarColumn.Width = new GridLength(GhostReferencePalette.SidebarWidth);
+        Grid.SetColumn(sidebarSplitter, 1);
+        root.Children.Add(sidebarSplitter);
+
         var mainHost = new Grid { Background = GhostTheme.R("Bg") };
         mainHost.Children.Add(workstation);
-        mainHost.Children.Add(BuildReferenceHeaderControls());
-        Grid.SetColumn(mainHost, 1);
+
+        var headerControls = BuildReferenceHeaderControls();
+        mainHost.Children.Add(headerControls);
+        mainHost.SizeChanged += (_, e) =>
+        {
+            // On compact windows the normal toolbar gets the full width. Language and search
+            // remain available from Settings and the Remote pane filter respectively.
+            headerControls.Visibility = e.NewSize.Width >= 1040
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        };
+
+        Grid.SetColumn(mainHost, 2);
         root.Children.Add(mainHost);
 
         return root;
@@ -61,7 +90,7 @@ public sealed partial class MainWindow
         if (menu is not null)
         {
             menu.Background = ReferenceBrush(GhostReferencePalette.Menu);
-            menu.Padding = new Thickness(7, 0, 430, 0);
+            menu.Padding = new Thickness(7, 0, 330, 0);
             LocalizeAndOrderReferenceMenu(menu);
         }
 
@@ -109,23 +138,22 @@ public sealed partial class MainWindow
         menu.Items.Add(items[5]);
     }
 
-    private void StyleReferenceToolbar(DockPanel dock)
+    private static void StyleReferenceToolbar(DockPanel dock)
     {
         var actions = dock.Children.OfType<WrapPanel>().FirstOrDefault();
         if (actions is null)
             return;
 
-        EnsureReferenceToolbarActions(actions);
         actions.Margin = new Thickness(0);
         actions.VerticalAlignment = VerticalAlignment.Stretch;
 
         foreach (var button in actions.Children.OfType<Button>())
         {
-            button.MinWidth = 82;
+            button.MinWidth = 72;
             button.Width = double.NaN;
             button.MinHeight = GhostReferencePalette.ToolbarHeight - 1;
             button.Margin = new Thickness(0);
-            button.Padding = new Thickness(12, 6, 12, 5);
+            button.Padding = new Thickness(10, 6, 10, 5);
             button.Background = Brushes.Transparent;
             button.BorderBrush = GhostTheme.R("Border");
             button.BorderThickness = new Thickness(0, 0, 1, 0);
@@ -135,81 +163,6 @@ public sealed partial class MainWindow
             if (button.Content is string text)
                 button.Content = ReferenceToolbarContent(text);
         }
-
-        _localList.SelectionChanged += (_, _) => UpdateReferenceToolbarState();
-        _remoteList.SelectionChanged += (_, _) => UpdateReferenceToolbarState();
-        _localList.GotKeyboardFocus += (_, _) => UpdateReferenceToolbarState();
-        _remoteList.GotKeyboardFocus += (_, _) => UpdateReferenceToolbarState();
-        UpdateReferenceToolbarState();
-    }
-
-    private void EnsureReferenceToolbarActions(WrapPanel actions)
-    {
-        if (_referenceNewFolderButton is not null)
-            return;
-
-        _referenceNewFolderButton = ToolButton($"▣ {L("NewFolder")}", ReferenceNewFolderAsync);
-        _referenceRenameButton = ToolButton($"✎ {L("Rename")}", ReferenceRenameAsync);
-        _referenceDeleteButton = ToolButton($"⌫ {L("Delete")}", ReferenceDeleteAsync, danger: true);
-
-        var insertionIndex = Math.Min(5, actions.Children.Count);
-        actions.Children.Insert(insertionIndex++, _referenceNewFolderButton);
-        actions.Children.Insert(insertionIndex++, _referenceRenameButton);
-        actions.Children.Insert(insertionIndex, _referenceDeleteButton);
-    }
-
-    private bool ReferenceTargetRemote() =>
-        _remoteList.IsKeyboardFocusWithin
-        || (_remoteList.SelectedItems.Count > 0 && _localList.SelectedItems.Count == 0);
-
-    private async Task ReferenceNewFolderAsync()
-    {
-        if (ReferenceTargetRemote())
-        {
-            if (IsConnected)
-                await NewRemoteFolderAsync();
-            return;
-        }
-
-        NewLocalFolder();
-    }
-
-    private async Task ReferenceRenameAsync()
-    {
-        if (ReferenceTargetRemote())
-        {
-            if (IsConnected && _remoteList.SelectedItems.Count > 0)
-                await RenameRemoteSelectedAsync();
-            return;
-        }
-
-        if (_localList.SelectedItems.Count > 0)
-            RenameLocalSelected();
-    }
-
-    private async Task ReferenceDeleteAsync()
-    {
-        if (ReferenceTargetRemote())
-        {
-            if (IsConnected && _remoteList.SelectedItems.Count > 0)
-                await DeleteRemoteSelectedAsync();
-            return;
-        }
-
-        if (_localList.SelectedItems.Count > 0)
-            DeleteLocalSelected();
-    }
-
-    private void UpdateReferenceToolbarState()
-    {
-        if (_referenceNewFolderButton is null || _referenceRenameButton is null || _referenceDeleteButton is null)
-            return;
-
-        var remote = ReferenceTargetRemote();
-        var hasSelection = remote ? _remoteList.SelectedItems.Count > 0 : _localList.SelectedItems.Count > 0;
-        _referenceNewFolderButton.IsEnabled = !remote || IsConnected;
-        _referenceRenameButton.IsEnabled = hasSelection && (!remote || IsConnected);
-        _referenceDeleteButton.IsEnabled = hasSelection && (!remote || IsConnected);
     }
 
     private void KeepQuickConnectionInTabIfRequested()
@@ -217,8 +170,6 @@ public sealed partial class MainWindow
         if (_referenceKeepInTab?.IsChecked != true || !IsConnected || _activeOptions is null)
             return;
 
-        // A connection already represented by a saved/local profile does not need a second
-        // temporary entry. Session-only profiles never retain the password.
         if (MatchingSelectedProfile() is not null)
             return;
 
@@ -245,7 +196,9 @@ public sealed partial class MainWindow
                 IsSessionOnly = true
             };
             _profiles.Add(existing);
-            AppendConnectionLog($"Kept {_activeOptions.Host}:{_activeOptions.Port} in this tab for the current session only. Nothing was written to the saved-site store.", "PRIVACY");
+            AppendConnectionLog(
+                $"Kept {_activeOptions.Host}:{_activeOptions.Port} in this tab for the current session only. Nothing was written to the saved-site store.",
+                "PRIVACY");
         }
         else
         {
@@ -262,16 +215,19 @@ public sealed partial class MainWindow
         var split = text.IndexOf(' ');
         var icon = split > 0 ? text[..split] : "·";
         var label = split > 0 ? text[(split + 1)..].Trim() : text;
+
         var stack = new StackPanel
         {
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        var iconText = GhostTheme.Text(icon, 18, weight: FontWeights.SemiBold);
+
+        var iconText = GhostTheme.Text(icon, 17, weight: FontWeights.SemiBold);
         iconText.Foreground = GhostTheme.R("Accent");
         iconText.HorizontalAlignment = HorizontalAlignment.Center;
         stack.Children.Add(iconText);
-        var labelText = GhostTheme.Text(label, 9.75, weight: FontWeights.Medium);
+
+        var labelText = GhostTheme.Text(label, 9.5, weight: FontWeights.Medium);
         labelText.HorizontalAlignment = HorizontalAlignment.Center;
         labelText.Margin = new Thickness(0, 4, 0, 0);
         stack.Children.Add(labelText);
@@ -280,7 +236,7 @@ public sealed partial class MainWindow
 
     private void NormalizeReferenceWorkspace()
     {
-        if (_workspaceContent is null || _workspaceContent.RowDefinitions.Count < 7)
+        if (_workspaceContent is null || _workspaceContent.RowDefinitions.Count < 7 || _filePanesGrid is null)
             return;
 
         var log = _workspaceContent.Children
@@ -289,8 +245,11 @@ public sealed partial class MainWindow
         var quickConnect = _workspaceContent.Children
             .OfType<Border>()
             .FirstOrDefault(x => Grid.GetRow(x) == 2);
+        var transfers = _workspaceContent.Children
+            .OfType<Border>()
+            .FirstOrDefault(x => Grid.GetRow(x) == 6);
 
-        if (log is null || quickConnect is null)
+        if (log is null || quickConnect is null || transfers is null)
             return;
 
         NormalizeQuickConnect(quickConnect);
@@ -299,9 +258,17 @@ public sealed partial class MainWindow
         _workspaceContent.Children.Remove(quickConnect);
 
         var top = new Grid();
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 360 });
+        top.ColumnDefinitions.Add(new ColumnDefinition
+        {
+            Width = new GridLength(0.9, GridUnitType.Star),
+            MinWidth = 280
+        });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.08, GridUnitType.Star), MinWidth = 390 });
+        top.ColumnDefinitions.Add(new ColumnDefinition
+        {
+            Width = new GridLength(1.1, GridUnitType.Star),
+            MinWidth = 430
+        });
 
         log.Margin = new Thickness(0);
         quickConnect.Margin = new Thickness(0);
@@ -312,17 +279,29 @@ public sealed partial class MainWindow
         top.Children.Add(log);
         top.Children.Add(quickConnect);
 
-        _workspaceContent.RowDefinitions[0].Height = new GridLength(205);
-        _workspaceContent.RowDefinitions[0].MinHeight = 170;
-        _workspaceContent.RowDefinitions[0].MaxHeight = 245;
-        _workspaceContent.RowDefinitions[1].Height = new GridLength(8);
-        _workspaceContent.RowDefinitions[2].MinHeight = 0;
-        _workspaceContent.RowDefinitions[2].MaxHeight = 0;
-        _workspaceContent.RowDefinitions[2].Height = new GridLength(0);
-        _workspaceContent.RowDefinitions[3].Height = new GridLength(0);
+        // Reference workstation rows after normalization:
+        // 0 connection/log + quick connect, 1 splitter, 2 file panes,
+        // 3 splitter, 4 transfer queue. Legacy rows 5/6 stay collapsed.
+        _workspaceContent.RowDefinitions[0].Height = new GridLength(214);
+        _workspaceContent.RowDefinitions[0].MinHeight = 160;
+        _workspaceContent.RowDefinitions[0].MaxHeight = 360;
+        _workspaceContent.RowDefinitions[1].Height = new GridLength(7);
+        _workspaceContent.RowDefinitions[2].Height = new GridLength(1, GridUnitType.Star);
+        _workspaceContent.RowDefinitions[2].MinHeight = 250;
+        _workspaceContent.RowDefinitions[2].MaxHeight = double.PositiveInfinity;
+        _workspaceContent.RowDefinitions[3].Height = new GridLength(7);
+        _workspaceContent.RowDefinitions[4].Height = new GridLength(198);
+        _workspaceContent.RowDefinitions[4].MinHeight = 128;
+        _workspaceContent.RowDefinitions[4].MaxHeight = 440;
+        _workspaceContent.RowDefinitions[5].Height = new GridLength(0);
+        _workspaceContent.RowDefinitions[6].Height = new GridLength(0);
+        _workspaceContent.RowDefinitions[6].MinHeight = 0;
+        _workspaceContent.RowDefinitions[6].MaxHeight = 0;
 
         Grid.SetRow(top, 0);
         _workspaceContent.Children.Add(top);
+        Grid.SetRow(_filePanesGrid, 2);
+        Grid.SetRow(transfers, 4);
     }
 
     private void NormalizeQuickConnect(Border quickConnect)
@@ -334,33 +313,63 @@ public sealed partial class MainWindow
             || root.Children[2] is not Grid rowTwo)
             return;
 
-        var title = header.Children.OfType<StackPanel>().FirstOrDefault();
-        if (title is not null)
-        {
-            header.Children.Remove(title);
-            header.Children.Clear();
-            header.ColumnDefinitions.Clear();
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(title, 0);
-            header.Children.Add(title);
-        }
-        _profilesList.Visibility = Visibility.Collapsed;
-
+        var host = rowOne.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 0);
+        var port = rowOne.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 2);
+        var security = rowOne.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 4);
         var username = rowTwo.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 0);
         var password = rowTwo.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetColumn(x) == 2);
-        if (username is not null && password is not null)
-        {
-            rowTwo.Children.Remove(username);
-            rowTwo.Children.Remove(password);
-            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 92 });
-            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-            rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 92 });
-            Grid.SetColumn(username, 6);
-            Grid.SetColumn(password, 8);
-            rowOne.Children.Add(username);
-            rowOne.Children.Add(password);
-        }
+        var connectActions = rowTwo.Children
+            .OfType<StackPanel>()
+            .FirstOrDefault(x => Grid.GetColumn(x) == 4);
+
+        if (host is null || port is null || security is null || username is null || password is null || connectActions is null)
+            return;
+
+        _profilesList.Visibility = Visibility.Collapsed;
+
+        header.Children.Clear();
+        header.ColumnDefinitions.Clear();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        title.Children.Add(GhostTheme.Text(L("QuickConnect"), 13.5, weight: FontWeights.SemiBold));
+        title.Children.Add(GhostTheme.Text(R("ExplicitFtpsRecommended"), 9, muted: true));
+        header.Children.Add(title);
+
+        var badge = GhostTheme.Badge("TLS first", "SuccessSoft", "Text");
+        badge.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(badge, 1);
+        header.Children.Add(badge);
+
+        rowTwo.Children.Remove(username);
+        rowTwo.Children.Remove(password);
+
+        rowOne.ColumnDefinitions.Clear();
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star), MinWidth = 82 });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70), MinWidth = 58 });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star), MinWidth = 100 });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star), MinWidth = 82 });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        rowOne.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star), MinWidth = 82 });
+
+        Grid.SetColumn(host, 0);
+        Grid.SetColumn(port, 2);
+        Grid.SetColumn(security, 4);
+        Grid.SetColumn(username, 6);
+        Grid.SetColumn(password, 8);
+        rowOne.Children.Add(username);
+        rowOne.Children.Add(password);
+
+        rowTwo.Children.Clear();
+        rowTwo.ColumnDefinitions.Clear();
+        rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        rowTwo.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        rowTwo.Margin = new Thickness(0, 9, 0, 0);
 
         var privacyRow = new Grid { VerticalAlignment = VerticalAlignment.Center };
         privacyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -368,6 +377,8 @@ public sealed partial class MainWindow
 
         var note = GhostTheme.Text(R("CredentialsLocal"), 9, muted: true);
         note.VerticalAlignment = VerticalAlignment.Center;
+        note.TextTrimming = TextTrimming.CharacterEllipsis;
+        note.TextWrapping = TextWrapping.NoWrap;
         privacyRow.Children.Add(note);
 
         _referenceKeepInTab = new CheckBox
@@ -383,18 +394,19 @@ public sealed partial class MainWindow
         };
         Grid.SetColumn(_referenceKeepInTab, 1);
         privacyRow.Children.Add(_referenceKeepInTab);
-
         Grid.SetColumn(privacyRow, 0);
-        Grid.SetColumnSpan(privacyRow, 3);
         rowTwo.Children.Add(privacyRow);
+
+        connectActions.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(connectActions, 2);
+        rowTwo.Children.Add(connectActions);
     }
 
     private Border BuildReferenceSidebar()
     {
         var root = new Grid
         {
-            Background = ReferenceBrush(GhostReferencePalette.Sidebar),
-            Margin = new Thickness(0)
+            Background = ReferenceBrush(GhostReferencePalette.Sidebar)
         };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(108) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -425,6 +437,7 @@ public sealed partial class MainWindow
         savedHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         savedHeader.Children.Add(GhostTheme.Text(L("SavedServers"), 12.5, weight: FontWeights.Bold));
         var add = ReferenceSquareButton("＋", async () => await AddProfileAsync());
+        add.ToolTip = L("AddServer");
         Grid.SetColumn(add, 1);
         savedHeader.Children.Add(add);
         nav.Children.Add(savedHeader);
@@ -432,7 +445,8 @@ public sealed partial class MainWindow
         nav.Children.Add(ReferenceNavButton("⌂", R("Home"), () =>
         {
             RefreshLocal();
-            if (IsConnected) _ = RefreshRemoteAsync();
+            if (IsConnected)
+                _ = RefreshRemoteAsync();
         }));
 
         var sitesLabel = new Grid { Margin = new Thickness(8, 8, 8, 3) };
@@ -452,7 +466,7 @@ public sealed partial class MainWindow
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = GhostTheme.R("Text"),
-            MaxHeight = 180,
+            MaxHeight = 210,
             Margin = new Thickness(7, 0, 7, 2)
         };
         _referenceSitesList.SelectionChanged += (_, _) =>
@@ -470,10 +484,18 @@ public sealed partial class MainWindow
         _profiles.CollectionChanged += (_, _) =>
             empty.Visibility = _profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         nav.Children.Add(empty);
+
         nav.Children.Add(ReferenceNavButton("☆", R("FavoritesInTab"), () => _ = OpenSiteManagerAsync()));
         nav.Children.Add(ReferenceNavButton("◷", R("RecentInTab"), () => _ = ShowConnectionDiagnosticsAsync()));
-        Grid.SetRow(nav, 1);
-        root.Children.Add(nav);
+
+        var navScroll = new ScrollViewer
+        {
+            Content = nav,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        Grid.SetRow(navScroll, 1);
+        root.Children.Add(navScroll);
 
         var privacy = new Border
         {
@@ -496,7 +518,6 @@ public sealed partial class MainWindow
         var footer = new Grid
         {
             Background = ReferenceBrush(GhostReferencePalette.Sidebar),
-            Margin = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Stretch
         };
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -519,13 +540,13 @@ public sealed partial class MainWindow
         };
     }
 
-    private UIElement BuildReferenceHeaderControls()
+    private FrameworkElement BuildReferenceHeaderControls()
     {
         var overlay = new Grid
         {
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
-            Width = 430,
+            Width = 322,
             Height = GhostReferencePalette.MenuHeight + GhostReferencePalette.ToolbarHeight,
             Margin = new Thickness(0, 0, 14, 0),
             Background = Brushes.Transparent,
@@ -536,7 +557,7 @@ public sealed partial class MainWindow
 
         var language = new Button
         {
-            Content = "☆  " + CurrentLanguageName() + " ⌄",
+            Content = "◎  " + CurrentLanguageName() + "  ▾",
             Background = Brushes.Transparent,
             Foreground = GhostTheme.R("Muted"),
             BorderThickness = new Thickness(0),
@@ -544,7 +565,8 @@ public sealed partial class MainWindow
             FontFamily = GhostTheme.UiFont,
             FontSize = 11,
             Cursor = Cursors.Hand,
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            ToolTip = $"{GhostLocalization.SupportedLanguages.Count} local interface languages · English fallback"
         };
         language.Click += async (_, _) => await OpenSettingsAsync();
         Grid.SetRow(language, 0);
@@ -552,21 +574,21 @@ public sealed partial class MainWindow
 
         var searchHost = new Border
         {
-            Width = 342,
-            Height = 42,
+            Width = 300,
+            Height = 40,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             Background = GhostTheme.R("Surface2"),
             BorderBrush = GhostTheme.R("Border"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(GhostReferencePalette.FieldRadius),
-            Padding = new Thickness(11, 0, 11, 0),
+            Padding = new Thickness(10, 0, 10, 0),
             Margin = new Thickness(0, 0, 0, 2)
         };
         var searchGrid = new Grid();
-        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
+        searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var icon = GhostTheme.Text("⌕", 19, muted: true);
+        var icon = GhostTheme.Text("⌕", 18, muted: true);
         Grid.SetColumn(icon, 0);
         searchGrid.Children.Add(icon);
 
@@ -580,7 +602,7 @@ public sealed partial class MainWindow
         search.Background = Brushes.Transparent;
         search.BorderThickness = new Thickness(0);
         search.Padding = new Thickness(0);
-        search.MinHeight = 34;
+        search.MinHeight = 32;
         search.ToolTip = R("SearchRemote");
         search.TextChanged += (_, _) =>
         {
