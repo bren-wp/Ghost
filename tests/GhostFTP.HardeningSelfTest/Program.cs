@@ -15,6 +15,7 @@ public static class Program
         {
             ("FTP session concurrent disposal is idempotent", TestConcurrentSessionDisposalAsync),
             ("Transfer queue concurrent disposal is idempotent", TestConcurrentQueueDisposalAsync),
+            ("Malformed FTP reply framing is rejected", TestMalformedReplyRejectedAsync),
             ("FTP preliminary greeting and strict PASV tuple interoperate", TestProtocolCompatibilityAsync)
         };
 
@@ -87,6 +88,51 @@ public static class Program
         Assert(rejected.State == TransferState.Failed, "A disposed transfer queue accepted a new transfer for dispatch.");
         Assert(rejected.Error?.Contains("shutting down", StringComparison.OrdinalIgnoreCase) == true,
             "A disposed transfer queue did not report its shutdown state.");
+    }
+
+    private static async Task TestMalformedReplyRejectedAsync()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var serverTask = Task.Run(async () =>
+        {
+            using var client = await listener.AcceptTcpClientAsync(timeout.Token).ConfigureAwait(false);
+            await using var stream = client.GetStream();
+            var malformed = Encoding.ASCII.GetBytes("220X malformed separator\r\n");
+            await stream.WriteAsync(malformed, timeout.Token).ConfigureAwait(false);
+            await stream.FlushAsync(timeout.Token).ConfigureAwait(false);
+        }, timeout.Token);
+
+        await using var session = new FtpSession(new FtpConnectionOptions
+        {
+            Host = "127.0.0.1",
+            Port = port,
+            Username = "ghost",
+            Password = "test-password",
+            Security = FtpSecurityMode.Plain,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            CommandTimeout = TimeSpan.FromSeconds(5),
+            TransferTimeout = TimeSpan.FromSeconds(5)
+        });
+
+        var rejected = false;
+        try
+        {
+            await session.ConnectAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (FtpException)
+        {
+            rejected = true;
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(5), timeout.Token).ConfigureAwait(false);
+        Assert(rejected, "A malformed FTP reply separator was accepted as a valid 220 greeting.");
     }
 
     private static async Task TestProtocolCompatibilityAsync()
