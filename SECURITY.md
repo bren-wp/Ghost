@@ -1,6 +1,6 @@
 # Ghost FTP Security
 
-This document describes the active security model for **Ghost FTP 0.1.5 Beta** developed and published by **BRENDIGO LTD**.
+This document describes the active security model for **Ghost FTP 0.1.6 Beta** developed and published by **BRENDIGO LTD**.
 
 Ghost FTP is a native FTP/FTPS desktop client for Windows and Linux. It does not implement SSH/SFTP and does not present FTP and SFTP as interchangeable protocols.
 
@@ -27,24 +27,34 @@ The deterministic loopback hardening suite verifies valid `120 -> 220` interoper
 
 Ghost FTP explicitly requires binary transfer mode with `TYPE I` before send/receive data paths. Refusal by the server fails the transfer rather than silently changing data semantics.
 
-Passive mode prefers EPSV and can fall back to PASV. EPSV validates its delimiter framing and port; PASV parses exactly six tuple values, validates every value as `0..255`, and derives the data port only from `p1,p2`. Data sockets remain tied to the authenticated control host rather than trusting a PASV-supplied host.
+Passive mode prefers EPSV and can fall back to PASV. EPSV validates delimiter framing and port; PASV parses exactly six tuple values, validates each value as `0..255`, and derives the data port only from `p1,p2`. Data sockets remain tied to the authenticated control host rather than trusting a PASV-supplied host.
 
-0.1.5 adds deterministic coverage for a valid non-default EPSV delimiter and for malformed PASV tuples that must be rejected before a data connection is attempted.
+## Safe download resume integrity
+
+0.1.6 changes partial-download resume from an offset-only optimization to a fail-closed remote-identity workflow.
+
+A `.ghostftp.part` file is eligible for REST resume only when Ghost FTP has a bounded local sidecar and can match all of these values against the active connection and current server state:
+
+- FTP host;
+- FTP port;
+- selected FTP security mode;
+- normalized remote path;
+- server-reported `SIZE`;
+- server-reported `MDTM` timestamp.
+
+The resume metadata format is versioned and capped at **16 KiB** before deserialization. It does not contain usernames, passwords, tokens or transferred file contents.
+
+If metadata is missing, malformed, oversized or does not match the selected endpoint/remote revision, Ghost FTP deletes the stale partial state and restarts from byte zero rather than appending unverified bytes.
+
+If the server does not expose both usable `SIZE` and `MDTM`, Ghost FTP can still download the file but does not retain an interrupted partial as trusted resumable state.
+
+For downloads with a verifiable identity, Ghost FTP re-queries `SIZE` and `MDTM` after transfer. If the remote object changed while bytes were in flight, the locally completed result is deleted and the operation fails with an integrity error.
+
+FTP metadata is not a cryptographic content identity. A server whose `MDTM` granularity cannot distinguish two same-size replacements inside the same reported timestamp inherently provides a weaker identity signal; Ghost FTP does not overstate that limitation.
 
 ## Listing parser resource bounds
 
-Server-controlled LIST/MLSD text is treated as untrusted input.
-
-0.1.5 adds additional parser hardening:
-
-- each LIST/MLSD line is bounded;
-- MLSD fact count is bounded per entry;
-- Unix and Windows LIST patterns use the .NET non-backtracking regex engine;
-- listing lines are enumerated incrementally rather than creating another full split/copy of the payload;
-- Unix symlink ` -> target` metadata is removed before validating the safe entry name;
-- symlink targets are never followed as directories by parser semantics.
-
-These measures reduce CPU/memory exposure to pathological server listings while preserving standards-compatible entries.
+Server-controlled LIST/MLSD text is treated as untrusted input. Each line and MLSD fact count is bounded, Unix/Windows LIST patterns use the .NET non-backtracking regex engine, listing lines are enumerated incrementally and Unix symlink target metadata is removed before safe entry-name validation. Symlink targets are not recursively followed by parser semantics.
 
 ## Input and command safety
 
@@ -58,21 +68,19 @@ Queue pause/resume is intentionally a **dispatch pause**. Queued/retrying jobs w
 
 Shutdown remains coordinated: a single disposal owner releases paused waiters, stops dispatch, cancels work, waits for workers and then disposes cancellation resources. Concurrent disposal callers await the same completion signal; post-shutdown enqueue fails deterministically.
 
-0.1.5 reduces renderer pressure without weakening transfer state: progress delivery is throttled to an appropriate UI cadence and terminal states remain immediate.
-
 ## Transfer-buffer confidentiality
 
-0.1.5 uses bounded pooled 128 KiB buffers for FTP data streams to reduce repeated large-object allocation. Because those buffers may hold user file contents, they are explicitly cleared before returning to the shared pool.
+FTP data paths reuse bounded 128 KiB pooled buffers to reduce repeated large-object allocation. Because those buffers may hold private file contents, they are explicitly cleared before returning to the shared pool.
 
 ## FTP session lifecycle safety
 
-`FtpSession.DisposeAsync()` remains idempotent and coordinated under concurrent callers. Once disposal begins, new operations fail, existing serialized work can unwind, transport cleanup executes once and concurrent disposal callers wait for the shared completion state.
+`FtpSession.DisposeAsync()` is idempotent and coordinated under concurrent callers. Once disposal begins, new operations fail, existing serialized work can unwind, transport cleanup executes once and concurrent disposal callers wait for the shared completion state.
 
 ## Local path and destructive-operation safety
 
 Ghost FTP normalizes and contains local paths before write/delete operations. Remote root protections and bounded recursive operations reduce destructive traversal risk. User-facing destructive operations require confirmation when configured.
 
-Downloads use partial files and size validation where server metadata permits it. Uploads use temporary remote paths, size verification where available and rollback-oriented replacement semantics for an existing destination.
+Downloads use partial files and identity/size validation where server metadata permits it. Uploads use temporary remote paths, size verification where available and rollback-oriented replacement semantics for an existing destination.
 
 ## Credential protection
 
@@ -86,7 +94,7 @@ Saved passwords are opt-in and protected with AES-256-GCM using local user-priva
 
 ### Session-only Quick Connect
 
-Quick Connect stays session-only unless the user deliberately saves a site/profile. Passwords are never written to the connection log.
+Quick Connect stays session-only unless the user deliberately saves a site/profile. Passwords are never written to the connection log or resume metadata.
 
 ## Installer integrity and rollback
 
@@ -102,17 +110,17 @@ Shipping and regression-test projects are audited to contain zero third-party Nu
 
 Shipping application targets are Windows and Linux. Android, iOS, MacCatalyst/macOS application targets and a Web/browser client are outside this repository's shipping scope.
 
+## Deterministic regression suites
+
+`GhostFTP.HardeningSelfTest` uses process-local loopback FTP listeners and no Internet dependency to verify session/queue disposal, malformed replies, LIST/MLSD bounds, safe symlink parsing, EPSV/PASV behavior and real control/data flow.
+
+`GhostFTP.ResumeSelfTest` is isolated from the general hardening executable and validates exact safe REST resume, stale remote-identity restart from zero, byte-for-byte output and in-flight remote revision rejection. It also uses loopback only and has no third-party package dependency.
+
+The built-in Demo regression remains local-only and opens no external FTP, analytics or telemetry connection.
+
 ## Live-server testing without credential disclosure
 
 The optional real-server smoke harness is non-destructive: connect/PWD/LIST/NOOP/disconnect only. Its password comes from protected `GHOSTFTP_LIVE_PASSWORD` CI secret storage and is not committed to the repository. See `docs/LIVE-SMOKE-TEST.md`.
-
-## Local deterministic hardening test
-
-`GhostFTP.HardeningSelfTest` uses process-local loopback FTP listeners and no Internet dependency. It verifies concurrent session/queue disposal, malformed reply rejection, LIST/MLSD resource bounds, safe symlink parsing, custom-delimiter EPSV, malformed PASV rejection and real control/data flow.
-
-## Demo regression security
-
-The built-in Demo session is local-only and creates no external FTP, analytics or telemetry connection. It exercises file operations, traversal guards, root-delete protection and lifecycle cleanup without exposing a real server.
 
 ## Reporting security issues
 
@@ -120,4 +128,4 @@ Include the affected Ghost FTP version, platform, reproducible steps and expecte
 
 ## Release gate
 
-Ghost FTP 0.1.5 is release-ready only after exact-head Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow, transfer queue regression, protocol/parser/settings hardening self-test, renderer smoke tests, authentic UI capture, packaging and checksum/runtime verification.
+Ghost FTP 0.1.6 is release-ready only after exact-head Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow, transfer queue regression, protocol/parser/settings hardening self-test, dedicated safe-resume integrity self-test, renderer smoke tests, authentic UI capture, packaging and checksum/runtime verification.
