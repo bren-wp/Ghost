@@ -74,6 +74,9 @@ jobs:
       - name: Parallel transfer queue self-test
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-build
 
+      - name: Protocol and shutdown hardening self-test
+        run: dotnet run --project tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj -c Release --no-build
+
       - name: WPF editable input and localization smoke-test
         run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
 
@@ -180,12 +183,14 @@ jobs:
           dotnet restore tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj
           dotnet restore tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj
           dotnet restore tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj
+          dotnet restore tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj
           dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
 
-      - name: Build Linux desktop client and live-smoke harness
+      - name: Build Linux desktop client and test harnesses
         shell: bash
         run: |
           dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
+          dotnet build tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj -c Release --no-restore
           dotnet build tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj -c Release --no-restore
 
       - name: Smoke-test real Linux X11/XWayland renderer
@@ -203,6 +208,9 @@ jobs:
 
       - name: Parallel transfer queue self-test on Linux
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-restore
+
+      - name: Protocol and shutdown hardening self-test on Linux
+        run: dotnet run --project tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj -c Release --no-build
 
       - name: Cross-platform source audit
         shell: pwsh
