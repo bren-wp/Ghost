@@ -18,11 +18,11 @@ Official unmodified Ghost FTP binaries are distributed through official Ghost FT
 
 ## Current public release status
 
-The source tree is prepared for **Ghost FTP 0.1.3 Beta**.
+The source tree is prepared for **Ghost FTP 0.1.4 Beta**.
 
 Public 0.x versions remain Beta software. Version 1.0.0 is reserved for the first stable release.
 
-Ghost FTP 0.1.3 Beta targets Windows and Linux desktop systems only. Android, iOS and MacCatalyst application targets are not part of the shipping repository scope.
+Ghost FTP 0.1.4 Beta targets Windows and Linux desktop systems only. Android, iOS, MacCatalyst and a Web/browser application are not part of the shipping repository scope.
 
 ## Product privacy statement
 
@@ -34,11 +34,13 @@ Saved profiles/settings remain local. Saved-password protection is opt-in and pl
 
 Ghost FTP supports FTP, Explicit FTPS and Implicit FTPS. SFTP/SSH is not represented as an FTP mode. FTPS certificate/hostname validation is not silently bypassed, and the product does not intentionally downgrade a failed FTPS connection to plain FTP.
 
+0.1.4 adds stricter FTP reply and passive-mode validation plus coordinated session/transfer-queue shutdown. These changes remain within the existing local/privacy-first application architecture and do not introduce an external service dependency.
+
 ## Release artifacts
 
 Official release artifacts may include Windows Setup/Portable x64/ARM64 packages and Linux x64/ARM64 packages. Canonical Windows names include `setup.exe` and `portable.exe`; the Windows Setup executable is also used for installed maintenance/uninstall rather than generating a separate uninstaller executable.
 
-Release artifacts are produced through repository CI/release workflows with version, test, audit, package and checksum gates.
+Release artifacts are produced through repository CI/release workflows with version, test, protocol-hardening, audit, package and checksum gates.
 
 ## Documentation precedence
 
@@ -47,7 +49,7 @@ For operational details see:
 - [`LICENSE`](LICENSE)
 - [`SECURITY.md`](SECURITY.md)
 - [`PRIVACY.md`](PRIVACY.md)
-- [`docs/releases/v0.1.3.md`](docs/releases/v0.1.3.md)
+- [`docs/releases/v0.1.4.md`](docs/releases/v0.1.4.md)
 - [`docs/RELEASE-POLICY.md`](docs/RELEASE-POLICY.md)
 
 Nothing in README or marketing-style product copy overrides the repository LICENSE.
