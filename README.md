@@ -32,17 +32,19 @@ The workstation provides saved servers, session-only Quick Connect, Local and Re
 
 Interrupted downloads are no longer resumed from a `.ghostftp.part` file based only on local length. When the server exposes both `SIZE` and `MDTM`, Ghost FTP stores a bounded local identity sidecar and permits REST resume only when host, port, security mode, remote path, size and modification timestamp still match.
 
-A pre-0.1.6, corrupt, oversized or stale partial is restarted from zero rather than appended blindly. If the server cannot provide a trustworthy `SIZE` + `MDTM` identity, Ghost FTP still performs a fresh download but does not retain an interrupted unverified partial as safely resumable state.
+A pre-0.1.6, corrupt, oversized or stale partial is restarted from zero rather than appended blindly. If stale/untrusted staged bytes cannot be removed, Ghost FTP fails closed before REST/RETR instead of falling back to length-only reuse. If the server cannot provide a trustworthy `SIZE` + `MDTM` identity, Ghost FTP still performs a fresh download but does not retain an interrupted unverified partial as safely resumable state.
 
-### Remote revision protection
+### Staged commit and remote revision protection
 
-For downloads with a verifiable remote identity, Ghost FTP rechecks `SIZE` and `MDTM` after the transfer. If the server-side object changed while bytes were in flight, the completed local result is discarded and the transfer reports an integrity error instead of presenting a potentially mixed-revision file as successful.
+For downloads with a verifiable remote identity, downloaded bytes stay in `.ghostftp.part` while Ghost FTP rechecks `SIZE` and `MDTM` after transfer. Only a matching revision is promoted to the final destination.
 
-Recursive directory downloads use the same per-file identity-aware resume path.
+If the server-side object changes while bytes are in flight, the staged result is discarded and the transfer reports an integrity error. Any pre-existing destination remains byte-for-byte untouched because it is not replaced until validation succeeds. The same per-file integrity path is used by recursive directory downloads.
 
 ### Dedicated deterministic testing
 
-`GhostFTP.ResumeSelfTest` is an isolated package-free loopback suite. It verifies an exact valid REST offset, stale-identity restart from byte zero, byte-for-byte output and detection/removal of a same-size remote revision change during transfer. Windows and Linux CI run this gate independently from the broader protocol hardening suite.
+`GhostFTP.ResumeSelfTest` is an isolated package-free loopback suite. It verifies an exact valid REST offset, stale-identity restart from byte zero, byte-for-byte output, detection of a same-size remote revision change, preservation of an existing destination on rejected mutation, and fail-closed stale-partial cleanup before REST/RETR.
+
+Both Windows and Linux CI run this gate independently from the broader protocol hardening suite, and the publication workflow runs it again on both shipping platforms before release assets can be published.
 
 ### 0.1.5 quality work retained
 
@@ -78,7 +80,8 @@ The shipping client preserves these boundaries:
 - isolated transfer sessions;
 - cancellation-safe coordinated shutdown;
 - clearing of pooled buffers that may contain transferred file data;
-- bounded local resume metadata and fail-closed remote revision matching before REST resume.
+- bounded local resume metadata and fail-closed remote revision matching before REST resume;
+- staged download commit that preserves an existing destination until post-transfer validation succeeds.
 
 Read [`SECURITY.md`](SECURITY.md) for the complete hardening model.
 
@@ -91,7 +94,9 @@ A resumable partial uses:
 <destination>.ghostftp.part.meta
 ```
 
-The sidecar is local-only, capped at 16 KiB and contains no password, username, token or transferred file bytes. It identifies the selected endpoint and remote object revision. Resume remains an optimization: when the server cannot provide enough identity information, correctness takes priority and Ghost FTP restarts rather than trusting stale bytes.
+The sidecar is local-only, capped at 16 KiB and contains no password, username, token or transferred file bytes. It identifies the selected endpoint and remote object revision.
+
+Resume remains an optimization: when the server cannot provide enough identity information, correctness takes priority and Ghost FTP restarts rather than trusting stale bytes. Untrusted staged state must be removed successfully before a fresh transfer can continue. A verifiable download remains staged until the remote revision is checked again, so integrity failure cannot overwrite an existing destination.
 
 See [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md).
 
@@ -145,7 +150,7 @@ Canonical Linux assets include:
 - `SHA256SUMS-linux.txt`;
 - `BUILD-INFO.txt`.
 
-Linux consumes the same FTP/FTPS parser, transfer queue, download-resume integrity logic, bounded resource model, localization and local persistence primitives.
+Linux consumes the same FTP/FTPS parser, transfer queue, staged download-resume integrity logic, bounded resource model, localization and local persistence primitives.
 
 ## Platform scope
 
