@@ -65,11 +65,11 @@ public sealed partial class FtpSession
                 if (read == 0)
                     break;
 
-                if (maxBytes is > 0 && transferred + read > maxBytes.Value)
+                if (maxBytes is > 0 && (transferred > maxBytes.Value - read))
                     throw new FtpException($"FTP directory listing exceeded the safety limit of {maxBytes.Value / (1024 * 1024)} MiB.");
 
                 await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                transferred += read;
+                transferred = checked(transferred + read);
                 progress?.Report((transferred, total));
             }
         }
@@ -107,7 +107,7 @@ public sealed partial class FtpSession
                     .AsTask()
                     .WaitAsync(_options.TransferTimeout, cancellationToken)
                     .ConfigureAwait(false);
-                transferred += read;
+                transferred = checked(transferred + read);
                 progress?.Report((transferred, total));
             }
             await dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -123,22 +123,15 @@ public sealed partial class FtpSession
         int port;
         if (epsv is not null && epsv.IsPositiveCompletion)
         {
-            var match = EpsvRegex().Match(epsv.Message);
-            if (!match.Success || !int.TryParse(match.Groups["port"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out port))
+            if (!TryParseEpsvPort(epsv.Message, out port))
                 throw new FtpException("Server returned an invalid EPSV response.", epsv.Code);
         }
         else
         {
             var pasv = await SendCommandAsync("PASV", cancellationToken).ConfigureAwait(false);
             Ensure(pasv, 200, 299, "Server does not support passive FTP data connections.");
-            var numbers = PasvNumberRegex().Matches(pasv.Message).Select(m => int.Parse(m.Value, CultureInfo.InvariantCulture)).ToArray();
-            if (numbers.Length < 6)
+            if (!TryParsePasvPort(pasv.Message, out port))
                 throw new FtpException("Server returned an invalid PASV response.", pasv.Code);
-            var p1 = numbers[^2];
-            var p2 = numbers[^1];
-            if (p1 is < 0 or > 255 || p2 is < 0 or > 255)
-                throw new FtpException("Server returned an invalid PASV port.", pasv.Code);
-            port = p1 * 256 + p2;
         }
 
         InputGuard.Port(port);
@@ -146,7 +139,8 @@ public sealed partial class FtpSession
         client.Client.DualMode = true;
         try
         {
-            // Data channels intentionally use the authenticated control host, not PASV host data.
+            // Data channels intentionally use the authenticated control host, never host data supplied by PASV.
+            // This prevents an FTP server response from redirecting the client to an arbitrary third-party host.
             await client.ConnectAsync(_options.Host, port, cancellationToken)
                 .AsTask().WaitAsync(_options.ConnectTimeout, cancellationToken).ConfigureAwait(false);
             return client;
@@ -156,6 +150,66 @@ public sealed partial class FtpSession
             client.Dispose();
             throw;
         }
+    }
+
+    private static bool TryParseEpsvPort(string message, out int port)
+    {
+        port = 0;
+        if (string.IsNullOrEmpty(message))
+            return false;
+
+        var open = message.IndexOf('(');
+        if (open < 0)
+            return false;
+        var close = message.IndexOf(')', open + 1);
+        if (close < 0)
+            return false;
+
+        var body = message.AsSpan(open + 1, close - open - 1);
+        if (body.Length < 5)
+            return false;
+
+        var delimiter = body[0];
+        if (char.IsDigit(delimiter) || char.IsWhiteSpace(delimiter) || delimiter is '\r' or '\n' or '(' or ')')
+            return false;
+        if (body[1] != delimiter || body[2] != delimiter || body[^1] != delimiter)
+            return false;
+
+        var portSpan = body[3..^1];
+        return portSpan.Length is >= 1 and <= 5
+            && int.TryParse(portSpan, NumberStyles.None, CultureInfo.InvariantCulture, out port)
+            && port is >= 1 and <= 65535;
+    }
+
+    private static bool TryParsePasvPort(string message, out int port)
+    {
+        port = 0;
+        if (string.IsNullOrEmpty(message))
+            return false;
+
+        var open = message.IndexOf('(');
+        if (open < 0)
+            return false;
+        var close = message.IndexOf(')', open + 1);
+        if (close < 0)
+            return false;
+
+        var parts = message[(open + 1)..close].Split(',', StringSplitOptions.TrimEntries);
+        if (parts.Length != 6)
+            return false;
+
+        Span<int> values = stackalloc int[6];
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if (!int.TryParse(parts[index], NumberStyles.None, CultureInfo.InvariantCulture, out values[index])
+                || values[index] is < 0 or > 255)
+            {
+                return false;
+            }
+        }
+
+        port = values[4] * 256 + values[5];
+        return port is >= 1 and <= 65535;
     }
 
     private async Task<Stream> CreateDataStreamAsync(TcpClient client, CancellationToken cancellationToken)
