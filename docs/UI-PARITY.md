@@ -1,124 +1,165 @@
 # Ghost FTP desktop UI parity contract
 
-Ghost FTP **0.1.1 Beta** is one desktop product with native Windows and Linux renderers. This document defines the visual/workflow contract that prevents the two implementations from drifting into separate products.
+Ghost FTP **0.1.2 Beta** is one desktop product with native Windows and Linux renderers. This contract prevents platform-specific window-system code from drifting into separate products with different FTP behavior or information architecture.
 
 ## Authentic reference
 
-The canonical repository image is the real compiled Windows client at **1914 × 907 logical pixels / 96 DPI**:
+The canonical repository image is the real compiled Windows client captured at **1914 × 907 logical pixels / 96 DPI**:
 
 ```text
 assets/readme/ghostftp-client.png
 ```
 
-README must show that authentic capture first. Decorative mockups are not accepted as the primary product image.
+`assets/readme/ghostftp-site-manager.png` is the canonical saved-site manager capture. These files are produced through the application's documentation-capture path; conceptual mockups do not replace them.
 
-The Windows capture path is `--capture-ui <directory>`. It uses the local-only Demo profile and renders the production `MainWindow` visual tree rather than a duplicate/mock shell.
+The fixed capture size is a regression reference, not a requirement for normal users. Runtime windows remain resizable.
 
-## Shared design authority
+## Shared workstation hierarchy
 
-The authoritative cross-platform palette/geometry source is:
+**Windows and Linux** must expose the same primary desktop workflow in this order:
 
-```text
-src/GhostFTP.Design/GhostReferencePalette.cs
-```
+1. Ghost FTP identity and saved-server navigation;
+2. menu/primary connection-transfer actions;
+3. Connection Log and Quick Connect;
+4. Local and Remote file panes;
+5. Transfers queue;
+6. local status/connection state.
 
-The normal desktop reference uses:
+The visual language uses the shared `GhostReferencePalette`: dark navy surfaces, restrained borders, bright readable text, violet primary accents, green success and red destructive actions.
 
-- left rail: **292 px**;
-- top menu: 38 px;
-- global toolbar: 70 px;
-- normal outer gap: 10 px;
-- dark first-run appearance;
-- shared Ghost accent/border/surface/text tokens.
+## Global vs contextual actions
 
-Both renderers consume shared `GhostFTP.Design` product/localization/reference definitions.
+The main toolbar is for actions whose target is obvious at application scope:
 
-## Required information hierarchy
+- Connect;
+- Disconnect;
+- Upload;
+- Download;
+- Refresh;
+- Site Manager;
+- Settings;
+- Diagnostics when space permits.
 
-At normal desktop width both Windows and Linux must preserve this order:
+Create folder, rename and delete are contextual file-pane operations. They belong in the Local and Remote pane toolbars and must not be duplicated globally in the Windows reference shell. This reduces clutter and prevents ambiguous target selection.
 
-```text
-Product / saved sites / privacy rail
-File / View / Sites / Transfers / Tools / Help
-Global action toolbar + Remote search
-Connection Log + Quick Connect
-Local + Remote file panes
-Transfers
-Connection / privacy status
-```
+Linux should follow the same semantic rule as renderer cleanup proceeds; platform-native layout can hide optional commands when insufficient width exists rather than overlapping controls.
 
-A renderer may compact or hide secondary columns at narrow widths, but it must not replace the desktop workstation with an unrelated mobile/web layout.
+## Quick Connect
 
-## Core control parity
+Quick Connect provides the same semantic fields on both platforms:
 
-Both desktop clients must expose the same major workflows:
+- Host;
+- Port;
+- Security mode;
+- Username;
+- Password;
+- Connect / Disconnect;
+- session-only **Keep in this tab** behavior.
 
-- saved Site Manager profiles;
-- host, port, username and password entry;
-- FTP / Explicit FTPS / Implicit FTPS selection;
-- explicit plain-FTP warning;
-- local path navigation/filtering;
-- remote path navigation/filtering;
-- create folder / rename / delete;
-- upload / download;
-- transfer queue and cancellation;
-- local Connection Log;
-- Settings and language selection;
-- Connection Diagnostics;
-- configurable server-only keepalive;
-- session-only **Keep in this tab** privacy behavior.
+Explicit FTPS is the recommended/default security choice. Plain FTP remains explicit and warns before connecting.
 
-Windows can additionally expose OS-specific integrations such as Explorer opening, drag/drop and DWM/Mica. Linux can expose Linux-native equivalents where practical. Those are platform integrations, not permission for core FTP behavior to diverge.
+Credential values remain local. A session-only Quick Connect entry never stores its password.
 
-## Native renderer rule
+## Saved servers
 
-Windows uses WPF. Linux uses direct X11 client integration and runs under XWayland on compatible Wayland desktops.
+Both renderers consume the same `ServerProfile` model and `ProfileStore` behavior. Saved profiles expose equivalent fields and initial remote path semantics. The left navigation should make the active/saved site obvious and keep Site Manager reachable without requiring an account.
 
-The goal is the same Ghost FTP visual system and workstation behavior. We do **not** claim mathematical pixel identity between different OS font engines/window managers. Native chrome and glyph rasterization can differ. Product colors, hierarchy, action placement and safety semantics should not.
+## File panes
 
-## Responsive behavior
+Local and Remote panes use the same conceptual columns:
 
-The normal workstation is desktop-first. When width is constrained:
+- name;
+- type;
+- size;
+- modified time;
+- remote permissions where available.
 
-- Quick Connect fields reflow/compact;
-- secondary table columns may be hidden before primary file data;
-- Local/Remote panes remain usable;
-- transfer controls remain reachable;
-- modal dialogs stay within the usable desktop bounds;
-- destructive actions must remain explicit.
+Expected operations:
 
-The canonical 1914×907 viewport is a visual comparison target, not a fixed runtime window size.
+- folder navigation/up/home;
+- upload from Local;
+- download from Remote;
+- refresh;
+- create folder;
+- rename;
+- delete;
+- filter/search;
+- double-click navigation and file transfer/open semantics appropriate to the side.
 
-## Premium-quality rules
+## Resizing contract
 
-Ghost FTP UI should be dense, calm and operational rather than decorative:
+Windows 0.1.2 exposes drag resizing for:
 
-- browsing/transfers get more space than branding;
-- controls use consistent spacing and hit targets;
-- errors are local and actionable;
-- no telemetry/marketing banner is injected into the file workspace;
-- passwords are never drawn as plaintext;
-- destructive operations require the appropriate confirmation/scope;
-- Demo status is clearly different from a real server connection;
-- TLS/plain status is visible rather than implied.
+- saved-server sidebar;
+- Connection Log / Quick Connect height;
+- Local / Remote horizontal split;
+- Transfers queue height.
 
-## Screenshot freshness gate
+Double-click resets splitters to their reference defaults. Native minimize, maximize, restore and overall window resizing remain enabled.
 
-`Refresh authentic UI screenshots` rebuilds the real WPF client and updates the repository PNGs on `main`. The normal CI also captures the production UI as a verification artifact.
+The compact Windows shell hides the optional language/search overlay before it can collide with primary toolbar commands. Core functionality remains accessible through Settings and the Remote pane filter.
 
-A README image is stale if it no longer comes from the current compiled UI. Any stale decorative image should be removed rather than presented as the current product.
+Linux uses native X11 resize events and a responsive renderer. Platform-native implementation details can differ, but shrinking the window must not change protocol semantics or hide the only path to a core operation.
+
+## Transfer queue and cancellation
+
+Both platforms share the same transfer queue and cancellation semantics from `GhostFTP.Core`:
+
+- bounded concurrent jobs;
+- progress/transferred bytes/speed/ETA where available;
+- retry of failed jobs;
+- selected-job cancellation;
+- cancel all;
+- clear finished;
+- bounded automatic retries;
+- per-transfer session isolation for real servers.
+
+A renderer may draw controls differently, but it must not implement a second incompatible transfer engine.
+
+## Connection Log and privacy copy
+
+Connection diagnostics/logging remain local. Passwords are never intentionally logged. Both platforms show the no-account/local-data privacy principle and use localized copy from the shared design/localization layer where applicable.
+
+## Localization parity
+
+Windows, Linux and Setup use `GhostLocalization.SupportedLanguages`. English is the primary fallback and the catalog contains 29 selectable languages. No platform should add an online translation dependency.
+
+Renderer-specific strings without a translation may fall back to English; they must not fail startup or trigger network access.
 
 ## Security parity
 
-Visual parity also includes safety behavior:
+Feature parity does not permit weaker transport rules on one platform. Both use the same `FtpSession` for real FTP/FTPS work and therefore inherit:
 
-- no silent downgrade from FTPS to FTP;
-- same plain-FTP warning expectation;
-- same session-only Quick Connect persistence boundary;
-- same stale-session state after keepalive failure;
-- same shared FTP/FTPS transfer engine;
-- no renderer-specific telemetry path.
+- fail-closed security mode validation;
+- strict `AUTH TLS` for explicit FTPS;
+- normal TLS certificate/hostname validation;
+- `PBSZ 0` / `PROT P` for encrypted data channels;
+- binary transfer mode;
+- passive-data authenticated-host protection;
+- shared input/path guards;
+- bounded traversal/reply handling.
 
-0.1.1 additionally requires the same complete local Demo workflow regression suite on Windows and Linux so lifecycle, conflict-protection and post-disconnect behavior cannot drift silently between the native renderers.
+Platform-specific credential stores differ by necessity: Windows uses DPAPI, Linux uses local AES-256-GCM key material.
 
-See `SECURITY.md`, `PRIVACY.md` and `docs/PLATFORM-SUPPORT.md`.
+## Setup parity boundary
+
+Windows Setup is Windows-only. It should visually use the same product identity, dark premium theme and 29-language catalog, but it is not part of the Linux application UI. Linux packaging does not emulate Windows Setup.
+
+## Capture and regression gate
+
+The Windows release workflow launches the compiled application with the capture switch and verifies the canonical 1914 × 907 main-window capture plus Site Manager capture. The release fails if required images are missing or unexpectedly small.
+
+UI work should be evaluated against:
+
+- hierarchy and spacing;
+- field clipping/overlap;
+- contextual action duplication;
+- compact-window behavior;
+- readable local/remote lists;
+- transfer queue usability;
+- native resize behavior;
+- localization rendering.
+
+## Allowed platform differences
+
+Differences are acceptable where they reflect WPF versus X11/XWayland primitives, native font metrics, system titlebar behavior or platform credential protection. They are not acceptable when they change the user-visible FTP/FTPS feature contract, privacy guarantees or security rules.
