@@ -20,6 +20,7 @@ public sealed partial class FtpSession : IFtpSession
 
     private readonly FtpConnectionOptions _options;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly TaskCompletionSource<bool> _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TcpClient? _controlClient;
     private Stream? _controlStream;
     private StreamReader? _reader;
