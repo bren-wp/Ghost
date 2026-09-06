@@ -26,8 +26,10 @@ public sealed class TransferQueueService : IAsyncDisposable
     private readonly Task[] _workers;
     private readonly SynchronizationContext? _uiContext;
     private readonly int _maxAutomaticRetries;
+    private readonly TaskCompletionSource<bool> _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource<bool> _resumeSignal = CreateCompletedSignal();
     private bool _isQueuePaused;
+    private int _disposeState;
 
     public ObservableCollection<TransferJob> Jobs { get; } = [];
     public event EventHandler<TransferJob>? JobUpdated;
@@ -100,7 +102,7 @@ public sealed class TransferQueueService : IAsyncDisposable
         var changed = false;
         lock (_sync)
         {
-            if (!_isQueuePaused && !_shutdown.IsCancellationRequested)
+            if (!_isQueuePaused && Volatile.Read(ref _disposeState) == 0 && !_shutdown.IsCancellationRequested)
             {
                 _isQueuePaused = true;
                 _resumeSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -151,29 +153,38 @@ public sealed class TransferQueueService : IAsyncDisposable
 
     private void Enqueue(TransferJob job)
     {
-        if (_shutdown.IsCancellationRequested)
+        CancellationTokenSource? cts = null;
+        lock (_sync)
         {
-            job.Error = "Transfer queue is shutting down.";
-            job.State = TransferState.Failed;
-            job.FinishedUtc = DateTimeOffset.UtcNow;
-            Jobs.Add(job);
-            JobUpdated?.Invoke(this, job);
+            if (Volatile.Read(ref _disposeState) == 0 && !_shutdown.IsCancellationRequested)
+            {
+                cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+                _cancellations[job.Id] = cts;
+            }
+        }
+
+        Jobs.Add(job);
+        if (cts is null)
+        {
+            FailBeforeDispatch(job, "Transfer queue is shutting down.");
             return;
         }
 
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
-        lock (_sync) _cancellations[job.Id] = cts;
-        Jobs.Add(job);
         if (!_channel.Writer.TryWrite(new Queued(job, cts)))
         {
             lock (_sync) _cancellations.Remove(job.Id);
             cts.Dispose();
-            job.Error = $"Transfer queue is full. Maximum queued transfers: {MaxQueuedTransfers:N0}.";
-            job.State = TransferState.Failed;
-            job.FinishedUtc = DateTimeOffset.UtcNow;
-            JobUpdated?.Invoke(this, job);
+            FailBeforeDispatch(job, $"Transfer queue is full. Maximum queued transfers: {MaxQueuedTransfers:N0}.");
             return;
         }
+        JobUpdated?.Invoke(this, job);
+    }
+
+    private void FailBeforeDispatch(TransferJob job, string error)
+    {
+        job.Error = error;
+        job.State = TransferState.Failed;
+        job.FinishedUtc = DateTimeOffset.UtcNow;
         JobUpdated?.Invoke(this, job);
     }
 
@@ -454,26 +465,48 @@ public sealed class TransferQueueService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        TaskCompletionSource<bool> resumeSignal;
-        lock (_sync)
+        if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
         {
-            _isQueuePaused = false;
-            resumeSignal = _resumeSignal;
+            await _disposeCompletion.Task.ConfigureAwait(false);
+            return;
         }
-        resumeSignal.TrySetResult(true);
 
-        _channel.Writer.TryComplete();
-        _shutdown.Cancel();
-        lock (_sync)
+        try
         {
-            foreach (var cts in _cancellations.Values) cts.Cancel();
+            TaskCompletionSource<bool> resumeSignal;
+            lock (_sync)
+            {
+                _isQueuePaused = false;
+                resumeSignal = _resumeSignal;
+            }
+            resumeSignal.TrySetResult(true);
+
+            _channel.Writer.TryComplete();
+            _shutdown.Cancel();
+            lock (_sync)
+            {
+                foreach (var cts in _cancellations.Values) cts.Cancel();
+            }
+
+            try
+            {
+                await Task.WhenAll(_workers).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+            {
+            }
+
+            lock (_sync)
+            {
+                foreach (var cts in _cancellations.Values) cts.Dispose();
+                _cancellations.Clear();
+            }
+            _shutdown.Dispose();
         }
-        try { await Task.WhenAll(_workers).ConfigureAwait(false); } catch (OperationCanceledException) { }
-        lock (_sync)
+        finally
         {
-            foreach (var cts in _cancellations.Values) cts.Dispose();
-            _cancellations.Clear();
+            Volatile.Write(ref _disposeState, 2);
+            _disposeCompletion.TrySetResult(true);
         }
-        _shutdown.Dispose();
     }
 }
