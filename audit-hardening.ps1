@@ -28,20 +28,34 @@ $currentReleaseNotes = "docs/releases/v$version.md"
 $core = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Core.cs' @(
     'Enum.IsDefined(options.Security)',
     'throw new ArgumentOutOfRangeException',
-    'Ensure(auth, 200, 299, "Server refused explicit TLS.")'
+    'Ensure(auth, 200, 299, "Server refused explicit TLS.")',
+    'MaxGreetingReplies = 4',
+    'greeting.IsPositivePreliminary',
+    '_disposeCompletion'
+)
+
+$control = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Control.cs' @(
+    'code is < 100 or > 599',
+    "first[3] is not ' ' and not '-'",
+    'MaxReplyChars - line.Length',
+    'Interlocked.CompareExchange(ref _disposeState, 1, 0)',
+    'await _disposeCompletion.Task.ConfigureAwait(false)',
+    '_disposeCompletion.TrySetResult(true)'
 )
 
 $data = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Data.cs' @(
     'EnsureBinaryTransferModeAsync',
     'TYPE I',
     'FTP server refused binary transfer mode.',
-    'authenticated control host'
+    'authenticated control host',
+    'TryParseEpsvPort',
+    'TryParsePasvPort',
+    'parts.Length != 6'
 )
 if (($data | Select-String -Pattern 'EnsureBinaryTransferModeAsync\(cancellationToken\)' -AllMatches).Matches.Count -lt 2) {
     throw 'Binary mode must be enforced for both receive and send data paths.'
 }
 
-# 0.1.3 queue management must pause dispatch without pretending to suspend live FTP data streams.
 $queue = Require-Tokens 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
     'MaxQueuedTransfers = 4096',
     'MaxParallelTransfers = 8',
@@ -53,7 +67,10 @@ $queue = Require-Tokens 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
     'ClearCompleted()',
     'ClearFailed()',
     'ClearCancelled()',
-    'Transfers that were already running'
+    'Transfers that were already running',
+    '_disposeCompletion',
+    'Interlocked.CompareExchange(ref _disposeState, 1, 0)',
+    'Transfer queue is shutting down.'
 )
 if ($queue -match 'Thread\.Sleep\(') {
     throw 'Transfer queue pause/resume must not use thread sleep polling.'
@@ -66,6 +83,18 @@ $queueTest = Require-Tokens 'tests/GhostFTP.QueueSelfTest/Program.cs' @(
     'Selective completed-transfer cleanup',
     'Selective cancelled-transfer cleanup',
     'Selective failed-transfer cleanup'
+)
+
+$hardeningTest = Require-Tokens 'tests/GhostFTP.HardeningSelfTest/Program.cs' @(
+    'TestConcurrentSessionDisposalAsync',
+    'TestConcurrentQueueDisposalAsync',
+    'TestMalformedReplyRejectedAsync',
+    'TestProtocolCompatibilityAsync',
+    '120 Service ready shortly',
+    '220X malformed separator',
+    'diagnostics 99 100',
+    'A disposed FTP session accepted a new operation.',
+    'A disposed transfer queue accepted a new transfer for dispatch.'
 )
 
 $linuxCore = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Core.cs' @(
@@ -142,7 +171,8 @@ $readme = Require-Tokens 'README.md' @(
     'Linux release files',
     'docs/LIVE-SMOKE-TEST.md',
     "Current source version: **$version**",
-    $currentReleaseNotes
+    $currentReleaseNotes,
+    'protocol and shutdown hardening self-test on Windows and Linux'
 )
 if ($readme -match 'ghostftp-hero\.svg') {
     throw 'README still references the stale decorative Ghost FTP hero.'
@@ -157,6 +187,8 @@ foreach ($relative in @(
     'tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj',
     'tests/GhostFTP.LiveSmoke/Program.cs',
     'tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj',
+    'tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj',
+    'tests/GhostFTP.HardeningSelfTest/Program.cs',
     '.github/workflows/live-smoke.yml',
     'docs/LIVE-SMOKE-TEST.md',
     'docs/HISTORICAL-CHANGELOG.md',
@@ -196,7 +228,14 @@ $ci = Require-Tokens '.github/workflows/ci.yml' @(
     'Complete local Demo workflow self-test',
     'Complete local Demo workflow self-test on Linux',
     'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj',
-    'Parallel transfer queue self-test'
+    'Parallel transfer queue self-test',
+    'Protocol and shutdown hardening self-test',
+    'Protocol and shutdown hardening self-test on Linux'
+)
+$releaseWorkflow = Require-Tokens '.github/workflows/release.yml' @(
+    'Protocol and shutdown hardening self-test',
+    'Protocol and shutdown hardening self-test on Linux',
+    'tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj'
 )
 
 $live = Require-Tokens 'tests/GhostFTP.LiveSmoke/Program.cs' @(
@@ -290,4 +329,4 @@ $selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
     '(FtpSecurityMode)999'
 )
 
-Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS, required binary transfer mode, bounded dispatch-pause transfer queue with selective cleanup regression, complete cross-platform local Demo workflow test, Linux lifecycle/keepalive/selected-transfer safety, transactional Windows application/Setup rollback with downgrade protection, protected Windows DPAPI memory cleanup, authentic README capture, preserved historical changelog, non-destructive secret-backed live smoke harness, synchronized Windows/Linux release documentation and canonical public Release assets."
+Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS/binary mode, strict bounded FTP reply and EPSV/PASV parsing, coordinated FTP-session and transfer-queue shutdown, deterministic loopback protocol regression, bounded dispatch-pause transfer queue, complete local Demo workflow, Linux lifecycle/keepalive/selected-transfer safety, transactional Windows Setup rollback, protected Windows DPAPI memory cleanup, authentic README capture, non-destructive live smoke harness, synchronized Windows/Linux release documentation and canonical public Release assets."
