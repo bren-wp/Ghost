@@ -166,7 +166,10 @@ public sealed partial class FtpSession
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
+        {
+            await _disposeCompletion.Task.ConfigureAwait(false);
             return;
+        }
 
         try
         {
@@ -184,6 +187,7 @@ public sealed partial class FtpSession
         finally
         {
             Volatile.Write(ref _disposeState, 2);
+            _disposeCompletion.TrySetResult(true);
         }
     }
 
