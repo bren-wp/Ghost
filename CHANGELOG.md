@@ -2,6 +2,46 @@
 
 This file tracks the active public Ghost FTP version line. The original pre-reset engineering changelog is preserved verbatim in [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md); detailed release bodies remain under [`docs/releases/`](docs/releases/).
 
+## 0.1.4 Beta — 2026-09-06
+
+### FTP protocol hardening
+
+- Added bounded support for valid preliminary FTP greetings such as `120` before the final `220` service-ready response.
+- Tightened control-reply parsing to require numeric `100..599` codes and standards-compatible space/hyphen framing.
+- Tightened multiline reply accounting so line length, line count and total character limits are enforced before data is accumulated.
+- Replaced permissive passive-mode digit extraction with strict EPSV/PASV parsers.
+- PASV now consumes exactly the six values inside the passive tuple, validates every byte and derives the port only from `p1,p2`.
+- Preserved the authenticated-control-host data-channel rule, preventing PASV responses from redirecting data traffic to an arbitrary third-party host.
+
+### Lifecycle and shutdown stability
+
+- Made `FtpSession.DisposeAsync()` idempotent and race-safe under concurrent callers.
+- New FTP operations are rejected as soon as session shutdown begins; concurrent disposal callers await the same completion signal.
+- Removed semaphore-disposal races from FTP session teardown.
+- Made `TransferQueueService.DisposeAsync()` a coordinated single-owner shutdown operation.
+- Queue shutdown now completes dispatch, releases paused waiters, cancels work, waits for workers and only then disposes cancellation resources.
+- Enqueue attempts after shutdown begins fail deterministically instead of entering an unusable queue.
+
+### Deterministic regression testing
+
+- Added `GhostFTP.HardeningSelfTest` with no external packages or Internet dependency.
+- Added a concurrent FTP-session disposal regression test.
+- Added a concurrent transfer-queue disposal regression test.
+- Added malformed FTP reply-framing rejection coverage.
+- Added an in-process loopback FTP server that exercises `120 -> 220`, USER/PASS, PWD, TYPE I, EPSV fallback, PASV, LIST, a real passive data connection and QUIT.
+- The PASV test intentionally appends unrelated numeric diagnostics to prove the client uses the six-value tuple rather than trailing digits.
+- Added the hardening suite to both Windows and Linux CI and to the release workflow.
+
+### Security, privacy and product scope retained
+
+- Preserved strict Explicit/Implicit FTPS behavior, TLS certificate/hostname validation, `PBSZ 0`, `PROT P`, required `TYPE I` and no FTPS-to-FTP downgrade.
+- Preserved bounded listing/traversal/queue limits, local path containment and command-injection guards.
+- Preserved local-only profiles/settings, DPAPI on Windows, AES-256-GCM on Linux, zero application telemetry and zero third-party NuGet `PackageReference` dependencies.
+- Preserved Windows/Linux-only shipping scope and 29 local languages with English as default/fallback.
+- Preserved the 0.1.3 transfer workstation, UI cleanup and premium Setup behavior.
+
+Detailed notes: [`docs/releases/v0.1.4.md`](docs/releases/v0.1.4.md)
+
 ## 0.1.3 Beta — 2026-09-06
 
 ### Transfer management
