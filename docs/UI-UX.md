@@ -15,7 +15,7 @@ Ghost FTP is the product. **BRENDIGO LTD** is the developer/publisher shown on l
 7. **No decorative fake functionality.** Canonical screenshots are generated from the compiled application.
 8. **Queue state must be truthful.** Pause queue pauses new dispatch; it does not pretend to freeze an active FTP byte stream.
 9. **Failure state must be deterministic.** Protocol/lifecycle/integrity failure returns the UI to a stable state.
-10. **Transfer integrity outranks convenience.** Ghost FTP restarts an unverified partial instead of pretending stale bytes are safe to resume.
+10. **Transfer integrity outranks convenience.** Ghost FTP restarts or aborts an unverified partial instead of pretending stale bytes are safe to resume.
 
 ## Workstation hierarchy
 
@@ -49,13 +49,15 @@ The queue communicates direction, state, progress, bytes, speed, ETA, retry coun
 
 **Pause queue** gates queued/retrying dispatch. Running transfers continue. **Resume queue** releases the dispatch gate. This behavior is identical across renderers because both use the same Core queue.
 
-### Download resume semantics
+### Safe resume UX contract
 
 0.1.6 safe resume is a Core integrity feature, not a new pause button or a promise that an active FTP stream can be frozen. An interrupted download may reuse a local partial only when the active endpoint and remote `SIZE`/`MDTM` identity match its bounded local resume metadata.
 
-A legacy, corrupt or stale partial restarts from byte zero. If the server cannot supply enough identity information, Ghost FTP favors a fresh transfer over an unverifiable resume. The user should receive a clear transfer failure when the remote object changes during a verifiable download, not a misleading Completed state.
+A legacy, corrupt or stale partial must restart from byte zero. If untrusted staged bytes cannot be removed, the transfer must fail closed before REST/RETR rather than silently reusing them. If the server cannot supply enough identity information, Ghost FTP favors a fresh transfer over unverifiable resume.
 
-Resume sidecars are implementation state and should not be surfaced as normal user files inside Ghost FTP's file panes unless the user's filesystem itself explicitly shows them outside the transfer workflow.
+Downloaded bytes remain staged as `.ghostftp.part` until applicable post-transfer remote-revision validation succeeds. Any pre-existing destination remains untouched until that final commit. If the remote file changes while bytes are in flight, staged bytes are discarded and the previous destination is preserved.
+
+Resume sidecars are implementation state and should not be presented as normal Ghost FTP user content. User-facing failure text should explain the integrity problem without exposing sidecar contents or credentials.
 
 ### Retry, cancellation and cleanup
 
@@ -77,7 +79,7 @@ The log is a local operational surface, not a credential dump. It may show start
 
 Malformed FTP reply framing, invalid passive tuples, pathological listing input and remote-revision mismatch fail with actionable error state rather than partially trusted data.
 
-For an in-flight remote-file change, user-facing text may explain that the server-side file changed during download and the local result was discarded. It must not imply a cryptographic checksum was performed when the decision was based on FTP `SIZE`/`MDTM` metadata.
+For an in-flight remote-file change, user-facing text may explain that the server-side file changed during download and staged bytes were discarded while an existing destination was preserved. It must not imply a cryptographic checksum was performed when the decision was based on FTP `SIZE`/`MDTM` metadata.
 
 ## Visual language
 
@@ -91,11 +93,11 @@ Ghost FTP is an information-dense utility, but compact controls retain readable 
 
 English is primary/default/fallback and the product exposes 29 local selectable languages. Longer translated labels must not overlap controls. Missing technical strings fall back to English; no online localization service is permitted.
 
-0.1.6 does not add a new visible settings screen or new required localized command; its resume-integrity logic remains below the renderer. Existing error fallback rules apply to new integrity failures.
+0.1.6 does not add a new visible settings screen or required localized command; its resume-integrity logic remains below the renderer. Existing English technical fallback rules apply to integrity failures without changing the enforcement decision.
 
 ## Windows / Linux parity
 
-Windows/Linux parity means the same product workflow, security, privacy and transfer semantics, not pixel-identical native widgets. Both renderers share the same Core parser, transfer queue, pooled-buffer behavior and safe download-resume integrity rules.
+Windows/Linux parity means the same product workflow, security, privacy and transfer semantics, not pixel-identical native widgets. Both renderers share the same Core parser, transfer queue, pooled-buffer behavior and staged safe download-resume integrity rules.
 
 See `docs/UI-PARITY.md` for the detailed parity contract.
 
@@ -107,7 +109,7 @@ The same installed `GhostFTP-Setup.exe` handles maintenance/uninstall. Busy inst
 
 ## Regression UX gates
 
-The local Demo regression validates complete no-network Demo workflow. The general hardening suite validates protocol/parser/settings/lifecycle behavior. The isolated `GhostFTP.ResumeSelfTest` validates safe REST offset reuse, stale identity restart and in-flight remote mutation rejection so UI state rests on deterministic Core behavior rather than renderer assumptions.
+The local Demo regression validates the complete no-network Demo workflow. The general hardening suite validates protocol/parser/settings/lifecycle behavior. `GhostFTP.ResumeSelfTest` independently validates exact REST offset reuse, stale-identity restart, in-flight remote mutation rejection, preservation of an existing destination and fail-closed stale-partial cleanup on both Windows and Linux.
 
 ## Authentic screenshot gate
 
