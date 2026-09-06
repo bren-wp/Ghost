@@ -1,12 +1,10 @@
 # Ghost FTP Privacy
 
-Ghost FTP **0.1.2 Beta** is designed to operate without application telemetry, analytics, advertising, behavioral tracking or hidden product-network activity. Ghost FTP is developed and published by **BRENDIGO LTD**.
+Ghost FTP **0.1.3 Beta** is designed to operate **without application telemetry**, tracking, advertising or hidden product-network activity. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
-## Local-first product model
+## What Ghost FTP does not do
 
-Ghost FTP does not require an account. The normal product workflow is server-only: network connections are made to the FTP/FTPS server explicitly supplied by the user. Ghost FTP does not route transfers through a Ghost FTP cloud service.
-
-The application does not include:
+The shipping application does not include:
 
 - application telemetry;
 - usage analytics;
@@ -14,82 +12,84 @@ The application does not include:
 - user fingerprinting or behavioral profiling;
 - automatic crash-report upload;
 - cloud profile synchronization;
-- cloud credential storage;
+- a Ghost FTP account requirement;
 - hidden background update checks;
-- remote feature flags or experimentation services.
+- remote translation services;
+- marketing beacons or tracking pixels.
 
-Repository source audits reject known telemetry/tracking SDK references in shipping C# source and reject third-party NuGet `PackageReference` entries.
-
-## Profiles and settings
-
-Settings and saved server profiles are stored locally for the current user or, in portable mode, next to the portable application under its local `Data` directory.
-
-Stored profile data can include:
-
-- display name;
-- host and port;
-- username;
-- selected FTP/FTPS security mode;
-- initial remote path;
-- user preference to remember a password.
-
-No profile is uploaded to BRENDIGO LTD or a Ghost FTP account.
-
-## Session-only Quick Connect
-
-Quick Connect does not persist credentials by default. If **Keep in this tab** is selected, Ghost FTP may create a session-only entry so the connection remains visible during the current application session. Session-only Quick Connect entries are excluded from the saved profile store and do not persist the password.
-
-A password is stored only when the user explicitly configures a saved Site Manager profile to remember it.
-
-## Saved passwords
-
-Saved passwords are opt-in and protected locally:
-
-- Windows: DPAPI scoped to the current Windows user;
-- Linux: AES-256-GCM with local per-user key material and private file permissions where supported.
-
-Protection is intended to prevent casual/plaintext disclosure in profile files. It does not protect a user from malicious software already executing with the same account privileges.
-
-## Connection logs and diagnostics
-
-The Connection Log records local session events such as connect/disconnect state, directory-list completion, transfer status and errors. Password values are not intentionally logged.
-
-Diagnostics are produced locally. Ghost FTP does not automatically upload diagnostics or crash data.
+Source audit rejects known telemetry/tracking SDK identifiers in shipping C# source.
 
 ## Network behavior
 
-Application-initiated network activity is limited to explicit FTP/FTPS operations against servers the user chooses. Keepalive uses server-only FTP commands such as `NOOP` against the already connected server.
+The application performs network access for user-directed FTP/FTPS activity. This includes control connections, FTP data channels, keepalive and explicit diagnostics required for the connected server.
 
-Demo mode is fully local and performs no external FTP connection.
+Keepalive is **server-only**: when enabled, `NOOP` traffic is sent only to the FTP/FTPS server the user deliberately connected to. Ghost FTP does not redirect keepalive through a product cloud service.
 
-## Live-server smoke testing
+Links opened by a user may launch the system browser. The desktop application itself does not need a Ghost FTP cloud account to transfer files.
 
-Live-server smoke testing is an optional developer/release workflow documented in `docs/LIVE-SMOKE-TEST.md`. Credentials are supplied through environment variables or GitHub secrets and are not stored in the repository. The harness redacts secrets and is non-destructive: it performs connection, PWD/listing, keepalive and disconnect checks without remote writes.
+## Quick Connect
+
+**Session-only Quick Connect** is the default privacy boundary. Host, port, username, password and security mode can be used for the current desktop session without creating a persistent saved-site record.
+
+The optional “keep in this tab” behavior creates only an in-memory/session-only profile. It is not written to persistent profile storage.
+
+A persistent site is created only through an explicit save action.
+
+## Saved profiles
+
+Saved site information is stored locally for the current user/device. Profiles are not uploaded to BRENDIGO LTD or synchronized between devices by Ghost FTP.
+
+A saved password is opt-in:
+
+- Windows protects saved password data with the current-user Windows DPAPI boundary;
+- Linux protects saved password data with AES-256-GCM and local user-private key material.
+
+Plaintext passwords are not intentionally written to logs. The Windows protector also zeros sensitive plaintext/intermediate unmanaged buffers where practical before release.
 
 ## Portable mode
 
-Portable mode stores Ghost FTP data under the portable executable directory rather than the normal installed per-user application data location. Users are responsible for protecting the media/folder that contains a portable build and its `Data` directory.
+Portable mode stores its application data under the portable executable directory when the portable marker/name is active. That allows the user to control where portable profiles/settings live. Portable data is still local and is not cloud synchronized.
 
-## Setup privacy
+## Settings
 
-Windows Setup is a local installer/maintenance application. It does not require registration or analytics. Installation metadata is written locally for per-user Windows application registration and uninstall support.
+Settings such as language, appearance, local path, queue concurrency, retries, timeouts, keepalive and pane dimensions are local preferences. They are not used to build an advertising profile.
 
-Setup and the installed app share the same local language catalog. No online translation service is contacted.
+## Transfer queue
 
-## Languages
+Transfer jobs are local runtime state. 0.1.3 adds pause/resume dispatch control and more queue-history operations. These features do not introduce a server-side queue or cloud coordination service.
 
-Ghost FTP contains 29 local interface languages. English is the primary fallback. Language selection is stored locally and does not create a network request.
+Queue pause waits locally and asynchronously. Running transfers remain attached only to their user-selected FTP/FTPS server.
 
-## Deleting local data
+## Connection log and diagnostics
 
-The Windows maintenance Setup uninstall flow can remove the installed application. When offered, removal of local Ghost FTP data is a separate user choice so uninstalling the binary does not silently destroy saved profiles/settings unless requested.
+The connection log is local session information intended to help the user understand connection/transfer behavior. It is not automatically uploaded.
 
-Portable local data can be removed by deleting the portable `Data` directory after closing Ghost FTP.
+Diagnostics query the connected FTP/FTPS server for protocol/server information. Credentials are not deliberately logged.
+
+## Windows Setup
+
+Setup is per-user and designed to install/update/uninstall locally. It does not send install analytics. The Setup UI explicitly describes the local-only/no-telemetry behavior.
+
+The installed maintenance `GhostFTP-Setup.exe` handles update/uninstall registration rather than generating a separate background service or tracking agent.
+
+## Localization
+
+Ghost FTP ships a local 29-language catalog. English (`en`) is primary/default/fallback. No translation API receives user UI content or connection details.
+
+## Demo mode
+
+The built-in Demo profile is entirely local and opens no external FTP, telemetry or analytics connection. It exists for user exploration and deterministic regression testing.
+
+## Live-server smoke testing
+
+**Live-server smoke testing** is part of development/release verification, not hidden application telemetry. The optional CI harness uses explicitly configured test credentials and performs a non-destructive connect/PWD/LIST/NOOP/disconnect sequence. The password is supplied through protected CI secret storage and is not committed to the repository.
 
 ## Third parties
 
-Because the shipping app has no analytics/telemetry/advertising SDK, Ghost FTP does not send application-usage data to advertising or analytics providers. When the user connects to an FTP/FTPS server, that server naturally receives connection information necessary to provide the FTP service; its operator controls its own server logs and privacy practices.
+Ghost FTP does not sell user data to advertisers and the application contains no advertising network integration. When the user connects to a third-party FTP/FTPS server, that server naturally receives the network traffic and credentials required for the chosen protocol. Its own privacy/security practices are outside Ghost FTP's control.
 
-## Changes
+## Release/privacy verification
 
-Privacy-affecting product changes must be reflected in this document and pass the repository privacy/source audits before a public release is considered complete.
+Before a public release, repository audits check for known telemetry SDK references, mobile-scope drift, private signing material and dependency/version inconsistencies. Windows/Linux tests verify the local Demo workflow and core transfer behavior.
+
+For transport-security details see [`SECURITY.md`](SECURITY.md). For the current release implementation details see [`docs/releases/v0.1.3.md`](docs/releases/v0.1.3.md).
