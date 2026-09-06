@@ -18,8 +18,33 @@ Official unmodified Ghost FTP binaries are distributed through official Ghost FT
 
 ## Current public release status
 
-The current public development version is **Ghost FTP 0.1.1 Beta**. The public sequence began at 0.1.0 Beta; earlier 1.x files retained in this repository are preserved internal-development history and do not override the current public version sequence.
+The active source line is **Ghost FTP 0.1.2 Beta**. The public 0.x series is pre-1.0 software; the first stable target is 1.0.0.
 
-All public `0.x.y` builds are Beta. The first release intended to be presented as fully stable is **Ghost FTP 1.0.0**. Canonical `portable.exe` and `setup.exe` filenames remain unchanged across the Beta line, while their internal file version follows the active numeric release.
+Expected release identity:
 
-The Beta/stable label does not change the ownership, copyright or license terms stated above. See [docs/VERSIONING.md](docs/VERSIONING.md) and [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md) for release-version rules.
+- semantic version: **0.1.2**;
+- informational version: **0.1.2-beta**;
+- Windows file/assembly version: **0.1.2.0**;
+- expected GitHub tag: **v0.1.2-beta**.
+
+## Product scope
+
+Ghost FTP 0.1.2 ships native desktop applications for Windows and Linux. Android, iOS, MacCatalyst and web/browser client targets are not part of the current shipping product line.
+
+The software supports FTP and FTPS. Plain FTP is inherently unencrypted; users should prefer FTPS where server support is available.
+
+## Privacy representation
+
+The shipping application is designed without application telemetry, analytics, advertising SDKs, tracking SDKs, automatic crash-upload services, cloud profile synchronization or hidden background update checks. Connection/profile data remains local except for network data necessarily exchanged with the FTP/FTPS server selected by the user.
+
+## Third-party dependency representation
+
+Shipping projects intentionally contain zero third-party NuGet `PackageReference` entries. The Windows and Linux applications use .NET framework/runtime facilities and audited operating-system integration required for their native renderers.
+
+## Trademarks and third-party names
+
+Third-party product, protocol, operating-system and service names referenced in source or documentation remain the property of their respective owners. Such references are descriptive and do not imply sponsorship or endorsement.
+
+## Warranty and liability
+
+The applicable warranty, liability, redistribution and licensing terms are defined by the repository LICENSE and any separate terms accompanying official binary distribution. Users are responsible for maintaining backups and for confirming server permissions before destructive file operations.
