@@ -6,19 +6,22 @@ namespace GhostFTP.Core.Protocol;
 
 public static partial class FtpListingParser
 {
-    [GeneratedRegex(@"^(?<perm>[bcdlps-][rwxstST-]{9})\s+\d+\s+\S+\s+\S+\s+(?<size>\d+)\s+(?<month>[A-Za-z]{3})\s+(?<day>\d{1,2})\s+(?<timeyear>\d{2}:\d{2}|\d{4})\s+(?<name>.+)$", RegexOptions.CultureInvariant)]
+    private const int MaxListingLineChars = 64 * 1024;
+    private const int MaxMlsdFactsPerEntry = 64;
+
+    [GeneratedRegex(@"^(?<perm>[bcdlps-][rwxstST-]{9})\s+\d+\s+\S+\s+\S+\s+(?<size>\d+)\s+(?<month>[A-Za-z]{3})\s+(?<day>\d{1,2})\s+(?<timeyear>\d{2}:\d{2}|\d{4})\s+(?<name>.+)$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex UnixRegex();
 
-    [GeneratedRegex(@"^(?<date>\d{2}-\d{2}-\d{2})\s+(?<time>\d{2}:\d{2}(?:AM|PM))\s+(?<size><DIR>|\d+)\s+(?<name>.+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?<date>\d{2}-\d{2}-\d{2})\s+(?<time>\d{2}:\d{2}(?:AM|PM))\s+(?<size><DIR>|\d+)\s+(?<name>.+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex WindowsRegex();
 
     public static IReadOnlyList<FtpEntry> ParseMlsd(string text, string parentPath)
     {
         var list = new List<FtpEntry>();
-        foreach (var rawLine in SplitLines(text))
+        foreach (var rawLine in EnumerateLines(text))
         {
             var line = rawLine.TrimEnd();
-            if (line.Length == 0)
+            if (line.Length == 0 || line.Length > MaxListingLineChars)
                 continue;
 
             var separator = line.IndexOf(' ');
@@ -31,14 +34,22 @@ public static partial class FtpListingParser
                 continue;
 
             var facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var factCount = 0;
+            var tooManyFacts = false;
             foreach (var fact in factsText.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
+                if (++factCount > MaxMlsdFactsPerEntry)
+                {
+                    tooManyFacts = true;
+                    break;
+                }
+
                 var equals = fact.IndexOf('=');
                 if (equals > 0)
                     facts[fact[..equals]] = fact[(equals + 1)..];
             }
 
-            if (!facts.TryGetValue("type", out var type))
+            if (tooManyFacts || !facts.TryGetValue("type", out var type))
                 continue;
             if (type.Equals("cdir", StringComparison.OrdinalIgnoreCase) || type.Equals("pdir", StringComparison.OrdinalIgnoreCase))
                 continue;
@@ -65,21 +76,20 @@ public static partial class FtpListingParser
     public static IReadOnlyList<FtpEntry> ParseList(string text, string parentPath, DateTimeOffset nowUtc)
     {
         var list = new List<FtpEntry>();
-        foreach (var rawLine in SplitLines(text))
+        foreach (var rawLine in EnumerateLines(text))
         {
             var line = rawLine.TrimEnd();
-            if (line.Length == 0 || line.StartsWith("total ", StringComparison.OrdinalIgnoreCase))
+            if (line.Length == 0 || line.Length > MaxListingLineChars || line.StartsWith("total ", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             var unix = UnixRegex().Match(line);
             if (unix.Success)
             {
-                var name = unix.Groups["name"].Value;
-                if (!TrySafeRemoteName(name, out name))
-                    continue;
-
                 var permissions = unix.Groups["perm"].Value;
-                var isDirectory = permissions.StartsWith('d');
+                var name = unix.Groups["name"].Value;
+
+                // A LIST symlink target is server metadata, not part of the entry name. Strip it
+                // before validating the link name so an absolute target cannot make a safe link vanish.
                 if (permissions.StartsWith('l'))
                 {
                     var arrow = name.IndexOf(" -> ", StringComparison.Ordinal);
@@ -87,6 +97,10 @@ public static partial class FtpListingParser
                         name = name[..arrow];
                 }
 
+                if (!TrySafeRemoteName(name, out name))
+                    continue;
+
+                var isDirectory = permissions.StartsWith('d');
                 _ = long.TryParse(unix.Groups["size"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var size);
                 var modified = ParseUnixDate(unix.Groups["month"].Value, unix.Groups["day"].Value, unix.Groups["timeyear"].Value, nowUtc);
                 list.Add(new FtpEntry(name, CombineRemote(parentPath, name), isDirectory, isDirectory ? 0 : size, modified, permissions, rawLine));
@@ -190,6 +204,10 @@ public static partial class FtpListingParser
         }
     }
 
-    private static IEnumerable<string> SplitLines(string text) =>
-        text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+    private static IEnumerable<string> EnumerateLines(string text)
+    {
+        using var reader = new StringReader(text ?? string.Empty);
+        while (reader.ReadLine() is { } line)
+            yield return line;
+    }
 }
