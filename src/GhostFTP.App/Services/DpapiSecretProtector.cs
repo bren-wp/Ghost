@@ -6,6 +6,12 @@ using GhostFTP.Core.Services;
 
 namespace GhostFTP.Services;
 
+/// <summary>
+/// Windows saved-secret protection implemented directly through CryptProtectData/CryptUnprotectData.
+/// This is the native DPAPI equivalent of the managed ProtectedData API with
+/// DataProtectionScope.CurrentUser semantics, without adding a NuGet/package dependency.
+/// Plaintext buffers are explicitly zeroed before their unmanaged storage is released.
+/// </summary>
 public sealed class DpapiSecretProtector : ISecretProtector
 {
     private const int CryptProtectUiForbidden = 0x1;
@@ -17,8 +23,20 @@ public sealed class DpapiSecretProtector : ISecretProtector
         var input = CreateBlob(bytes);
         try
         {
-            if (!CryptProtectData(ref input, "GhostFTP saved credential", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, CryptProtectUiForbidden, out var output))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows could not protect the saved FTP password.");
+            if (!CryptProtectData(
+                    ref input,
+                    "GhostFTP saved credential",
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    CryptProtectUiForbidden,
+                    out var output))
+            {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error(),
+                    "Windows could not protect the saved FTP password.");
+            }
+
             try
             {
                 var encrypted = new byte[output.cbData];
@@ -27,12 +45,12 @@ public sealed class DpapiSecretProtector : ISecretProtector
             }
             finally
             {
-                if (output.pbData != IntPtr.Zero) LocalFree(output.pbData);
+                SecureLocalFree(output);
             }
         }
         finally
         {
-            if (input.pbData != IntPtr.Zero) Marshal.FreeHGlobal(input.pbData);
+            SecureHGlobalFree(input);
             CryptographicOperations.ZeroMemory(bytes);
         }
     }
@@ -44,23 +62,41 @@ public sealed class DpapiSecretProtector : ISecretProtector
         var input = CreateBlob(encrypted);
         try
         {
-            if (!CryptUnprotectData(ref input, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, CryptProtectUiForbidden, out var output))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows could not decrypt the saved FTP password for this user.");
+            if (!CryptUnprotectData(
+                    ref input,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    CryptProtectUiForbidden,
+                    out var output))
+            {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error(),
+                    "Windows could not decrypt the saved FTP password for this user.");
+            }
+
             try
             {
                 var plaintext = new byte[output.cbData];
                 Marshal.Copy(output.pbData, plaintext, 0, output.cbData);
-                try { return Encoding.UTF8.GetString(plaintext); }
-                finally { CryptographicOperations.ZeroMemory(plaintext); }
+                try
+                {
+                    return Encoding.UTF8.GetString(plaintext);
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(plaintext);
+                }
             }
             finally
             {
-                if (output.pbData != IntPtr.Zero) LocalFree(output.pbData);
+                SecureLocalFree(output);
             }
         }
         finally
         {
-            if (input.pbData != IntPtr.Zero) Marshal.FreeHGlobal(input.pbData);
+            SecureHGlobalFree(input);
             CryptographicOperations.ZeroMemory(encrypted);
         }
     }
@@ -68,8 +104,35 @@ public sealed class DpapiSecretProtector : ISecretProtector
     private static DataBlob CreateBlob(byte[] bytes)
     {
         var pointer = Marshal.AllocHGlobal(Math.Max(1, bytes.Length));
-        if (bytes.Length > 0) Marshal.Copy(bytes, 0, pointer, bytes.Length);
+        if (bytes.Length > 0)
+            Marshal.Copy(bytes, 0, pointer, bytes.Length);
         return new DataBlob { cbData = bytes.Length, pbData = pointer };
+    }
+
+    private static void SecureHGlobalFree(DataBlob blob)
+    {
+        if (blob.pbData == IntPtr.Zero)
+            return;
+
+        SecureZero(blob.pbData, blob.cbData);
+        Marshal.FreeHGlobal(blob.pbData);
+    }
+
+    private static void SecureLocalFree(DataBlob blob)
+    {
+        if (blob.pbData == IntPtr.Zero)
+            return;
+
+        SecureZero(blob.pbData, blob.cbData);
+        _ = LocalFree(blob.pbData);
+    }
+
+    private static void SecureZero(IntPtr pointer, int length)
+    {
+        if (pointer == IntPtr.Zero || length <= 0)
+            return;
+
+        _ = RtlSecureZeroMemory(pointer, (nuint)length);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -81,11 +144,28 @@ public sealed class DpapiSecretProtector : ISecretProtector
 
     [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CryptProtectData(ref DataBlob pDataIn, string? szDataDescr, IntPtr pOptionalEntropy, IntPtr pvReserved, IntPtr pPromptStruct, int dwFlags, out DataBlob pDataOut);
+    private static extern bool CryptProtectData(
+        ref DataBlob pDataIn,
+        string? szDataDescr,
+        IntPtr pOptionalEntropy,
+        IntPtr pvReserved,
+        IntPtr pPromptStruct,
+        int dwFlags,
+        out DataBlob pDataOut);
 
     [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CryptUnprotectData(ref DataBlob pDataIn, IntPtr ppszDataDescr, IntPtr pOptionalEntropy, IntPtr pvReserved, IntPtr pPromptStruct, int dwFlags, out DataBlob pDataOut);
+    private static extern bool CryptUnprotectData(
+        ref DataBlob pDataIn,
+        IntPtr ppszDataDescr,
+        IntPtr pOptionalEntropy,
+        IntPtr pvReserved,
+        IntPtr pPromptStruct,
+        int dwFlags,
+        out DataBlob pDataOut);
+
+    [DllImport("kernel32.dll", EntryPoint = "RtlSecureZeroMemory")]
+    private static extern IntPtr RtlSecureZeroMemory(IntPtr destination, nuint length);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr LocalFree(IntPtr hMem);

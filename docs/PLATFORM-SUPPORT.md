@@ -1,122 +1,152 @@
 # Ghost FTP platform support
 
-This document defines the shipping platform contract for **Ghost FTP 0.1.1 Beta**. Platform claims are based on source, CI runtime tests and release artifacts rather than repository description text.
+This document defines the shipping platform contract for **Ghost FTP 0.1.2 Beta**. Platform claims are based on source, CI/runtime tests and published release artifacts rather than marketing text.
 
 ## Current public line
 
 ```text
-VERSION=0.1.1
+VERSION=0.1.2
 RELEASE_CHANNEL=beta
 ```
 
 All 0.x builds remain Beta. The first stable target is **1.0.0**.
 
+## Supported desktop platforms
+
+### Windows
+
+Ghost FTP ships a native WPF desktop renderer targeting modern supported Windows environments through `net10.0-windows10.0.19041.0`.
+
+Release architectures:
+
+- Windows x64;
+- Windows ARM64.
+
+Release forms:
+
+- self-contained portable executable;
+- self-contained per-user Setup/maintenance executable.
+
+Windows application behavior includes native minimize, maximize, restore and resizing. The 0.1.2 workstation additionally exposes draggable sidebar, connection-area, Local/Remote and Transfers splitters.
+
+Saved passwords are opt-in and protected with Windows DPAPI for the current user.
+
+### Linux
+
+Ghost FTP ships a native .NET 10 X11/XWayland renderer, not a Wine package and not a web wrapper.
+
+Release architectures:
+
+- Linux x64;
+- Linux ARM64.
+
+Release forms:
+
+- self-contained executable;
+- `.tar.gz` archive.
+
+The application uses the system `libX11.so.6` ABI for native desktop window integration. XWayland environments are supported through the X11 compatibility path used by the renderer.
+
+Linux saved passwords are opt-in and protected with AES-256-GCM using local per-user key material.
+
 ## Shared engine
 
-`src/GhostFTP.Core` targets platform-neutral `net10.0` and is used by both desktop renderers. Shared behavior includes FTP/FTPS negotiation, TLS/data-channel policy, parsing, path safety, transfer queue, retry/cancellation policy, server-only keepalive, persistence primitives and the local-only Demo session used by deterministic regression tests.
+Windows and Linux both reference the same platform-neutral `GhostFTP.Core` project for:
 
-## Windows
+- FTP/FTPS connection lifecycle;
+- TLS negotiation;
+- FTP command/reply handling;
+- directory listing/navigation;
+- upload/download;
+- recursive directory operations;
+- transfer queue/cancellation/retry;
+- input/path validation;
+- local Demo session.
 
-### Renderer
+They also share `GhostFTP.Design` for product identity, reference palette and the 29-language local catalog.
 
-```text
-src/GhostFTP.App
-```
+This prevents platform-specific renderers from implementing incompatible protocol engines.
 
-- .NET 10 WPF desktop application;
-- x64 and ARM64 self-contained publishing;
-- installed and portable packaging modes;
-- CurrentUser DPAPI for opt-in saved passwords;
-- Windows shell/DWM integrations where available;
-- deterministic authentic 1914×907 repository screenshot capture.
+## Security parity
 
-### Setup
+Both desktop platforms inherit the same core security rules:
 
-```text
-src/GhostFTP.Setup
-```
+- fail-closed security-mode selection;
+- explicit FTPS requires successful `AUTH TLS`;
+- normal TLS certificate-chain/hostname validation;
+- encrypted sessions require `PBSZ 0` and `PROT P`;
+- binary data transfer uses `TYPE I`;
+- passive data connections are constrained to the authenticated control host;
+- command/control input is bounded and CR/LF/NUL is rejected;
+- recursive traversal is bounded.
 
-Windows Setup is a separate maintenance workflow, not a second FTP client UI. It embeds the application payload, validates Ghost FTP/BRENDIGO LTD/file-version identity, installs per user, writes normal Installed Apps metadata and supports update/uninstall.
+Plain FTP remains an explicit legacy mode and is not advertised as secure.
 
-0.1.1 stages both the application and maintenance Setup binaries before changing an existing installation, rejects older candidate file versions and retains rollback copies for both binaries until later install stages succeed.
+## Privacy parity
 
-Expected Windows release assets include `setup.exe`, `portable.exe`, ARM64 aliases, architecture-specific canonical names, `SHA256SUMS.txt` and `SIGNING.txt`.
+Both platforms operate without application telemetry, analytics, advertising SDKs, tracking SDKs, automatic crash upload or cloud profile synchronization.
 
-## Linux
+Connection/profile data is local. Session-only Quick Connect entries are not persisted. No Ghost FTP account is required.
 
-### Renderer
+## Localization parity
 
-```text
-src/GhostFTP.Linux
-```
+Windows, Linux and Windows Setup use the same local `GhostLocalization.SupportedLanguages` catalog. English is the primary fallback and the current release exposes 29 selectable languages.
 
-- real native desktop renderer sharing Core + Design;
-- no WPF compatibility shim or browser UI;
-- direct system X11 client ABI integration;
-- works on X11 and compatible Wayland desktops through XWayland;
-- requires the standard system library **`libX11.so.6`**;
-- AES-256-GCM local saved-secret protection with a per-user key file;
-- same plain-FTP confirmation, server-only keepalive and stale-session policy as Windows;
-- x64 and ARM64 self-contained packages.
+No online translation service is used.
 
-Supported release RIDs:
+## Windows Setup
 
-```text
-linux-x64
-linux-arm64
-```
+Setup is Windows-specific and is not copied to Linux. The installed maintenance `GhostFTP-Setup.exe` handles update and uninstall. Ghost FTP does not ship a separate `uninstall.exe`.
 
-`libX11.so.6` is an operating-system desktop library. It is not a Ghost FTP cloud service, analytics dependency or NuGet package.
+Setup validates staged application/maintenance candidates, rejects downgrades and maintains rollback copies until later install steps succeed.
 
-### Linux runtime validation
+## Portable mode
 
-CI does more than cross-compile:
+Windows portable builds store local data beside the executable under `Data`. Installed builds use per-user application data.
 
-1. restores and builds the Linux renderer on Ubuntu;
-2. starts the real X11/XWayland renderer under Xvfb;
-3. runs shared Core tests on Linux;
-4. runs the complete local-only Demo workflow regression test on Linux;
-5. runs transfer-queue tests on Linux;
-6. runs the source/privacy/platform/security audits;
-7. builds self-contained `linux-x64` and `linux-arm64` packages;
-8. verifies SHA-256 manifests;
-9. starts the final packaged x64 binary under Xvfb.
+Linux packages use the normal Linux per-user application data path unless launched in a portable identity/configuration supported by the shared path model.
 
-## Visual parity
+## Unsupported application platforms
 
-Windows and Linux use the same `GhostReferencePalette`, product identity, localization catalog and workstation information hierarchy.
+The active Ghost FTP desktop line intentionally does **not** ship:
 
-The two renderers use native OS graphics stacks, so exact OS font rasterization and window chrome can differ. The parity requirement is the same premium Ghost FTP structure, colors, controls, safety semantics and shared FTP behavior—not a false claim that WPF and X11 generate byte-identical pixels.
+- Android application;
+- iOS application;
+- MacCatalyst application;
+- macOS native application;
+- **Web/browser client**.
 
-See `docs/UI-PARITY.md`.
+Source audit rejects known Android/iOS/mobile source directories and mobile target frameworks if they are reintroduced.
 
-## Unsupported shipping targets
+A web/browser client is not considered equivalent to the native product because browser sandboxes cannot expose the same unrestricted local-file workflow and desktop credential-store semantics.
 
-The current desktop line does **not** ship:
+## Runtime prerequisites
 
-- Android;
-- iOS;
-- MacCatalyst/macOS native app;
-- Web/browser client.
+Windows packages are self-contained for .NET runtime purposes. Linux release executables are also self-contained but require a working X11/XWayland environment and the system X11 ABI used by the renderer.
 
-The repository's source/build/release contract is Windows + Linux desktop. A stale GitHub repository metadata description does not override the actual source or release matrix.
+No third-party NuGet package dependency is required by shipping projects.
 
-## Dependency policy
+## CI and release evidence
 
-Shipping projects contain zero third-party NuGet `PackageReference` entries.
+Platform support is gated by GitHub Actions:
 
-- Windows renderer: Microsoft .NET/WPF + OS APIs.
-- Linux renderer: Microsoft .NET + system `libX11.so.6` ABI.
-- Shared protocol engine: .NET networking/cryptography primitives.
+- solution builds on Windows and Linux;
+- source/dependency/platform audit;
+- Core self-test;
+- complete local Demo workflow on both platforms;
+- transfer queue self-test;
+- WPF UI smoke test;
+- Linux renderer/runtime checks;
+- authentic Windows UI capture;
+- Windows x64/ARM64 packaging;
+- Linux x64/ARM64 packaging.
 
-No embedded browser, web UI runtime, analytics SDK or downloaded theme framework is required to run Ghost FTP.
+The optional real-server smoke harness is documented in `docs/LIVE-SMOKE-TEST.md`. It is secret-backed and non-destructive.
 
-## Real-server verification
+## Release artifacts
 
-A credential-safe optional live test exists in `tests/GhostFTP.LiveSmoke`. It reads credentials only from environment variables/repository secrets and runs a non-destructive connect/PWD/LIST/NOOP/disconnect sequence.
+The expected 0.1.2 Beta GitHub Release tag is `v0.1.2-beta`.
 
-Live credentials are intentionally not part of normal CI or repository fixtures. See `docs/LIVE-SMOKE-TEST.md`.
+Windows canonical artifacts include `setup.exe`, `portable.exe`, ARM64 variants, architecture aliases, SHA-256 hashes and signing report. Linux canonical artifacts include x64/ARM64 executables and archives plus release hashes.
 
-## Release gate
-
-A platform package is publishable only after its build, runtime smoke tests, complete Demo regression workflow and checksum validation succeed for the exact release source. Windows stable publication additionally requires trusted Authenticode validation.
+A platform is considered publicly supported by a release only when its expected artifacts were produced from the exact release source and attached successfully to the matching GitHub Release.

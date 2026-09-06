@@ -1,120 +1,52 @@
 # Ghost FTP UI / UX Guidelines
 
-This document defines the cross-platform desktop interaction rules for Ghost FTP **0.1.1 Beta** and the Windows Setup experience. The goal is a clear professional FTP workstation with the information density users expect from mature dual-pane clients, rendered entirely in Ghost FTP's own modern visual language.
+This document defines the desktop interaction rules for Ghost FTP **0.1.2 Beta** and the Windows Setup experience. The goal is a clear professional FTP workstation with the information density expected from mature dual-pane clients, rendered in Ghost FTP's own modern visual language rather than copying a legacy client UI.
 
-Public patch releases do not remove or revert the workstation and interaction work completed during the preserved internal development history.
+Ghost FTP is the product. **BRENDIGO LTD** is the developer/publisher shown on legal and publisher surfaces.
 
-Ghost FTP is the product. **BRENDIGO LTD** is the developer and publisher shown on legal/publisher surfaces.
+## Core UX principles
 
-## Product identity and Beta status
+1. **The transfer target must be obvious.** Local and Remote operations belong with the pane they affect.
+2. **Security state must be understandable.** Explicit FTPS is recommended; plaintext FTP warns before use.
+3. **Credentials remain visually private.** Password values are masked and never echoed into the connection log.
+4. **Desktop space is user-controlled.** Users can resize the window and important workstation regions.
+5. **Primary work remains visible.** Optional controls must yield before they overlap connection or transfer actions.
+6. **No account wall.** A user can connect to their own FTP/FTPS server without registering for a Ghost FTP account.
+7. **No decorative UI that pretends to be functional.** Canonical screenshots are generated from the compiled application.
 
-User-facing product surfaces use **Ghost FTP** or the compact identifier **GhostFTP**. Legal/publisher surfaces may identify BRENDIGO LTD, but the publisher name must not replace the product name.
+## Workstation hierarchy
 
-During the public `0.x.y` line the product is **Beta**. About, Setup and release/download documentation should make the current pre-1.0 status understandable rather than implying a finished stable 1.0 product.
+The approved desktop information architecture is:
 
-The first stable product version is **1.0.0**. When that transition is made, Beta labeling is removed and `portable.exe` / `setup.exe` carry matching stable 1.0.0 metadata.
+- saved-server sidebar;
+- menu and primary toolbar;
+- Connection Log + Quick Connect;
+- Local + Remote file panes;
+- Transfers queue;
+- status area.
 
-Shared identity values live in `GhostFTP.Design`. Shared visual primitives and the cross-platform reference palette also live in `GhostFTP.Design`. Version/channel rules live in `docs/VERSIONING.md` and root `VERSION` / `RELEASE_CHANNEL` files.
+This hierarchy is the visual contract on both desktop platforms even when WPF and X11 require different native rendering primitives.
 
-## Visual direction
+## Clean toolbar rule
 
-Ghost FTP is intentionally not a visual clone of a legacy FTP client. It borrows proven information architecture—menu, compact actions, connection activity, two file tables and a transfer queue—while keeping its own premium dark/light design.
+The global toolbar is reserved for application-level actions:
 
-The visual system prioritizes:
+- Connect;
+- Disconnect;
+- Upload;
+- Download;
+- Refresh;
+- Site Manager;
+- Settings;
+- Diagnostics where layout permits.
 
-- immediate scanability;
-- practical information density;
-- large usable file-list regions;
-- compact action surfaces rather than oversized dashboard cards;
-- consistent typography appropriate to each native desktop renderer;
-- Windows Mica/rounded-window integration when supported;
-- consistent Ghost FTP dark/light/system appearance where supported;
-- restrained borders and section separation;
-- accent treatment only for primary actions and selection;
-- clear danger treatment for destructive actions;
-- readable disabled, hover, selected and focus states;
-- no accidental white legacy surfaces in dark mode.
+Ghost FTP 0.1.2 removes the duplicate global **New folder**, **Rename**, and **Delete** buttons from the Windows reference shell. These operations remain in both file-pane toolbars, making it clear whether the operation affects Local or Remote content.
 
-Windows Mica/DWM enhancements are optional. Failure of a Windows visual API must never prevent Ghost FTP from running. Linux must remain usable on X11/XWayland without requiring a third-party GUI framework.
-
-## Windows / Linux parity
-
-Windows WPF and Linux X11/XWayland are native renderers of one Ghost FTP product. They share the same `GhostFTP.Core` protocol/transfer engine and `GhostFTP.Design` identity, localization and reference palette.
-
-The parity contract requires the same major information hierarchy, product colors, core actions, connection/security meaning, transfer semantics, privacy boundaries and destructive-action scope. Native OS font rasterization, window decorations and platform-specific shell integrations can differ. We do not claim byte-identical pixels between WPF and X11.
-
-The canonical visual comparison target is the authentic Windows capture at **1914×907 / 96 DPI**, and the normal layout reference uses a **292 px** left rail, **38 px** menu and **70 px** toolbar. See `docs/UI-PARITY.md`.
-
-## Professional workstation hierarchy
-
-The main desktop window has seven predictable layers:
-
-1. **Menu bar** — File, View, Sites, Transfers, Tools, Help.
-2. **Global toolbar** — Connect, Disconnect, Upload, Download, Refresh, New Folder, Rename, Delete, Site Manager, Settings, Diagnostics.
-3. **Saved Sites sidebar** — fast profile selection and Site Manager entry.
-4. **Connection strip** — Connection Log on the left and Quick Connect on the right.
-5. **Local / Remote browser** — equal-weight dual file tables.
-6. **Transfers queue** — full-width operational queue below browsing.
-7. **Status bar** — privacy reminder and current connection state.
-
-The layout should feel familiar to experienced FTP users without looking like an old Win32 application.
-
-## Resizable professional workspace
-
-Ghost FTP behaves as a workstation rather than a fixed dashboard.
-
-Users can resize:
-
-- Saved Sites versus the main workspace;
-- Local versus Remote file panes;
-- file browsing versus Transfers.
-
-Windows supports persisted splitter geometry and double-click resets. Linux should preserve equivalent usable proportions and responsive behavior through its native renderer. Persisted geometry must be normalized before restoration.
-
-Malformed persisted dimensions must never produce an unusable zero-sized or effectively off-screen layout.
-
-## Menu and toolbar rules
-
-The menu is permanent and text-first. Important workflows must remain discoverable even when users do not know icons or shortcuts.
-
-The toolbar is compact and action-oriented:
-
-- Connect/Disconnect are globally visible;
-- upload/download remain distinct directional actions;
-- Refresh is available globally and in each pane;
-- file mutation actions stay close together;
-- Site Manager, Settings and Diagnostics are directly reachable;
-- important actions retain text labels rather than relying on unlabeled glyphs.
-
-Toolbar items may compact or wrap at smaller supported widths rather than disappear or overlap.
-
-## Connection Log
-
-The Connection Log is an operational aid, not telemetry.
-
-It may display:
-
-- local startup state;
-- local profile loading;
-- explicit connection attempts;
-- TLS/plain connection state;
-- server working-directory/listing completion;
-- disconnects;
-- local errors already relevant to the user.
-
-It must not display:
-
-- passwords;
-- protected password blobs;
-- secret tokens;
-- file contents;
-- hidden product-network traffic, because Ghost FTP has none.
-
-The log is bounded in memory, clearable by the user and never uploaded automatically.
+Do not reintroduce target-sensitive duplicates simply to fill toolbar space.
 
 ## Quick Connect
 
-Quick Connect always shows explicit labels for:
+Normal workstation layout keeps the following aligned on one compact field row:
 
 - Host;
 - Port;
@@ -122,264 +54,214 @@ Quick Connect always shows explicit labels for:
 - Username;
 - Password.
 
-Placeholder-only connection forms are not acceptable.
+Connect/Disconnect and session-only privacy controls are placed on the secondary row so credential fields do not become unusably narrow.
 
-Explicit FTPS remains the recommended/default security mode. Plain FTP requires an explicit warning confirmation. Pressing Enter from Password may initiate Connect.
+Rules:
 
-Visible Quick Connect values are authoritative. Editing them must not silently reuse incompatible connection state from a selected saved profile or Demo profile.
+- Host should receive the largest share of flexible width.
+- Port stays compact but readable.
+- Security must show the selected mode without clipping ordinary labels.
+- Username/Password must remain usable at the supported minimum window width.
+- **Keep in this tab** is session-only and must communicate that it does not save credentials to disk.
 
-**Keep in this tab** is session-only. It may retain the ad-hoc connection in current-process UI state but must not persist that runtime profile or Quick Connect password to profile JSON.
+## Resizing model
 
-## Saved Sites and Site Manager
+Windows 0.1.2 supports:
 
-Saved Sites provides compact access to known profiles. Full profile management belongs in Site Manager.
+- native overall window resize/minimize/maximize/restore;
+- draggable saved-server sidebar width;
+- draggable Connection Log / Quick Connect height;
+- draggable Local / Remote split;
+- draggable Transfers queue height.
 
-The Site Manager uses a familiar master/detail layout:
+Splitters use a visible but restrained border token and a correct resize cursor. Double-click resets the related split to a sensible reference value.
 
-- saved-site list on the left;
-- connection editor on the right;
-- clear General and Advanced areas;
-- Save, Connect and Cancel actions at the bottom.
+The Local/Remote ratio, Transfers height and maximized state continue to persist through local settings. Other reference shell splits may return to product defaults on restart unless explicitly added to the settings contract later.
 
-Supported per-site fields are limited to real implemented product behavior:
+## Compact window behavior
 
-- Site name;
-- Host / IP / URL;
-- Port;
-- FTP/FTPS security mode;
-- Username;
-- Password;
-- Remember password;
-- default remote path.
+The main desktop must remain usable on smaller supported windows. The optional top language/search overlay hides before it can collide with primary toolbar commands. This is not loss of functionality:
 
-Do not expose fake proxy, retry, TLS or protocol options merely because another FTP client has them. Global retry/concurrency/timeouts/keepalive remain centralized in Settings until Ghost FTP implements a real per-site override model.
+- language selection remains in Settings;
+- Remote filtering remains in the Remote pane;
+- primary connect/transfer actions stay accessible.
 
-The built-in Demo profile remains visible and useful but cannot be modified into a misleading real-server profile.
+Avoid horizontal overflow that forces core controls outside the window. Prefer hiding optional duplication, using ellipsis for secondary text, and preserving the functional pane layout.
 
-Remember password is opt-in. Windows uses CurrentUser DPAPI and Linux uses the documented local AES-256-GCM protector; neither renderer may silently store plaintext credentials.
+## Local / Remote panes
 
-## File panes
+Each pane must clearly show title, location/path controls, contextual actions, filter and list.
 
-Local and Remote panes have equal default visual weight and are independently scannable.
+Local contextual actions:
 
-Both panes support:
-
-- Up;
-- Home/root navigation;
-- editable path;
+- Upload;
 - Refresh;
 - New folder;
 - Rename;
-- Delete;
-- filter/search;
-- transfer action;
-- item/selection summary;
-- path copying where implemented.
+- Delete.
 
-Windows local conveniences can include Desktop, Documents, Downloads and Open in File Explorer. Linux can expose platform-appropriate local navigation rather than fake Windows shell actions.
+Remote contextual actions:
 
-Remote table columns include Name, Type, Size, Modified and server-provided Permissions when available. Local must not invent remote-style permissions data it cannot meaningfully represent through the current model.
+- Download;
+- Refresh;
+- New folder;
+- Rename;
+- Delete.
 
-Remote actions must remain disabled or fail clearly while disconnected.
+Destructive actions use the danger visual token. Primary transfer actions use the accent token. Disabled commands must not appear equally actionable to enabled ones.
 
-## Responsive file tables
+## File-list behavior
 
-Columns scale with available pane width rather than forcing unnecessary horizontal scrolling.
+Lists prioritize Name, then Type, Size, Modified, and Remote Permissions where available. Columns resize with the available pane so long paths/listings do not force a permanent horizontal scrollbar.
 
-Column priority is:
+Folders sort ahead of files and names use case-insensitive ordering for the normal workstation view.
 
-1. Name receives most flexible space;
-2. Type remains compact;
-3. Size remains compact;
-4. Modified retains enough space for a readable timestamp;
-5. Remote Permissions retains a bounded operational width.
+Double-click behavior must be predictable: folders navigate, Local files open through the operating system behavior defined by the app, and Remote files queue a download where that is the established interaction.
 
-At narrow widths, secondary columns may hide before primary file identity/actions. The declared minimum window size must still allow useful browsing and access to essential actions.
+## Transfers queue
 
-## Remote working directory
+The queue must communicate:
 
-Remote navigation uses server `CWD` followed by `PWD`. The visible path represents the server-confirmed working directory, not an unverified client-side guess.
-
-This keeps path-bar navigation, folder traversal, transfer destinations and diagnostics aligned.
-
-## Connection state and keepalive
-
-Connection status is operational state, not decoration.
-
-- Connected state differentiates TLS from plain FTP.
-- Lost control-channel state must not remain visually Connected.
-- Keepalive may use FTP `NOOP` only against the currently selected real server session.
-- Failed keepalive/diagnostic control checks reset stale transport state and surface Connection lost.
-- Ghost FTP does not silently reconnect with saved credentials after a failure.
-- Demo mode remains local and does not run automatic network keepalive.
-
-The status surface remains an entry point for Connection Diagnostics where the native renderer supports it.
-
-## Transfer queue
-
-Transfers is an operational control surface rather than a passive status list.
-
-It supports:
-
-- queued/running/retrying/completed/failed/cancelled state;
-- percentage progress;
-- transferred bytes and known total;
-- current speed;
-- ETA when calculable;
+- item;
+- direction;
+- state;
+- progress;
+- transferred bytes;
+- speed;
+- ETA;
 - retry count;
-- source and destination;
-- start/finish details;
-- Retry selected;
-- Cancel selected;
-- Cancel all;
-- Clear finished;
-- copy source/destination path where available;
-- aggregate live throughput where available.
+- source;
+- destination.
 
-Double-clicking/activating a transfer opens details where implemented; it must not silently retry the job.
+Queue controls include retry selected, cancel selected, cancel all and clear finished. Background work must never freeze the UI thread.
 
-Queue capacity failures remain visible as failed jobs and must not crash the native event loop.
+## Connection Log
 
-## Retry, concurrency, speed and ETA
+The log is a local operational surface, not a debugging dump of credentials. It may record:
 
-Automatic retries are configurable from 0–5. Concurrent transfers are configurable from 1–8.
+- startup privacy status;
+- profile load count;
+- connect/disconnect state;
+- security mode/TLS state;
+- directory-list completion;
+- transfer and operation errors.
 
-Real parallel transfers use isolated FTP/FTPS sessions. The browser control connection is never reused as a transfer worker.
+Passwords must never be logged. Error messages should help the user correct host, port, TLS mode or permissions without exposing secrets.
 
-Speed and ETA are current-session estimates. Resumed downloads establish a new measurement baseline so bytes already present in the partial file are not counted as current throughput.
+## Visual language
 
-Unknown ETA should display a neutral placeholder rather than an invented value.
+The reference palette uses dark navy surfaces and controlled contrast rather than flat pure black. Visual hierarchy comes from surface depth, borders, typography and spacing, not excessive gradients/animations.
 
-## Editable controls are infrastructure
+Primary visual tokens:
 
-Host, Port, Username, Password, path, filter and dialog fields must retain native editing semantics.
+- background / menu / sidebar / toolbar surfaces;
+- Surface, Surface2 and hover layers;
+- readable light text and muted secondary text;
+- violet Accent for primary actions;
+- green Success;
+- red Danger;
+- amber Warning.
 
-On Windows, do not replace the WPF TextBox or PasswordBox editor/content host merely to obtain rounded visuals. Styling may change colors, typography, padding, borders, caret/highlight resources and focus visuals, but must preserve:
+Do not add decorative animations that reduce transfer-workstation clarity or increase input latency.
 
-- caret placement;
-- mouse and keyboard focus;
-- text selection;
-- Tab navigation;
-- clipboard/edit shortcuts;
-- keyboard layouts;
-- IME behavior;
-- PasswordBox behavior.
+## Typography
 
-`GhostFTP.UiSmoke` validates live editable WPF controls on a Windows STA thread. Linux input handling must preserve equivalent keyboard/mouse usability in its X11 event model.
+Windows uses Segoe UI Variable/Segoe UI fallbacks. Linux uses its native X11 font-set path. Controls should use compact professional sizes suitable for information-dense desktop software.
 
-## Focus-safe keyboard routing
+Never bundle/download external font files at runtime just to make the UI render.
 
-Keyboard shortcuts act on the context that owns focus. A sidebar, menu, toolbar or queue must never silently default destructive actions to Local.
+## Accessibility and keyboard behavior
 
-- `F5` — refresh active Local/Remote pane.
-- `F2` — rename in active Local/Remote pane.
-- `Delete` — delete selected Local/Remote item(s), honoring confirmation settings.
-- `Delete` while Transfers has focus — cancel selected active transfer.
-- `Ctrl+F` — focus active Local/Remote filter.
-- `Ctrl+L` — focus/select active Local/Remote path.
-- `Ctrl+A` — select all in Local, Remote or Transfers.
-- `Enter` — open selected Local/Remote item.
-- `Backspace` — navigate to parent directory in Local/Remote.
-- Enter in Quick Connect Password — connect.
+Editable controls must remain genuinely focusable/editable. Do not create a visual TextBox that swallows mouse focus or prevents keyboard input.
 
-Native renderers may map platform-specific equivalents, but destructive scope must remain explicit.
+Tab order should follow the visible Quick Connect field order. Dialogs must keep primary/secondary actions reachable without requiring mouse-only interaction.
 
-## Connection Diagnostics
+Dangerous confirmation dialogs should visually distinguish destructive confirmation from normal primary actions.
 
-Connection Diagnostics is user-initiated and clearly distinguishes:
+## Localization layout
 
-- control-channel health;
-- server system text;
-- current remote directory;
-- known server capabilities;
-- TLS/plain transport state.
+English is the primary/fallback language and the product exposes 29 local selectable languages. Layout must tolerate longer translated labels.
 
-Diagnostics stay local and communicate only with the already selected server.
+Toolbar labels should remain concise. Secondary copy may use wrapping/ellipsis when needed. A missing translation falls back to English instead of creating a blank button.
 
-## Error boundaries
+No online localization service is permitted.
 
-Normal workflow errors use Ghost FTP-styled dialogs, native equivalents or visible inline state, not raw unhandled exceptions.
+## Windows / Linux parity
 
-Synchronous toolbar/context-menu actions and asynchronous network/filesystem operations require local exception boundaries. Recovery should preserve the main window whenever possible.
+Windows / Linux parity means the same product workflow/security/privacy semantics, not pixel-identical use of incompatible window-system primitives.
+
+Both must expose:
+
+- saved sites and Quick Connect;
+- FTP/explicit FTPS/implicit FTPS;
+- Local/Remote browsing and file operations;
+- transfer queue/cancellation/retry;
+- local diagnostics/logging;
+- session keepalive;
+- 29-language local catalog;
+- local-only profile settings;
+- Demo mode.
+
+See `docs/UI-PARITY.md` for the complete parity contract.
+
+## Windows Setup UX
+
+Setup should look like a premium Ghost FTP product surface, not a generic console bootstrapper. It uses:
+
+- Ghost FTP icon/product identity;
+- dark theme and accent tokens;
+- clear wizard progress;
+- language selector from the shared 29-language catalog;
+- visible privacy/security benefits;
+- explicit license acceptance;
+- clear install/update/uninstall messaging.
+
+The Setup window is resizable within sensible minimum dimensions. Busy installation stages block accidental close. Language changes safely rebuild reusable controls after the selection event unwinds.
+
+Uninstall is part of the same maintenance Setup executable; UX/documentation must not imply a separate `uninstall.exe` exists.
+
+## Error UX
+
+User-facing errors should state what operation failed and include a useful underlying message without leaking credentials.
+
+Examples:
+
+- invalid host/port before network attempt;
+- TLS refusal/certificate failure;
+- unavailable saved initial path;
+- remote permission failure;
+- local filesystem error;
+- cancelled connection/transfer.
+
+The app should recover to a stable Offline/connected state after an operation failure rather than leaving controls in an ambiguous busy state.
 
 ## Local Demo regression UX gate
 
-The built-in Demo is not just a static mock table. The cross-platform `GhostFTP.DemoSelfTest` verifies the local-only workflow used to exercise product behavior without a server:
+The built-in Demo profile is part of release UX validation, not just protocol testing. The **Local Demo regression UX gate** verifies that a complete local workflow can connect, navigate, list, transfer, rename, create/delete and disconnect without external network activity.
 
-```text
-connect → diagnostics → PWD/CWD → LIST → keepalive
-→ download → upload/download byte round trip → rename
-→ create/delete directory → recursive directory round trip
-→ conflict protection → cleanup → root-delete protection
-→ disconnect reset → reject post-disconnect operations
-```
+This catches regressions where a UI command still exists visually but its underlying session/transfer behavior is broken.
 
-A file upload must not overwrite a directory and a directory upload must not overwrite a file. Demo failures must never create external network traffic.
+## Authentic screenshot gate
 
-## Authentic documentation screenshots
+The canonical main screenshot is captured from the compiled Windows application at 1914 × 907. Release/capture workflows validate the image. Product documentation should update these captures after verified UI changes rather than manually editing screenshots or substituting conceptual art.
 
-Repository screenshots must represent the actual application, not conceptual mockups.
+## Performance
 
-The supported documentation path is:
+UI handlers should remain short and asynchronous work should use existing task/queue paths. Avoid rebuilding entire file lists or performing blocking network operations on the UI thread.
 
-```text
-GhostFTP.App --capture-ui <directory>
-```
+The design should prioritize stable interaction under large listings and multiple concurrent transfers over decorative effects.
 
-It must:
+## Definition of done for a UI change
 
-- run the real compiled MainWindow;
-- force deterministic English + dark presentation for documentation;
-- connect only to built-in Demo mode;
-- render the real MainWindow with WPF `RenderTargetBitmap`;
-- render the real Site Manager;
-- write `ghostftp-client.png` and `ghostftp-site-manager.png`;
-- make no FTP network connection, telemetry request or external image-generation call.
+A UI change is complete when:
 
-CI validates that both captures can be produced and are non-empty. A separate repository workflow refreshes the checked-in images from the same production code.
-
-## Setup wizard
-
-Setup remains a guided Windows 11-style wizard:
-
-```text
-Language → License → Install options → Ready → Install/Update → Finish
-```
-
-The wizard must show Ghost FTP identity, BRENDIGO LTD legal/publisher identity where appropriate, language selection, embedded license, explicit license acceptance, install choices, visible progress/errors and a clear Finish action.
-
-During the 0.x public line, Setup should clearly present the build as Beta in version-oriented surfaces. It must not claim that `setup.exe` or the embedded client is stable 1.0.0 until `VERSION=1.0.0` and `RELEASE_CHANNEL=stable`.
-
-Language switching must not rebuild the WPF logical tree unsafely.
-
-For updates, Setup stages and validates both application and maintenance-Setup binaries before changing the active installation, rejects an older candidate version and retains rollback copies until later install stages finish. UX must report a failed/rolled-back update rather than presenting partial success.
-
-## Uninstall UX
-
-Uninstall uses the installed `GhostFTP-Setup.exe --uninstall` maintenance application.
-
-The flow must clearly state what is removed, allow local profiles/settings to be preserved or removed, report failures, and finish with Close. There is no separate generated uninstaller executable.
-
-## Localization UX
-
-English is primary/default and the guaranteed fallback. Ghost FTP validates 29 selectable application/Setup languages locally.
-
-Missing non-critical technical text may fall back to English rather than display a misleading translation. Product/legal proper names remain Ghost FTP and BRENDIGO LTD where appropriate.
-
-## Accessibility and maintainability
-
-- Primary actions retain text labels.
-- Selection, focus and disabled states remain visually distinct.
-- Text does not rely on color alone.
-- Important controls retain reasonable hit targets.
-- Editable fields remain keyboard reachable.
-- Resizable/compact layout rules preserve usable minimum pane sizes.
-- Shared visual primitives belong in `GhostFTP.Design`.
-- Windows UI source remains C#-only under the current zero-XAML product policy.
-- Linux UI remains dependency-minimal and uses the documented system X11 ABI rather than a hidden browser/runtime framework.
-
-## Release requirement
-
-UI changes are not release-ready until the exact source commit passes compilation, source/version/channel/privacy/product/publisher/platform audit, Core tests, complete local Demo workflow tests on Windows and Linux, parallel queue tests, WPF input/localization/Setup tests, authentic production UI capture, native Linux X11/XWayland smoke tests and required packaging validation.
-
-Passing those gates keeps a 0.x build eligible for Beta release; it does not make the product stable. Stable status begins only at the explicit **1.0.0** transition defined in `docs/VERSIONING.md`.
+- it compiles on its target platform;
+- core commands remain reachable at supported window sizes;
+- text/fields do not overlap;
+- target-sensitive actions are not duplicated ambiguously;
+- keyboard/mouse input works;
+- destructive actions remain explicit;
+- localization fallback remains valid;
+- security/privacy messaging remains accurate;
+- Demo/UI smoke gates pass;
+- authentic captures are refreshed for release-quality visual changes.

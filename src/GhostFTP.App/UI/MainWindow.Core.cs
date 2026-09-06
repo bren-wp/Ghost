@@ -95,8 +95,8 @@ public sealed partial class MainWindow : Window
         Icon = GhostBrand.IconSource;
         Width = 1914;
         Height = 907;
-        MinWidth = 1280;
-        MinHeight = 720;
+        MinWidth = 1050;
+        MinHeight = 680;
         ResizeMode = ResizeMode.CanResizeWithGrip;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = GhostTheme.R("Bg");

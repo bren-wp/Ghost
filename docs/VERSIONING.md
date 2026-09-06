@@ -1,113 +1,81 @@
 # Ghost FTP versioning policy
 
-Ghost FTP uses a clean public pre-1.0 version line. The current public development version is **0.1.1 Beta**.
+Ghost FTP uses a clean public pre-1.0 version line. The current public development version is **0.1.2 Beta**.
 
-This numbering reset does **not** remove, revert or discard any previously implemented application, protocol, UI, setup, security, privacy, localization, testing or release-pipeline work. The earlier 1.x development documents remain in the repository as historical engineering snapshots. They are preserved for traceability, but they no longer define the public release number.
+The public numbering reset that began at 0.1.0 did **not** remove, revert or discard earlier application, protocol, UI, Setup, security, privacy, localization, testing or release-pipeline work. Earlier internal 1.x engineering history remains preserved under `docs/HISTORICAL-CHANGELOG.md` and related historical documents for traceability; it does not define the current public version number.
 
-## Current version sources
+## Authoritative version sources
 
-Two root files define the release identity:
+Two root files define release identity:
 
-- `VERSION` contains the numeric `MAJOR.MINOR.PATCH` value, currently `0.1.1`.
-- `RELEASE_CHANNEL` contains `beta` or `stable`, currently `beta`.
+- `VERSION` — numeric `MAJOR.MINOR.PATCH`, currently `0.1.2`;
+- `RELEASE_CHANNEL` — `beta` or `stable`, currently `beta`.
 
-For the current Beta build, .NET metadata uses:
-
-```text
-Version:              0.1.1
-AssemblyVersion:      0.1.1.0
-FileVersion:          0.1.1.0
-InformationalVersion: 0.1.1-beta
-```
-
-The Windows application and Setup manifests use the matching four-part numeric assembly version.
-
-## Pre-1.0 development line
-
-Until Ghost FTP is considered complete and stable enough for its first production release, public development versions remain below `1.0.0` and use the **Beta** channel.
-
-Normal progression can therefore use versions such as:
+For the current Beta build, synchronized .NET metadata is:
 
 ```text
-0.1.0 Beta
-0.1.1 Beta
-0.2.0 Beta
-0.3.0 Beta
-...
-0.9.0 Beta
-0.9.1 Beta
-0.9.2 Beta
+Version:              0.1.2
+AssemblyVersion:      0.1.2.0
+FileVersion:          0.1.2.0
+InformationalVersion: 0.1.2-beta
 ```
 
-Minor versions are appropriate for meaningful new capabilities or substantial UX/protocol work. Patch versions are appropriate for focused fixes, hardening and release-candidate cleanup within the same milestone.
+Windows application and Setup manifests use assembly identity `0.1.2.0`.
 
-There is no requirement to consume every possible number. The next version is chosen according to the scope of the completed work.
+## Tag format
 
-## First stable release
-
-The first release that is presented as fully complete and stable must be **Ghost FTP 1.0.0**.
-
-At that point:
-
-- `VERSION` becomes `1.0.0`;
-- `RELEASE_CHANNEL` becomes `stable`;
-- assembly and file versions become `1.0.0.0`;
-- informational version becomes `1.0.0` without the Beta suffix;
-- the canonical `portable.exe` and `setup.exe` packages represent the **1.0.0 stable** product;
-- GitHub Release is published as a normal stable release rather than a prerelease.
-
-Until that stable gate is reached, `portable.exe` and `setup.exe` are Beta packages for the current `0.x.y` version even though their canonical filenames stay unchanged.
-
-## Canonical package filenames
-
-The Windows download filenames are deliberately stable and do not encode the version number:
+Beta tag:
 
 ```text
-portable.exe
-setup.exe
-portable-arm64.exe
-setup-arm64.exe
-GhostFTP-Portable-win-x64.exe
-GhostFTP-Setup-win-x64.exe
-GhostFTP-Portable-win-arm64.exe
-GhostFTP-Setup-win-arm64.exe
-SHA256SUMS.txt
+v<MAJOR>.<MINOR>.<PATCH>-beta
 ```
 
-Their internal version metadata comes from the current release version. Keeping stable filenames allows the website and automation to point to predictable download URLs while the internal product version advances.
-
-Linux additionally publishes version-explicit tarballs such as `GhostFTP-0.1.1-beta-linux-x64.tar.gz` alongside stable architecture aliases.
-
-## Git tags and GitHub Releases
-
-Beta releases use a tag that makes the prerelease state explicit. The current release tag is:
+Stable tag:
 
 ```text
-v0.1.1-beta
+v<MAJOR>.<MINOR>.<PATCH>
 ```
 
-Stable releases use the normal version tag:
+Current expected tag: `v0.1.2-beta`.
+
+## Pre-1.0 policy
+
+Every `0.x.y` build is Beta. No 0.x release should be presented as fully stable. The first stable public target is **1.0.0**.
+
+Patch increments may include substantial hardening and UX cleanup while the product is still pre-1.0. The patch number does not imply that only trivial line changes are allowed; it indicates continued compatibility within the active Beta line.
+
+## Release-note requirements
+
+Every public version must have detailed notes at:
 
 ```text
-v1.0.0
+docs/releases/v<VERSION>.md
 ```
 
-The release workflow must mark Beta releases as GitHub prereleases. A stable `1.0.0` release is allowed only after the complete release validation suite passes for the exact source commit.
+The active public changelog in `CHANGELOG.md` summarizes each public release and links users to the detailed per-version body.
 
-Published tags are version identities. A hardening change after a published Beta must advance the patch/minor version rather than silently presenting different source under the same public version.
+Previous release documentation must not be overwritten when a new version is published. Current retained public release notes include:
 
-## Historical 1.x development records
+- `docs/releases/v0.1.0.md`;
+- `docs/releases/v0.1.1.md`;
+- `docs/releases/v0.1.2.md`.
 
-The repository already contains detailed `v1.1.0` through `v1.7.0` development-era notes and changelog entries created before this numbering reset. Those files are intentionally retained.
+The pre-reset cumulative engineering changelog remains in `docs/HISTORICAL-CHANGELOG.md`.
 
-They should be interpreted as **historical internal development milestones**, not as the current public version sequence. The features and fixes described there remain part of the codebase unless a later change explicitly supersedes them.
+## Source and binary identity
 
-No historical release-note file should be deleted merely to make the numbering look clean. New public release documentation starts from `docs/releases/v0.1.0.md` and continues forward through `docs/releases/v0.1.1.md` and later Beta releases.
+A build is not considered an official Ghost FTP release merely because a source commit contains a version string. The same source version must pass release CI and produce canonical Windows/Linux assets attached to the matching GitHub Release.
 
-Obsolete workflow trigger marker files are not historical engineering documentation and may be removed once their release has been published.
+Windows binary identity must match ProductName **Ghost FTP**, CompanyName **BRENDIGO LTD**, and the current file version. Setup validates this metadata during update and refuses version downgrade.
 
-## Release gates
+## Release trigger
 
-A version number alone does not make a build stable. Every Beta and stable package must continue to pass the repository's build, source audit, security/correctness tests, complete local Demo workflow tests, transfer queue tests, WPF UI smoke tests, authentic UI capture checks, native Linux X11/XWayland smoke tests and packaging/checksum checks required by `docs/RELEASE-POLICY.md`.
+The current `.github/release-trigger-<VERSION>` marker is used to trigger publication from `main` after the version is ready. Obsolete release-trigger markers are removed when the public line advances; release notes/changelog history remain.
 
-The **stable** label is reserved for a build that satisfies the 1.0.0 readiness criteria and is intended for production use without the Beta qualification.
+## Stable 1.0 requirements
+
+The project should not change `RELEASE_CHANNEL` to `stable` for a version below 1.0.0. Stable 1.0 additionally requires the release policy's trusted Windows signing requirement and completion of the full Windows/Linux build, test, audit, capture, packaging and public GitHub Release gates.
+
+## Development branches
+
+Feature/release branches may advance version metadata before merge so CI can validate the exact intended release state. The public release exists only after verified source reaches `main` and the Release workflow publishes the expected artifacts.

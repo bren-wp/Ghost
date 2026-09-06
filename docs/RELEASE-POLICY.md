@@ -4,271 +4,153 @@ This document defines the minimum release discipline for official **Ghost FTP** 
 
 ## Public versioning
 
-Authoritative root files:
+Authoritative root metadata:
 
 ```text
-VERSION
-RELEASE_CHANNEL
-```
-
-Current line:
-
-```text
-VERSION=0.1.1
+VERSION=0.1.2
 RELEASE_CHANNEL=beta
 ```
 
-Rules:
+All Ghost FTP 0.x releases are Beta. The first stable target is 1.0.0.
 
-- every `0.x.y` build is **Beta**;
-- Beta `InformationalVersion` is `<version>-beta`;
-- Beta GitHub Releases are prereleases;
-- first stable version is **1.0.0**;
-- version changes must keep `Directory.Build.props`, Windows manifests and release notes synchronized;
-- version-number changes must never silently discard completed product/security work;
-- a new hardening payload after a published release advances the public version instead of silently repointing a published tag.
+For the current line:
 
-See `docs/VERSIONING.md`.
+- semantic source version: **0.1.2**;
+- informational version: **0.1.2-beta**;
+- file/assembly version: **0.1.2.0**;
+- expected tag: **`v0.1.2-beta`**.
 
-## Required per-version notes
+`Directory.Build.props`, Windows application manifest and Windows Setup manifest must be synchronized with `VERSION` before publication.
 
-Every official version requires:
+## Release notes
 
-```text
-docs/releases/vMAJOR.MINOR.PATCH.md
-```
-
-The file is the authoritative detailed GitHub Release body. It must cover user-visible features, FTP/FTPS behavior, transfer reliability, security, privacy, installer changes, Windows/Linux platform scope, localization, dependencies, validation and known limitations.
-
-`CHANGELOG.md` remains cumulative history. Older internal-development 1.x entries are preserved for engineering traceability even though the active public line reset to 0.1.0 Beta.
-
-## Required Windows release assets
-
-Every official Beta/stable Windows release must include non-empty:
+Every public version requires a non-empty detailed release note at:
 
 ```text
-setup.exe
-portable.exe
-setup-arm64.exe
-portable-arm64.exe
-GhostFTP-Setup-win-x64.exe
-GhostFTP-Portable-win-x64.exe
-GhostFTP-Setup-win-arm64.exe
-GhostFTP-Portable-win-arm64.exe
-SHA256SUMS.txt
-SIGNING.txt
+docs/releases/v<VERSION>.md
 ```
 
-`setup.exe` / `portable.exe` are the canonical x64 names. ARM64 aliases and architecture-explicit copies are provided for clarity and automation.
+For 0.1.2 this is `docs/releases/v0.1.2.md`. The note must identify the exact version/channel and describe user-visible changes, security/privacy implications, platform scope, packaging and test gates.
 
-All Windows executable `FileVersion` values must match numeric `VERSION` as a four-part value. For the current 0.1.1 Beta release the expected file version is `0.1.1.0`.
+`CHANGELOG.md` must preserve all previous public versions. Earlier internal/pre-reset engineering history remains under `docs/HISTORICAL-CHANGELOG.md`.
 
-## Required Linux release assets
+## Release trigger
 
-Official Linux publication must include x64 and ARM64 self-contained deliverables and checksum/build metadata:
+The Release workflow may be started manually or by the current `.github/release-trigger-<VERSION>` marker changing on `main`. Obsolete release-trigger markers are removed after the public line advances.
 
-```text
-GhostFTP-linux-x64
-GhostFTP-linux-arm64
-GhostFTP-linux-x64.tar.gz
-GhostFTP-linux-arm64.tar.gz
-GhostFTP-<VERSION>-<CHANNEL>-linux-x64.tar.gz
-GhostFTP-<VERSION>-<CHANNEL>-linux-arm64.tar.gz
-SHA256SUMS-linux.txt
-BUILD-INFO.txt
-```
+The marker is not a substitute for CI. It only signals that the exact source is intended for publication; the Release workflow must still rebuild and re-audit everything.
 
-For the current release the version-explicit archives are `GhostFTP-0.1.1-beta-linux-x64.tar.gz` and `GhostFTP-0.1.1-beta-linux-arm64.tar.gz`.
+## Source/dependency gate
 
-Linux packages must come from the same release source/version as Windows. A Linux package is not considered published merely because an intermediate CI artifact exists; the files must be attached to the GitHub Release.
+Before packaging, source audit must verify at minimum:
+
+- shipping projects contain no third-party NuGet `PackageReference` entries;
+- known telemetry/tracking/crash-upload SDK references are absent;
+- private signing files are not tracked;
+- version/channel/product/publisher metadata is synchronized;
+- Android/iOS/MacCatalyst targets and known mobile source directories are absent;
+- Windows and Linux native renderers remain in the solution;
+- 29-language local catalog with English fallback remains available;
+- protocol security boundary and clean workstation structure remain present.
+
+## Hardening gate
+
+Final hardening audit verifies security/privacy/release contracts that are too important to rely only on compiler success, including FTPS negotiation, binary transfer mode, installer rollback/downgrade protection, local Demo regression coverage, live-smoke non-destructive guarantees, authentic screenshot use and synchronized documentation.
+
+## Build/test gate
+
+The exact release source must pass:
+
+1. Windows solution restore/build;
+2. Linux solution restore/build;
+3. source/dependency/privacy/platform audit;
+4. final hardening audit;
+5. Core self-test;
+6. complete local Demo workflow self-test on Windows and Linux;
+7. parallel transfer queue self-test;
+8. Windows WPF editable-input/localization smoke test;
+9. Linux native renderer/runtime checks;
+10. authentic Windows application capture.
+
+A merge that has not passed the required gates is not sufficient evidence for a public release.
+
+## Authentic UI capture gate
+
+The release Windows renderer is launched through the application capture path. Required images:
+
+- `ghostftp-client.png` at exactly 1914 × 907 for the canonical main-window capture;
+- `ghostftp-site-manager.png`.
+
+Required captures must be non-empty and of plausible production size. A mockup or decorative illustration cannot substitute for the compiled application capture.
+
+## Windows release artifacts
+
+Canonical Windows x64 artifacts:
+
+- `setup.exe`;
+- `portable.exe`.
+
+ARM64 canonical artifacts:
+
+- `setup-arm64.exe`;
+- `portable-arm64.exe`.
+
+Descriptive aliases include:
+
+- `GhostFTP-Setup-win-x64.exe`;
+- `GhostFTP-Portable-win-x64.exe`;
+- `GhostFTP-Setup-win-arm64.exe`;
+- `GhostFTP-Portable-win-arm64.exe`.
+
+Release output also includes `SHA256SUMS.txt` and `SIGNING.txt`.
+
+Every Windows executable must report ProductName **Ghost FTP**, CompanyName **BRENDIGO LTD**, and file version `0.1.2.0` for this release.
+
+## Windows Setup contract
+
+Setup is self-contained, per-user and also serves as the installed maintenance/uninstall executable. No separate `uninstall.exe` is required or desired.
+
+The installer must validate staged application and maintenance candidates, reject downgrades, keep rollback copies until later install steps succeed, and restore/remove committed files appropriately on failure.
+
+`QuietUninstallString` must not be advertised until a genuine tested silent uninstall path exists.
+
+## Signing policy
+
+Windows release binaries are passed through the repository signing step. Stable releases require a valid trusted Authenticode signature. Beta releases record signature state and may remain unsigned/untrusted-signed when production signing credentials are intentionally unavailable.
+
+Signing private keys/certificates must be provided through GitHub secrets or local secure developer inputs and must never be committed.
+
+## Linux release artifacts
+
+Required Linux architecture executables include:
+
+- `GhostFTP-linux-x64`;
+- `GhostFTP-linux-arm64`.
+
+Equivalent `.tar.gz` archives and versioned aliases are published by the Linux release workflow. Packages are self-contained for the .NET runtime and use the system `libX11.so.6` ABI.
+
+## Hash verification
+
+Final release bytes are hashed after signing/packaging. `SHA256SUMS.txt` must match the exact Windows executables attached to the public release. Linux packaging produces corresponding checksums for Linux deliverables.
+
+Release verification compares hashes against final bytes, not pre-signing intermediates.
 
 ## GitHub Release requirement
 
-Passing CI and uploading workflow artifacts is **not** the same as publishing a Release.
+A Ghost FTP release is not complete until the expected version tag exists and the canonical Windows/Linux artifacts are attached to the matching **GitHub Release**.
 
-For 0.1.1 Beta the official GitHub Release tag is:
+For 0.1.2 Beta that means the release associated with `v0.1.2-beta` must contain the verified downloadable artifacts produced from the exact audited source.
 
-```text
-v0.1.1-beta
-```
+## Live real-server smoke test
 
-`.github/workflows/release.yml` is responsible for creating the Release and attaching the verified Windows/Linux assets. The workflow can be triggered manually, by the matching version tag or by the current `.github/release-trigger-*` change on `main`.
+The optional live smoke workflow is separate from deterministic release CI. Credentials come from secrets/environment variables, are redacted, and the harness remains non-destructive. It may connect, read PWD/listing and send keepalive, but it must not upload, create, rename or delete remote content.
 
-A release is complete only when the GitHub Releases API/page contains the expected tag and required downloadable assets for the exact version source.
+See `docs/LIVE-SMOKE-TEST.md`.
 
-## Authentic repository UI assets
+## Failure policy
 
-Repository presentation must use authentic captures generated from production WPF code:
+If build, audit, test, capture, packaging, signing-policy, version, hash or asset verification fails, publication stops. The release must be fixed at source and rebuilt; failed release artifacts are not manually promoted as canonical.
 
-```text
-assets/readme/ghostftp-client.png
-assets/readme/ghostftp-site-manager.png
-```
+## Repository history
 
-README must lead with the real `ghostftp-client.png` rather than a decorative/mock hero. Canonical images must be generated by the compiled application `--capture-ui` path.
-
-The dedicated screenshot workflow rebuilds and refreshes those images. Normal CI independently regenerates capture artifacts and validates the canonical 1914×907 MainWindow viewport.
-
-## Windows/Linux product parity gate
-
-Windows and Linux are separate native renderers of one product:
-
-- shared `GhostFTP.Core` FTP/FTPS engine;
-- shared `GhostFTP.Design` product identity/localization/reference palette;
-- same major workstation hierarchy;
-- same FTP/plain-FTP warning semantics;
-- same transfer/session/privacy boundaries;
-- same server-only keepalive policy;
-- same no-telemetry policy.
-
-WPF and X11/XWayland can differ in OS font/window rasterization. Literal byte-identical screenshots are not a release claim. Core behavior, hierarchy, palette and safety semantics must remain aligned.
-
-See `docs/UI-PARITY.md`.
-
-## Mandatory source/build gates
-
-Before official Beta or stable publication, the exact source must pass:
-
-1. version/channel/product/publisher synchronization;
-2. zero-forbidden dependency/privacy source audit;
-3. Windows warning-as-error Release build;
-4. Linux renderer Release build;
-5. Core security/correctness self-tests on Windows and Linux;
-6. complete local Demo workflow regression tests on Windows and Linux;
-7. bounded parallel queue/session/cancellation tests on Windows and Linux;
-8. WPF editable-input and localization smoke tests;
-9. authentic production MainWindow + Site Manager capture;
-10. canonical 1914×907 screenshot verification;
-11. real Linux renderer smoke under Xvfb;
-12. Windows x64/ARM64 self-contained packaging;
-13. Windows executable/product/publisher/file-version verification;
-14. Linux x64/ARM64 self-contained packaging;
-15. final packaged Linux x64 runtime smoke under Xvfb;
-16. Windows/Linux SHA-256 manifest verification;
-17. required GitHub Release asset upload;
-18. trusted Authenticode verification for stable Windows publication.
-
-The official Release workflow repeats required checks instead of assuming an unrelated earlier CI build was correct.
-
-## Security release gate
-
-The active security model requires:
-
-- undefined/invalid FTP security modes fail closed;
-- Explicit FTPS requires positive 2xx `AUTH TLS` before TLS upgrade;
-- no silent FTPS → FTP downgrade;
-- explicit plain-FTP confirmation in both renderers;
-- normal certificate-chain/hostname validation with no trust-all switch;
-- `PBSZ 0` + `PROT P` for FTPS protected data channels;
-- successful `TYPE I` before data operations;
-- passive data channels connect to the authenticated control host;
-- CR/LF/NUL command-injection protection;
-- bounded server replies/listing/traversal/queue resources;
-- root-deletion/path-containment safeguards;
-- stale-session invalidation after keepalive/diagnostic failure.
-
-A change weakening one of these boundaries requires explicit review/documentation before release.
-
-## Demo regression gate
-
-`GhostFTP.DemoSelfTest` is mandatory on Windows and Linux. The local-only Demo workflow must cover connect/diagnostics/PWD/CWD/listing/keepalive, file and recursive-directory round trips, rename, create/delete, conflict protection, cleanup, root-delete protection, disconnect reset and rejection of operations after disconnect.
-
-The Demo test must not use a real FTP server, analytics endpoint or external network dependency.
-
-## Transfer gate
-
-`GhostFTP.QueueSelfTest` is mandatory. The queue must preserve:
-
-- 1–8 bounded concurrency;
-- default concurrency 3;
-- isolated real transfer sessions;
-- per-job cancellation isolation;
-- queue capacity 4,096;
-- transient-only retry policy;
-- local progress/bytes/speed/ETA/retry/lifecycle state;
-- deterministic worker shutdown.
-
-Authentication, certificate, permission and permanent 5xx failures must not be blindly retried.
-
-## Focus-safety gate
-
-Destructive keyboard actions must not silently target the wrong storage domain.
-
-Windows and Linux must keep Local, Remote and Transfers context explicit. When Transfers owns selection/focus, Delete cancels a transfer rather than deleting a local file. Selecting a Local/Remote row must clear stale transfer selection where necessary.
-
-## Keepalive/privacy gate
-
-Keepalive is protocol traffic to the already selected server, not telemetry:
-
-- standard FTP `NOOP`;
-- default 60 seconds;
-- configurable 15–600 seconds;
-- `0` disables;
-- Demo skipped;
-- Windows/Linux parity;
-- no Ghost FTP/BRENDIGO LTD/analytics endpoint;
-- no silent credential-based reconnect after failure.
-
-`PRIVACY.md`, `SECURITY.md` and current release notes must remain synchronized.
-
-## Dependency policy
-
-Shipping projects currently contain zero third-party NuGet `<PackageReference>` entries.
-
-- Windows uses .NET/WPF + Windows APIs.
-- Linux uses .NET + system `libX11.so.6` ABI.
-- Shared protocol/cryptography uses Microsoft .NET primitives.
-
-Adding a third-party runtime dependency requires an explicit security/privacy/licensing decision and documentation update.
-
-## Saved-credential gate
-
-Windows optional saved passwords use CurrentUser DPAPI. Linux optional saved passwords use AES-256-GCM with a local random 256-bit key restricted to the current user where Unix permissions are supported.
-
-Session-only Quick Connect must remain excluded from persisted profile JSON and must never persist its Quick Connect password.
-
-## Windows Setup gate
-
-Official Setup must:
-
-- use shared Ghost FTP product/visual identity;
-- display embedded license and require acceptance;
-- support local language selection;
-- install per user without requiring admin rights by default;
-- stage and validate the application payload and maintenance Setup binary before changing an existing installation;
-- validate candidate executable size, `MZ`, ProductName, CompanyName and exact FileVersion;
-- reject an older candidate FileVersion than an installed Ghost FTP binary;
-- keep rollback material for both replaced application and maintenance Setup binaries until later install stages succeed;
-- attempt to restore both previous binaries if a later stage fails;
-- clean stale application/Setup transaction files during uninstall;
-- register normal Installed Apps metadata;
-- use installed `GhostFTP-Setup.exe --uninstall` for interactive uninstall;
-- not advertise `QuietUninstallString` until true silent uninstall exists;
-- preserve local user data unless explicit removal is chosen.
-
-## Code-signing gate
-
-Official Windows release packaging can sign with a PFX provided only through GitHub Actions secrets:
-
-```text
-GHOSTFTP_SIGNING_PFX_BASE64
-GHOSTFTP_SIGNING_PFX_PASSWORD
-```
-
-Private keys must never be committed.
-
-Beta releases may be published unsigned if trusted signing secrets are not configured, but `SIGNING.txt` must state the result. A self-signed development certificate is not a SmartScreen/Unknown Publisher solution.
-
-Stable Windows release **must** pass trusted Authenticode verification for BRENDIGO LTD.
-
-## Live real-server smoke policy
-
-`tests/GhostFTP.LiveSmoke` is an optional non-destructive integration harness. It is not allowed to embed real credentials in source, README, workflow text or fixtures.
-
-Credentials must be supplied through environment variables/GitHub Actions repository secrets. The test sequence is limited to:
-
-```text
-connect → PWD → optional CWD → LIST → NOOP → disconnect
-```
-
-It performs no remote writes. Plain FTP requires explicit `GHOSTFTP_LIVE_ALLOW_PLAIN=1`.
+Prior release notes, changelog entries and historical engineering documentation remain versioned. Advancing a release may remove obsolete trigger markers and dead shipping code, but it must not erase earlier public release history.

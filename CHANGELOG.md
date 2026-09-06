@@ -2,6 +2,45 @@
 
 This file tracks the active public Ghost FTP version line. The original pre-reset engineering changelog is preserved verbatim in [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md); detailed per-release notes remain under [`docs/releases/`](docs/releases/).
 
+## 0.1.2 Beta — 2026-09-06
+
+### Premium workstation cleanup
+
+- Reworked the Windows reference shell around a cleaner professional FTP workstation hierarchy while preserving the authentic compiled application capture path.
+- Removed duplicated global **New folder**, **Rename** and **Delete** controls. Those context-sensitive operations now remain in the Local and Remote pane toolbars where the target is explicit.
+- Added a real resizable saved-server sidebar with double-click reset.
+- Added a vertical splitter between Connection Log / Quick Connect and the file panes.
+- Preserved and refined the Local / Remote pane splitter and Transfers queue splitter, with double-click reset behavior.
+- Reduced the minimum Windows desktop window size while retaining native minimize, maximize, restore and resize behavior.
+- Rebuilt Quick Connect spacing so Host, Port, Security, Username and Password remain aligned without the cramped field collisions visible in earlier Beta captures.
+- Compact Windows layouts hide the optional language/search overlay before it can collide with primary toolbar controls.
+
+### Connection stability and security hardening
+
+- Windows now validates host, port, username and password input through the shared `InputGuard` before DNS resolution or FTP command construction; the protocol engine validates the values again at its trust boundary.
+- Disconnect teardown clears authoritative `_session` and `_activeOptions` state before QUIT/disposal so keepalive and transfer workers cannot route through a stale session during shutdown.
+- Preserved fail-closed FTP security-mode selection, strict explicit TLS negotiation, normal TLS certificate/hostname validation, `PBSZ 0` / `PROT P`, required binary transfer mode and passive-data authenticated-control-host protection.
+- Preserved bounded untrusted server input, recursive traversal limits, local path safety checks, cancellation and transfer retry bounds.
+- Preserved local-only profile/settings storage, session-only Quick Connect entries and opt-in protected saved passwords.
+
+### Platform, dependency and privacy scope
+
+- Windows and Linux remain the only shipping application platforms.
+- Source audit now explicitly rejects Android, iOS, MacCatalyst and known mobile source directories if they are reintroduced.
+- Shipping projects continue to contain zero third-party NuGet `PackageReference` entries.
+- Source audit continues to reject known telemetry, analytics, tracking and automatic crash-upload SDKs as well as tracked private signing material.
+- Linux remains a real native X11/XWayland renderer sharing `GhostFTP.Core`, `GhostFTP.Design`, the same transfer queue, profile model, security semantics and 29-language catalog.
+
+### Localization, Setup and documentation
+
+- English remains the primary language and fallback.
+- The local catalog remains **29 selectable languages** across Windows, Linux and Windows Setup; no online translation service is used.
+- Windows Setup remains self-contained and per-user with update/uninstall handled by the maintenance Setup executable rather than a separate `uninstall.exe`.
+- Advanced the public Beta line to **0.1.2** with file/assembly version **0.1.2.0** and informational version **0.1.2-beta**.
+- Added `docs/releases/v0.1.2.md` with the detailed release contract.
+- Rewrote the active README and synchronized security, privacy, architecture, installation, localization, UI/UX, UI parity, platform-support and release-policy documentation for 0.1.2.
+- The expected public tag is **`v0.1.2-beta`**.
+
 ## 0.1.1 Beta — 2026-09-06
 
 ### Reliability and Demo regression hardening
