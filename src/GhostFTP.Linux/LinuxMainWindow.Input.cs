@@ -20,8 +20,8 @@ internal sealed partial class LinuxMainWindow
                 RequestRedraw();
                 break;
             case X11Native.ConfigureNotify:
-                _width = Math.Max(980, xevent.xconfigure.width);
-                _height = Math.Max(680, xevent.xconfigure.height);
+                _width = Math.Max(MinimumWindowWidth, xevent.xconfigure.width);
+                _height = Math.Max(MinimumWindowHeight, xevent.xconfigure.height);
                 RequestRedraw();
                 break;
             case X11Native.ClientMessage:
@@ -546,23 +546,38 @@ internal sealed partial class LinuxMainWindow
         ShowInput("Save site", "Profile name", string.Empty, value =>
         {
             if (string.IsNullOrWhiteSpace(value)) return;
-            if (!int.TryParse(_fields["port"].Value, out var port)) port = _securityMode == FtpSecurityMode.ImplicitTls ? 990 : 21;
-            var profile = new ServerProfile
+            try
             {
-                Id = Guid.NewGuid(),
-                Name = value.Trim(),
-                Host = _fields["host"].Value,
-                Port = port,
-                Username = _fields["username"].Value,
-                Security = _securityMode,
-                InitialPath = string.IsNullOrWhiteSpace(_fields["remotePath"].Value) ? "/" : _fields["remotePath"].Value,
-                RememberPassword = false
-            };
-            _profiles.Add(profile);
-            _siteSelected = _profiles.Count - 1;
-            try { _profileStore.SaveAsync(_profiles).GetAwaiter().GetResult(); }
-            catch (Exception ex) { Log("Could not save site: " + ex.Message); }
-            OpenSiteManager();
+                var name = value.Trim();
+                InputGuard.RejectControl(name, "profile name");
+                if (name.Length > 128)
+                    throw new ArgumentException("Profile name is too long.", nameof(value));
+
+                if (!int.TryParse(_fields["port"].Value, out var parsedPort))
+                    parsedPort = _securityMode == FtpSecurityMode.ImplicitTls ? 990 : 21;
+
+                var profile = new ServerProfile
+                {
+                    Id = Guid.NewGuid(),
+                    Name = name,
+                    Host = InputGuard.Host(_fields["host"].Value),
+                    Port = InputGuard.Port(parsedPort),
+                    Username = InputGuard.CommandArgument(_fields["username"].Value.Trim(), "username"),
+                    Security = _securityMode,
+                    InitialPath = string.IsNullOrWhiteSpace(_fields["remotePath"].Value)
+                        ? "/"
+                        : InputGuard.RemotePath(_fields["remotePath"].Value.Trim()),
+                    RememberPassword = false
+                };
+                _profiles.Add(profile);
+                _siteSelected = _profiles.Count - 1;
+                _profileStore.SaveAsync(_profiles).GetAwaiter().GetResult();
+                OpenSiteManager();
+            }
+            catch (Exception ex)
+            {
+                Log("Could not save site: " + ex.Message);
+            }
         });
     }
 
@@ -611,7 +626,7 @@ internal sealed partial class LinuxMainWindow
         _settings.LanguageCode = language.Code;
         GhostLocalization.SetLanguage(language.Code);
         ApplyPalette();
-        _referencePaletteApplied = false;
+        _referencePaletteApplied = _settings.Theme == AppTheme.Light;
         try { _settingsStore.SaveAsync(_settings).GetAwaiter().GetResult(); }
         catch (Exception ex) { Log("Could not save settings: " + ex.Message); }
         Log("Settings saved. Transfer concurrency/retry changes apply to the next connection.");
