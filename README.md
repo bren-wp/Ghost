@@ -184,7 +184,7 @@ A Ghost FTP Beta source is not release-ready until the relevant Windows/Linux pi
 - Core self-test;
 - complete local Demo workflow self-test;
 - parallel transfer queue self-test;
-- protocol/shutdown/parser/settings hardening self-test on Windows and Linux;
+- protocol and shutdown hardening self-test on Windows and Linux, including parser/settings hardening cases;
 - Windows WPF editable-input/localization smoke test;
 - Linux X11/XWayland runtime smoke test;
 - authentic Windows UI capture;
