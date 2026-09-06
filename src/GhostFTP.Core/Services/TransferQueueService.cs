@@ -11,9 +11,16 @@ public sealed class TransferQueueService : IAsyncDisposable
 {
     private sealed record Queued(TransferJob Job, CancellationTokenSource Cancellation);
 
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        private readonly Action<T> _report = report ?? throw new ArgumentNullException(nameof(report));
+        public void Report(T value) => _report(value);
+    }
+
     private readonly Func<CancellationToken, Task<(IFtpSession Session, bool DisposeAfter)>> _sessionFactory;
     private const int MaxQueuedTransfers = 4096;
     private const int MaxParallelTransfers = 8;
+    private static readonly TimeSpan MinimumProgressUiInterval = TimeSpan.FromMilliseconds(100);
     private readonly Channel<Queued> _channel = Channel.CreateBounded<Queued>(new BoundedChannelOptions(MaxQueuedTransfers)
     {
         SingleReader = false,
@@ -325,10 +332,15 @@ public sealed class TransferQueueService : IAsyncDisposable
     {
         var stopwatch = Stopwatch.StartNew();
         long lastBytes = 0;
-        var lastTime = TimeSpan.Zero;
+        var lastSpeedTime = TimeSpan.Zero;
+        var lastUiTime = TimeSpan.Zero;
         var hasSpeedBaseline = false;
+        var hasUiReport = false;
 
-        var progress = new Progress<(long transferred, long? total)>(p =>
+        // FtpSession reports progress synchronously from its transfer loop. Using an inline progress
+        // adapter avoids Progress<T>'s extra ThreadPool hop; Ui() remains the single deliberate
+        // marshaling boundary for renderers that supplied a SynchronizationContext.
+        var progress = new InlineProgress<(long transferred, long? total)>(p =>
         {
             var transferred = Math.Max(0, p.transferred);
             var total = p.total ?? job.TotalBytes;
@@ -338,27 +350,33 @@ public sealed class TransferQueueService : IAsyncDisposable
             if (!hasSpeedBaseline)
             {
                 lastBytes = transferred;
-                lastTime = elapsed;
+                lastSpeedTime = elapsed;
                 hasSpeedBaseline = true;
             }
             else
             {
-                var deltaSeconds = (elapsed - lastTime).TotalSeconds;
+                var deltaSeconds = (elapsed - lastSpeedTime).TotalSeconds;
                 if (deltaSeconds >= 0.5)
                 {
                     speed = Math.Max(0, transferred - lastBytes) / deltaSeconds;
                     lastBytes = transferred;
-                    lastTime = elapsed;
+                    lastSpeedTime = elapsed;
                 }
             }
 
+            var finalProgress = total is > 0 && transferred >= total.Value;
+            if (hasUiReport && !finalProgress && elapsed - lastUiTime < MinimumProgressUiInterval)
+                return;
+
+            hasUiReport = true;
+            lastUiTime = elapsed;
             Ui(() =>
             {
                 job.BytesTransferred = transferred;
                 if (total is > 0)
                 {
                     job.TotalBytes = total;
-                    job.Progress = transferred * 100d / total.Value;
+                    job.Progress = Math.Clamp(transferred * 100d / total.Value, 0d, 100d);
                 }
                 if (speed >= 0)
                     job.SpeedBytesPerSecond = speed;
