@@ -1,11 +1,11 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.3 Beta** source line. Ghost FTP is developed and published by **BRENDIGO LTD**.
+This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.4 Beta** source line. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## Release identity
 
 ```text
-VERSION=0.1.3
+VERSION=0.1.4
 RELEASE_CHANNEL=beta
 ```
 
@@ -28,13 +28,11 @@ Setup:
 
 ### Portable
 
-Use `portable.exe` (or architecture-specific portable asset) when an installed Windows registration is not desired.
-
-Portable mode is detected by the portable executable name/marker and stores local Ghost FTP data under a `Data` directory beside the executable.
+Use `portable.exe` (or an architecture-specific portable asset) when installed Windows registration is not desired. Portable mode stores local Ghost FTP data under a `Data` directory beside the executable.
 
 ## Premium Setup workflow
 
-0.1.3 Setup uses the same canonical Ghost FTP dark palette as the Windows client and includes:
+0.1.4 retains the canonical Ghost FTP dark Setup workflow:
 
 1. Welcome / language selection;
 2. license review;
@@ -43,21 +41,13 @@ Portable mode is detected by the portable executable name/marker and stores loca
 5. transactional progress;
 6. Finish / launch.
 
-A compact progress badge indicates the active wizard step. Setup also explains the local-only/no-telemetry model and that one maintained Setup executable handles installation, update and uninstall.
+A compact progress badge indicates the active wizard step. Setup explains the local-only/no-telemetry model and that one maintained Setup executable handles installation, update and uninstall.
 
-## Install location
+## Install location and local data
 
 Ghost FTP uses a per-user install directory. No administrator-level machine-wide installation is claimed by the current Setup contract.
 
-## Local data
-
-Installed application data is stored in the current user's local Ghost FTP data directory. It can contain:
-
-- settings;
-- saved site profiles;
-- protected saved-password data when explicitly enabled.
-
-Uninstall allows the user to choose whether local profiles/settings should also be removed.
+Installed application data is stored in the current user's local Ghost FTP data directory. It can contain settings, saved site profiles and protected saved-password data when explicitly enabled. Uninstall allows the user to choose whether local profiles/settings should also be removed.
 
 ## Windows saved passwords
 
@@ -65,12 +55,7 @@ Saved passwords are optional. Windows protects them with the current-user DPAPI 
 
 ## Update transaction
 
-Setup does not blindly overwrite the active application.
-
-The installer stages and validates:
-
-- the application candidate;
-- the maintenance Setup candidate.
+Setup does not blindly overwrite the active application. The installer stages and validates the application candidate and maintenance Setup candidate.
 
 Candidate validation checks expected executable/product/company/file-version identity. Setup **refuses to downgrade** an existing newer installation/maintenance binary.
 
@@ -78,55 +63,41 @@ Before replacing an existing executable, Setup keeps an independent local backup
 
 ## Uninstall model
 
-The same installed `GhostFTP-Setup.exe` is registered as the normal uninstall command. This satisfies the requirement that installation and removal are handled by the maintained Setup program instead of generating a second uninstaller program.
+The same installed `GhostFTP-Setup.exe` is registered as the normal uninstall command. The current release deliberately does not advertise `QuietUninstallString` because a true silent-uninstall contract has not yet been implemented and tested.
 
-The current release deliberately does not advertise `QuietUninstallString` because a true silent-uninstall contract has not yet been implemented and tested.
+## Desktop shortcut and language
 
-## Desktop shortcut
-
-The desktop shortcut is optional. Reinstall/update may preserve or recreate it according to the selected Setup option.
-
-## Language
-
-Setup exposes the same local language catalog used by the desktop product. English (`en`) is the primary/default/fallback language. The selected language is saved locally for Ghost FTP.
+The desktop shortcut is optional. Setup exposes the same local language catalog used by the desktop product. English (`en`) is the primary/default/fallback language and the selected language is saved locally.
 
 ## Privacy during installation
 
-Setup does not send install analytics, create a Ghost FTP account, upload machine inventory or register a tracking service. The installer uses local package resources and Windows registration APIs required to install/update/uninstall the program.
+Setup does not send install analytics, create a Ghost FTP account, upload machine inventory or register a tracking service. It uses local package resources and Windows registration APIs required for install/update/uninstall.
 
 ## Windows architecture assets
 
-Official releases may provide:
-
-- Windows x64 Setup;
-- Windows ARM64 Setup;
-- Windows x64 Portable;
-- Windows ARM64 Portable;
-- canonical aliases `setup.exe` and `portable.exe`.
-
-Release pipeline verification confirms the required assets and matching version metadata before publication.
+Official releases may provide Windows x64/ARM64 Setup, Windows x64/ARM64 Portable, canonical aliases `setup.exe` / `portable.exe`, SHA-256 information and signing metadata. Release verification confirms required assets and matching version metadata before publication.
 
 ## Linux installation
 
-Ghost FTP Linux packages are self-contained application builds for x64/ARM64. The native renderer uses the system X11/XWayland environment and the supported system `libX11.so.6` ABI.
+Ghost FTP Linux packages are self-contained application builds for x64/ARM64. The native renderer uses the system X11/XWayland environment and supported `libX11.so.6` ABI.
 
-Typical use is to extract the versioned archive or place the executable in a user-controlled application directory and ensure it is executable.
-
-The application stores normal installed-mode settings/profile data in the current user's local application-data path.
+Typical use is to extract the versioned archive or place the executable in a user-controlled application directory and ensure it is executable. Installed-mode settings/profile data remains under the current user's local application-data path.
 
 ## Linux dependencies
 
-The .NET runtime is included in self-contained packages. The native renderer still requires the supported host X11 libraries/environment because it uses Xlib directly.
+The .NET runtime is included in self-contained packages. The native renderer still requires a supported X11 environment/libraries because it uses Xlib directly. Ghost FTP does not bundle a separate GTK/Qt/Electron framework.
 
-No separate GTK/Qt/Electron framework is bundled by Ghost FTP.
+## Upgrade from 0.1.3
 
-## Upgrade from 0.1.2
+Windows users may run 0.1.4 Setup over an existing 0.1.3 per-user installation. Setup performs product/version validation and transaction/rollback handling before committing new binaries.
 
-Windows users may run 0.1.3 Setup over an existing 0.1.2 per-user installation. Setup performs version validation and transaction/rollback handling before committing the new binaries.
+0.1.4 changes the shared protocol/session/queue implementation but does not require a profile/settings migration. Local profiles and settings remain local and use the same persistence model.
 
-Local profiles/settings remain local and are not cloud-migrated.
+Linux users can replace the previous application binary/archive with the matching 0.1.4 architecture package. Existing installed-mode settings/profile files remain compatible with the current persistence format.
 
-Linux users can replace the previous application binary/archive with the matching 0.1.3 architecture package. Existing installed-mode local settings/profile files use the same shared persistence model.
+## Protocol/stability changes relevant to upgrades
+
+0.1.4 adds stricter FTP reply and passive-mode validation plus coordinated session/queue shutdown. These are runtime hardening changes and do not modify the installer data layout. Servers that return malformed FTP reply framing or invalid PASV/EPSV tuples will now be rejected more explicitly rather than parsed permissively.
 
 ## Troubleshooting
 
@@ -140,12 +111,12 @@ Review the displayed error and ensure the current user can write to the per-user
 
 ### Linux reports no X11/XWayland display
 
-Ensure a working desktop display/session and `DISPLAY` environment are available and the supported X11 runtime libraries are installed.
+Ensure a working desktop display/session and `DISPLAY` environment are available and supported X11 runtime libraries are installed.
 
 ### Portable data appears beside the executable
 
-That is expected portable behavior. Use the normal installed Setup build when profile/settings data should live under the current user's application-data directory.
+That is expected portable behavior. Use the installed Setup build when settings/profile data should live under the user's application-data directory.
 
 ## Verification
 
-Official public releases are generated by the release workflow after Windows/Linux build, audits, tests, package verification and checksums. Prefer assets attached to the official GitHub Release over unverified third-party copies.
+Official public releases are generated by the release workflow after Windows/Linux build, audits, Core/queue/protocol hardening tests, renderer smoke tests, package verification and checksums. Prefer assets attached to the official GitHub Release over unverified third-party copies.
