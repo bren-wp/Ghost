@@ -8,7 +8,7 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
-    private const double DefaultConnectionPanelHeight = 214;
+    private const double DefaultConnectionPanelHeight = 184;
     private const double DefaultTransferPanelHeight = 198;
 
     private void ConfigureResponsiveColumns()
@@ -82,6 +82,8 @@ public sealed partial class MainWindow
 
         if (_workspaceContent is not null && _filePanesGrid is not null)
         {
+            _workspaceContent.RowDefinitions[0].Height = new GridLength(
+                Math.Clamp(_settings.ConnectionPanelHeight, 160, 360));
             _workspaceContent.RowDefinitions[4].Height = new GridLength(
                 Math.Clamp(_settings.TransferPanelHeight, 128, 440));
 
@@ -89,6 +91,9 @@ public sealed partial class MainWindow
             _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(localFraction, GridUnitType.Star);
             _filePanesGrid.ColumnDefinitions[2].Width = new GridLength(1 - localFraction, GridUnitType.Star);
         }
+
+        if (_referenceSidebarColumn is not null)
+            _referenceSidebarColumn.Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 220, 380));
 
         if (_settings.WindowMaximized && _captureDirectory is null)
         {
@@ -115,8 +120,19 @@ public sealed partial class MainWindow
 
         _settings.WindowMaximized = WindowState == WindowState.Maximized;
 
+        if (_referenceSidebarColumn is not null && IsFinitePositive(_referenceSidebarColumn.ActualWidth))
+            _settings.SidebarWidth = Math.Clamp(_referenceSidebarColumn.ActualWidth, 220, 380);
+
         if (_workspaceContent is null || _filePanesGrid is null)
             return;
+
+        if (IsFinitePositive(_workspaceContent.RowDefinitions[0].ActualHeight))
+        {
+            _settings.ConnectionPanelHeight = Math.Clamp(
+                _workspaceContent.RowDefinitions[0].ActualHeight,
+                160,
+                360);
+        }
 
         if (IsFinitePositive(_workspaceContent.RowDefinitions[4].ActualHeight))
         {
