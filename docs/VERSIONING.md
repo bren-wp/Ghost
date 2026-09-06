@@ -1,54 +1,45 @@
 # Ghost FTP versioning policy
 
-Ghost FTP uses a clean public pre-1.0 version line. The current public development version is **0.1.5 Beta**.
+Ghost FTP uses a clean public pre-1.0 version line. The current public development version is **0.1.6 Beta**.
 
-The public numbering reset that began at 0.1.0 did **not** remove, revert or discard earlier application, protocol, UI, Setup, security, privacy, localization, testing or release-pipeline work. Earlier internal 1.x engineering history remains preserved under `docs/HISTORICAL-CHANGELOG.md` and related historical documents for traceability; it does not define the current public version number.
+The public numbering reset that began at 0.1.0 did **not** remove, revert or discard earlier application, protocol, UI, Setup, security, privacy, localization, testing or release-pipeline work. Earlier engineering history remains preserved under `docs/HISTORICAL-CHANGELOG.md` and historical release documents for traceability.
 
 ## Authoritative version sources
 
 Two root files define release identity:
 
-- `VERSION` — numeric `MAJOR.MINOR.PATCH`, currently `0.1.5`;
+- `VERSION` — numeric `MAJOR.MINOR.PATCH`, currently `0.1.6`;
 - `RELEASE_CHANNEL` — `beta` or `stable`, currently `beta`.
 
-For the current Beta build, synchronized .NET metadata is:
+For the current Beta build:
 
 ```text
-Version:              0.1.5
-AssemblyVersion:      0.1.5.0
-FileVersion:          0.1.5.0
-InformationalVersion: 0.1.5-beta
+Version:              0.1.6
+AssemblyVersion:      0.1.6.0
+FileVersion:          0.1.6.0
+InformationalVersion: 0.1.6-beta
 ```
 
-Windows application and Setup manifests use assembly identity `0.1.5.0`.
+Windows application and Setup manifests use assembly identity `0.1.6.0`.
 
 ## Tag format
 
 Beta tag: `v<MAJOR>.<MINOR>.<PATCH>-beta`  
 Stable tag: `v<MAJOR>.<MINOR>.<PATCH>`
 
-Current expected tag: `v0.1.5-beta`.
+Current expected tag: `v0.1.6-beta`.
 
 ## Pre-1.0 policy
 
-Every `0.x.y` build is Beta. No 0.x release should be presented as fully stable. The first stable public target is **1.0.0**.
+Every `0.x.y` build is Beta. No 0.x release is represented as stable. The first stable public target is **1.0.0**.
 
-Patch increments may contain meaningful parser/security hardening, transfer-management work, performance improvements and UX refinement while the product is pre-1.0.
+Patch increments may contain meaningful security/integrity hardening, protocol/parser work, transfer-management changes, performance improvements, deterministic regression expansion and UX refinement while the product remains pre-1.0.
 
 ## Release-note requirements
 
 Every public version has detailed notes at `docs/releases/v<VERSION>.md`. The active public changelog summarizes each release and links to its detailed body.
 
-Retained public release notes include:
-
-- `docs/releases/v0.1.0.md`;
-- `docs/releases/v0.1.1.md`;
-- `docs/releases/v0.1.2.md`;
-- `docs/releases/v0.1.3.md`;
-- `docs/releases/v0.1.4.md`;
-- `docs/releases/v0.1.5.md`.
-
-The pre-reset cumulative engineering changelog remains in `docs/HISTORICAL-CHANGELOG.md`.
+Retained public release notes include `v0.1.0.md` through `v0.1.6.md`. The pre-reset cumulative engineering changelog remains in `docs/HISTORICAL-CHANGELOG.md`.
 
 ## Source and binary identity
 
@@ -58,12 +49,12 @@ Windows binary identity must match ProductName **Ghost FTP**, CompanyName **BREN
 
 ## Release trigger
 
-The active `.github/release-trigger-<VERSION>` marker participates in publication from `main` after a version is ready. Obsolete release-trigger markers are removed when the active source line advances; historical release notes/changelog entries remain.
+The active `.github/release-trigger-<VERSION>` marker participates in publication from `main` after a version is ready. Obsolete active markers are removed while historical release notes and changelog entries remain.
 
-For 0.1.5 the active marker is:
+For 0.1.6 the active marker is:
 
 ```text
-.github/release-trigger-0.1.5
+.github/release-trigger-0.1.6
 ```
 
 ## Release branch policy
@@ -81,21 +72,18 @@ Normal sequence:
 7. allow the main release workflow to publish canonical artifacts;
 8. verify GitHub Release metadata and all required assets.
 
-## 0.1.5 scope
+## 0.1.6 scope
 
-The 0.1.5 line is centered on:
+The 0.1.6 line is centered on safe download resume integrity:
 
-- stronger LIST/MLSD parser resource bounds;
-- non-backtracking LIST parsing;
-- safer Unix symlink-name handling;
-- deterministic custom-delimiter EPSV and malformed-PASV regression coverage;
-- pooled/cleared transfer buffers;
-- lower transfer-progress scheduling and renderer churn;
-- coalesced post-transfer pane refresh;
-- more complete persisted workstation splitter/layout state;
-- visible Windows queue pause/resume control;
-- settings backup/normalization regression coverage;
-- preserving 0.1.4 protocol/lifecycle hardening and 0.1.3 transfer semantics.
+- bounded local partial-file identity sidecars;
+- endpoint/security/path/`SIZE`/`MDTM` matching before REST resume;
+- safe restart from zero for legacy, corrupt or stale partial state;
+- post-transfer remote-revision validation;
+- recursive directory downloads using the same per-file resume contract;
+- isolated package-free `GhostFTP.ResumeSelfTest` coverage on Windows and Linux;
+- preservation of 0.1.5 parser, memory, UI-efficiency and workstation improvements;
+- preservation of 0.1.4 protocol/lifecycle hardening and 0.1.3 transfer queue semantics.
 
 ## Stable 1.0 requirements
 
