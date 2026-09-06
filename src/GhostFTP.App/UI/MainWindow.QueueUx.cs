@@ -76,7 +76,11 @@ public sealed partial class MainWindow
         _queuePauseButton.ToolTip = paused
             ? "Resume dispatch of queued and retrying transfers."
             : GhostTransferText.T("RunningContinue");
-        _queuePauseButton.IsEnabled = _queue is not null;
+
+        // The queue is created during asynchronous window initialization. Keeping this control
+        // enabled avoids a stale disabled visual when initialization completes after the shell is built;
+        // ToggleQueuePause itself remains a safe no-op until the queue exists.
+        _queuePauseButton.IsEnabled = true;
     }
 
     private void ShowSelectedTransferDetails()
