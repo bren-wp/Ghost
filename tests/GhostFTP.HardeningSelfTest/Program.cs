@@ -9,6 +9,13 @@ namespace GhostFTP.HardeningSelfTest;
 
 public static class Program
 {
+    private enum PassiveScenario
+    {
+        PasvFallback,
+        EpsvCustomDelimiter,
+        MalformedPasv
+    }
+
     public static async Task<int> Main()
     {
         var tests = new (string Name, Func<Task> Run)[]
@@ -16,6 +23,9 @@ public static class Program
             ("FTP session concurrent disposal is idempotent", TestConcurrentSessionDisposalAsync),
             ("Transfer queue concurrent disposal is idempotent", TestConcurrentQueueDisposalAsync),
             ("Malformed FTP reply framing is rejected", TestMalformedReplyRejectedAsync),
+            ("Listing parser bounds pathological input and preserves safe symlinks", TestListingParserHardeningAsync),
+            ("EPSV custom delimiter interoperates without PASV downgrade", TestEpsvCustomDelimiterAsync),
+            ("Malformed PASV tuple is rejected before data connection", TestMalformedPasvRejectedAsync),
             ("FTP preliminary greeting and strict PASV tuple interoperate", TestProtocolCompatibilityAsync)
         };
 
@@ -105,17 +115,7 @@ public static class Program
             await stream.FlushAsync(timeout.Token).ConfigureAwait(false);
         }, timeout.Token);
 
-        await using var session = new FtpSession(new FtpConnectionOptions
-        {
-            Host = "127.0.0.1",
-            Port = port,
-            Username = "ghost",
-            Password = "test-password",
-            Security = FtpSecurityMode.Plain,
-            ConnectTimeout = TimeSpan.FromSeconds(5),
-            CommandTimeout = TimeSpan.FromSeconds(5),
-            TransferTimeout = TimeSpan.FromSeconds(5)
-        });
+        await using var session = CreateSession(port);
 
         var rejected = false;
         try
@@ -135,26 +135,93 @@ public static class Program
         Assert(rejected, "A malformed FTP reply separator was accepted as a valid 220 greeting.");
     }
 
+    private static Task TestListingParserHardeningAsync()
+    {
+        var oversized = "-rw-r--r-- 1 owner group 1 Sep  6 2026 " + new string('x', 70_000);
+        const string symlink = "lrwxrwxrwx 1 owner group 8 Sep  6 2026 current -> /srv/releases/current";
+        var entries = FtpListingParser.ParseList(
+            oversized + "\r\n" + symlink + "\r\n",
+            "/public_html",
+            new DateTimeOffset(2026, 9, 6, 12, 0, 0, TimeSpan.Zero));
+
+        Assert(entries.Count == 1, "Oversized LIST input was not bounded or the safe symlink was lost.");
+        Assert(entries[0].Name == "current", "Absolute symlink target metadata leaked into the remote entry name.");
+        Assert(entries[0].FullPath == "/public_html/current", "Symlink entry escaped the selected remote parent path.");
+
+        var excessiveFacts = string.Join(';', Enumerable.Range(0, 65).Select(i => $"x{i}=y"))
+            + ";type=file;size=1; pathological.txt\r\n";
+        Assert(FtpListingParser.ParseMlsd(excessiveFacts, "/").Count == 0,
+            "MLSD entry with an excessive number of facts bypassed the parser resource bound.");
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task TestEpsvCustomDelimiterAsync()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var controlPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var serverTask = RunFakeFtpServerAsync(listener, PassiveScenario.EpsvCustomDelimiter, preliminaryGreeting: false, timeout.Token);
+
+        await using var session = CreateSession(controlPort);
+        try
+        {
+            await session.ConnectAsync(timeout.Token).ConfigureAwait(false);
+            var entries = await session.ListAsync("/", timeout.Token).ConfigureAwait(false);
+            Assert(entries.Count == 1 && entries[0].Name == "hello.txt",
+                "Valid EPSV response with a non-pipe delimiter did not establish the data channel.");
+            await session.DisconnectAsync(timeout.Token).ConfigureAwait(false);
+            await serverTask.WaitAsync(TimeSpan.FromSeconds(5), timeout.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            listener.Stop();
+            await ObserveServerShutdownAsync(serverTask, timeout).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task TestMalformedPasvRejectedAsync()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var controlPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var serverTask = RunFakeFtpServerAsync(listener, PassiveScenario.MalformedPasv, preliminaryGreeting: false, timeout.Token);
+
+        await using var session = CreateSession(controlPort);
+        var rejected = false;
+        try
+        {
+            await session.ConnectAsync(timeout.Token).ConfigureAwait(false);
+            try
+            {
+                _ = await session.ListAsync("/", timeout.Token).ConfigureAwait(false);
+            }
+            catch (FtpException ex) when (ex.Message.Contains("PASV", StringComparison.OrdinalIgnoreCase))
+            {
+                rejected = true;
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+
+        Assert(rejected, "Out-of-range PASV tuple values were accepted.");
+        await session.DisposeAsync().ConfigureAwait(false);
+        await ObserveServerShutdownAsync(serverTask, timeout).ConfigureAwait(false);
+    }
+
     private static async Task TestProtocolCompatibilityAsync()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var controlPort = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var serverTask = RunFakeFtpServerAsync(listener, timeout.Token);
+        var serverTask = RunFakeFtpServerAsync(listener, PassiveScenario.PasvFallback, preliminaryGreeting: true, timeout.Token);
 
-        await using var session = new FtpSession(new FtpConnectionOptions
-        {
-            Host = "127.0.0.1",
-            Port = controlPort,
-            Username = "ghost",
-            Password = "test-password",
-            Security = FtpSecurityMode.Plain,
-            ConnectTimeout = TimeSpan.FromSeconds(5),
-            CommandTimeout = TimeSpan.FromSeconds(5),
-            TransferTimeout = TimeSpan.FromSeconds(5)
-        });
-
+        await using var session = CreateSession(controlPort);
         try
         {
             await session.ConnectAsync(timeout.Token).ConfigureAwait(false);
@@ -171,15 +238,44 @@ public static class Program
         finally
         {
             listener.Stop();
-            if (!serverTask.IsCompleted)
-            {
-                timeout.Cancel();
-                try { await serverTask.ConfigureAwait(false); } catch (OperationCanceledException) { }
-            }
+            await ObserveServerShutdownAsync(serverTask, timeout).ConfigureAwait(false);
         }
     }
 
-    private static async Task RunFakeFtpServerAsync(TcpListener controlListener, CancellationToken cancellationToken)
+    private static FtpSession CreateSession(int port) => new(new FtpConnectionOptions
+    {
+        Host = "127.0.0.1",
+        Port = port,
+        Username = "ghost",
+        Password = "test-password",
+        Security = FtpSecurityMode.Plain,
+        ConnectTimeout = TimeSpan.FromSeconds(5),
+        CommandTimeout = TimeSpan.FromSeconds(5),
+        TransferTimeout = TimeSpan.FromSeconds(5)
+    });
+
+    private static async Task ObserveServerShutdownAsync(Task serverTask, CancellationTokenSource timeout)
+    {
+        if (serverTask.IsCompleted)
+        {
+            await serverTask.ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            await serverTask.WaitAsync(TimeSpan.FromSeconds(5), timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static async Task RunFakeFtpServerAsync(
+        TcpListener controlListener,
+        PassiveScenario scenario,
+        bool preliminaryGreeting,
+        CancellationToken cancellationToken)
     {
         using var controlClient = await controlListener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
         await using var controlStream = controlClient.GetStream();
@@ -190,7 +286,8 @@ public static class Program
             AutoFlush = true
         };
 
-        await writer.WriteLineAsync("120 Service ready shortly".AsMemory(), cancellationToken).ConfigureAwait(false);
+        if (preliminaryGreeting)
+            await writer.WriteLineAsync("120 Service ready shortly".AsMemory(), cancellationToken).ConfigureAwait(false);
         await writer.WriteLineAsync("220 GhostFTP hardening test ready".AsMemory(), cancellationToken).ConfigureAwait(false);
 
         TcpListener? dataListener = null;
@@ -228,14 +325,30 @@ public static class Program
                 }
                 else if (string.Equals(command, "EPSV", StringComparison.OrdinalIgnoreCase))
                 {
-                    await ReplyAsync(writer, "500 EPSV unavailable", cancellationToken).ConfigureAwait(false);
+                    if (scenario == PassiveScenario.EpsvCustomDelimiter)
+                    {
+                        PrepareDataListener(ref dataListener);
+                        var dataPort = ((IPEndPoint)dataListener!.LocalEndpoint).Port;
+                        await ReplyAsync(writer, $"229 Entering Extended Passive Mode (###{dataPort}#)", cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await ReplyAsync(writer, "500 EPSV unavailable", cancellationToken).ConfigureAwait(false);
+                    }
                 }
                 else if (string.Equals(command, "PASV", StringComparison.OrdinalIgnoreCase))
                 {
-                    dataListener?.Stop();
-                    dataListener = new TcpListener(IPAddress.Loopback, 0);
-                    dataListener.Start();
-                    var dataPort = ((IPEndPoint)dataListener.LocalEndpoint).Port;
+                    if (scenario == PassiveScenario.EpsvCustomDelimiter)
+                        throw new InvalidOperationException("Client downgraded to PASV after a valid EPSV response.");
+
+                    if (scenario == PassiveScenario.MalformedPasv)
+                    {
+                        await ReplyAsync(writer, "227 Entering Passive Mode (127,0,0,1,999,1)", cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    PrepareDataListener(ref dataListener);
+                    var dataPort = ((IPEndPoint)dataListener!.LocalEndpoint).Port;
                     var p1 = dataPort / 256;
                     var p2 = dataPort % 256;
 
@@ -249,7 +362,7 @@ public static class Program
                 else if (command.StartsWith("LIST ", StringComparison.OrdinalIgnoreCase))
                 {
                     if (dataListener is null)
-                        throw new InvalidOperationException("LIST arrived before a PASV listener was prepared.");
+                        throw new InvalidOperationException("LIST arrived before a passive data listener was prepared.");
 
                     await ReplyAsync(writer, "150 Opening data connection", cancellationToken).ConfigureAwait(false);
                     using (var dataClient = await dataListener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false))
@@ -278,6 +391,13 @@ public static class Program
         {
             dataListener?.Stop();
         }
+    }
+
+    private static void PrepareDataListener(ref TcpListener? dataListener)
+    {
+        dataListener?.Stop();
+        dataListener = new TcpListener(IPAddress.Loopback, 0);
+        dataListener.Start();
     }
 
     private static Task ReplyAsync(StreamWriter writer, string text, CancellationToken cancellationToken) =>
