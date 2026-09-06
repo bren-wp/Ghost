@@ -53,7 +53,7 @@ $queue = Require-Tokens 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
     'ClearCompleted()',
     'ClearFailed()',
     'ClearCancelled()',
-    'Running transfers that were already running'
+    'Transfers that were already running'
 )
 if ($queue -match 'Thread\.Sleep\(') {
     throw 'Transfer queue pause/resume must not use thread sleep polling.'
