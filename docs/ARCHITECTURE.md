@@ -1,185 +1,190 @@
 # Ghost FTP Architecture
 
-Ghost FTP **0.1.2 Beta** is a privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
+Ghost FTP **0.1.3 Beta** is one privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
 
 ## Release identity
 
-The public version line is defined by root metadata:
+The public release identity comes from root files:
 
 ```text
-VERSION=0.1.2
+VERSION=0.1.3
 RELEASE_CHANNEL=beta
 ```
 
-`Directory.Build.props` synchronizes product, company, assembly, file and informational versions. Windows app and Setup manifests use the corresponding `0.1.2.0` assembly identity.
+`Directory.Build.props` synchronizes Version, AssemblyVersion, FileVersion and InformationalVersion. Windows application/Setup manifests use the matching four-part assembly identity.
 
-## Project topology
+## Project boundaries
 
-### `src/GhostFTP.Core`
+### GhostFTP.Core
 
-Platform-neutral .NET 10 code shared by Windows and Linux:
+Platform-neutral `net10.0` library containing:
 
-- FTP/FTPS control-session lifecycle;
-- TLS transport negotiation;
-- FTP command/reply parsing;
-- data-channel creation;
-- file/directory upload and download;
-- recursive traversal limits;
-- shared input/path guards;
-- transfer queue and retry/cancellation logic;
-- profile/settings models and local stores;
-- deterministic local Demo session.
-
-The Core layer has no WPF/X11 dependency and no third-party NuGet `PackageReference`.
-
-### `src/GhostFTP.Design`
-
-Shared product and presentation contract:
-
-- product/publisher identity;
-- dark premium reference palette;
-- common dimensions and visual tokens;
-- 29-language local catalog with English fallback;
-- shared reference-shell copy.
-
-Windows and Linux intentionally consume this layer so product identity, colors, language selection and user-facing semantics do not drift.
-
-### `src/GhostFTP.App`
-
-Native Windows WPF renderer:
-
-- resizable reference workstation shell;
-- saved-server sidebar;
-- menu/primary toolbar;
-- Connection Log and Quick Connect;
-- Local/Remote panes and context actions;
+- FTP/FTPS protocol session;
+- parser/input/path guards;
 - transfer queue;
-- Site Manager, Settings and diagnostics;
-- DPAPI saved-password protector;
-- authentic production UI capture path.
+- transfer models;
+- profile/settings persistence primitives;
+- Linux saved-secret cryptography;
+- Demo FTP session.
 
-0.1.2 removes duplicated global create/rename/delete controls and keeps those operations in the Local/Remote pane toolbars.
+Core contains no WPF dependency and is shared by Windows and Linux.
 
-### `src/GhostFTP.Linux`
+### GhostFTP.Design
 
-The **Linux X11/XWayland renderer** is a real native desktop implementation rather than a browser wrapper or Windows compatibility package. It uses direct audited X11 ABI interop while sharing `GhostFTP.Core` and `GhostFTP.Design`.
+Shared product identity, localization, palette and design semantics. It multi-targets platform-neutral .NET plus the Windows target needed by WPF-specific helpers.
 
-Linux owns platform-specific input/window/rendering code but shares FTP/FTPS, transfer, profile, privacy, localization and product semantics with Windows.
+Important shared contracts include:
 
-### `src/GhostFTP.Setup`
+- `GhostProduct`;
+- `GhostBrand`;
+- `GhostLocalization`;
+- `GhostReferencePalette`;
+- `GhostReferenceText`;
+- `GhostTransferText`.
 
-Self-contained native Windows Setup/maintenance executable:
+### GhostFTP.App
 
-- install/update/uninstall UI;
-- local language selector using the same 29-language catalog;
-- per-user installation;
-- staged candidate validation;
-- downgrade protection;
-- transactional application/maintenance-Setup rollback;
-- registration of the maintenance Setup as the uninstall command.
+Native Windows WPF renderer. It owns:
 
-There is intentionally no separate `uninstall.exe`.
+- workstation layout;
+- Quick Connect;
+- Local/Remote panes;
+- transfer list and context actions;
+- Site Manager/Settings/dialogs;
+- Windows DPAPI saved-secret adapter;
+- authentic screenshot capture path.
 
-## Runtime trust boundaries
+### Linux X11/XWayland renderer
 
-### User input
+`GhostFTP.Linux` is a native C# **Linux X11/XWayland renderer** using the system `libX11.so.6` ABI. It is not a browser wrapper and does not ship a second FTP implementation.
 
-Host, port, username, password, paths and names are treated as untrusted. Windows 0.1.2 validates connection input before DNS/option construction and Core validates again at the protocol boundary.
+It uses the same Core services, settings/profile models, transfer queue, localization and canonical palette as Windows.
 
-### FTP server input
+### GhostFTP.Setup
 
-Greetings, replies, feature lists, directory listings and passive-mode addresses are untrusted. Reply size/line counts and traversal budgets are bounded. Passive data connections remain associated with the authenticated control host.
+Native Windows per-user Setup application. The same maintenance executable is installed as `GhostFTP-Setup.exe` and registered for future uninstall/update operations. A separate uninstaller executable is intentionally not generated.
 
-### Filesystem input
+## Connection architecture
 
-Local paths are canonicalized. Recursive/destructive operations validate path relationships instead of trusting textual prefixes.
+A user-selected connection becomes `FtpConnectionOptions`, which is validated again inside `FtpSession`. The control connection is established with the chosen mode:
 
-### Stored local data
+- plain FTP;
+- Explicit FTPS;
+- Implicit FTPS.
 
-Settings/profile files are size-bounded and written atomically where applicable. Session-only profiles are excluded from persistence. Saved passwords are opt-in and encrypted/protected per platform.
+No transport fallback silently changes an FTPS request into plain FTP.
 
-## FTPS architecture
-
-Explicit FTPS is fail-closed:
-
-1. connect TCP;
-2. read bounded FTP greeting;
-3. issue `AUTH TLS` and require 2xx;
-4. negotiate TLS with normal certificate-chain/hostname validation;
-5. issue and require `PBSZ 0`;
-6. issue and require `PROT P`;
-7. authenticate;
-8. continue with encrypted control and data channels.
-
-Implicit FTPS negotiates TLS before the normal greeting/authentication sequence.
-
-Plain FTP exists for compatibility but is an explicit mode and is warned as unencrypted.
+Explicit FTPS requires successful `AUTH TLS`; encrypted sessions require `PBSZ 0` and `PROT P`.
 
 ## Data-transfer mode integrity
 
-Ghost FTP requires binary mode with `TYPE I` before receive/send data paths. This is a correctness and security boundary: arbitrary file bytes must not be transformed by text-mode conversions.
+Before upload/download data paths, Ghost FTP requires FTP binary mode (`TYPE I`). The transfer fails if the server refuses the required mode.
 
-Interactive control activity and background transfers are isolated. Real-server background transfers normally create dedicated sessions from the validated active connection options; the Demo session can be safely shared because it is deterministic/local.
+Passive data connections prefer EPSV and can fall back to PASV. The data socket remains tied to the authenticated control host rather than treating an arbitrary PASV address as trusted routing input.
 
-The queue bounds concurrent transfers and automatic retries, propagates cancellation and tracks job progress without sending analytics.
+## Transfer queue architecture
 
-## Connection lifecycle
+`TransferQueueService` is shared by both renderers.
 
-Windows 0.1.2 clears authoritative active-session routing state before waiting for QUIT/disposal. This prevents keepalive or transfer callbacks from treating a disconnecting transport as current.
+Properties:
 
-Linux lifecycle code similarly guards candidate-session replacement, active-session identity and keepalive ownership.
+- bounded channel capacity;
+- configurable worker count clamped to a safe maximum;
+- isolated transfer sessions when the active protocol session requires them;
+- per-job cancellation token;
+- bounded transient retries;
+- progress, throughput and ETA state;
+- UI synchronization-context dispatch when a renderer supplies one.
 
-## Workspace architecture
+### 0.1.3 pause/resume model
 
-The approved workstation has the same semantic order on both desktop platforms:
+Pause/resume gates **dispatch**, not the byte stream of transfers already running.
 
-1. saved-server navigation;
-2. menu and primary connection/transfer actions;
-3. Connection Log + Quick Connect;
-4. Local + Remote file panes;
-5. Transfers queue;
-6. local status.
+`PauseQueue()` creates an asynchronous resume gate. Workers that are about to start queued/retrying work await that gate. `ResumeQueue()` releases it. Running transfers are not interrupted by a queue pause.
 
-Windows uses WPF `GridSplitter` controls for sidebar, connection area, Local/Remote pane and transfer-queue resizing. Window resize/minimize/maximize/restore remains native operating-system behavior.
+This avoids claiming unsupported FTP resume semantics and avoids a polling/spin loop.
 
-The documentation capture fixes the reference Windows render at **1914 × 907** for repeatable visual comparison. Normal users are not locked to that size.
+### Queue history
+
+Completed, failed and cancelled history can be removed selectively. `ClearFinished()` remains the aggregate cleanup action.
 
 ## Persistence architecture
 
-Installed mode stores local data in the user-local Ghost FTP data directory. Portable mode stores under `Data` beside the executable.
+Installed mode uses the current user's local application-data directory. Portable mode uses a local `Data` directory beside the executable when the portable marker/name is active.
 
-`AppSettingsStore` and `ProfileStore` serialize only local settings/profiles. Session-only entries are filtered before persistence.
+Settings and profiles use bounded JSON files with atomic replacement/backup behavior and best-effort private filesystem permissions.
 
-Windows saved passwords use current-user DPAPI. Linux saved passwords use AES-256-GCM with local per-user key material and private permissions.
+Session-only profiles are explicitly excluded from persistent profile writes.
+
+## Saved-secret architecture
+
+### Windows
+
+The WPF application uses native DPAPI (`CryptProtectData`/`CryptUnprotectData`) with current-user semantics. Sensitive intermediary buffers are zeroed where practical before release.
+
+### Linux
+
+Linux uses AES-256-GCM with a local user-private key file. Encryption/authentication data and file permission hardening remain local to that user profile.
 
 ## Local Demo regression architecture
 
-`DemoFtpSession` implements the same `IFtpSession` contract as a real FTP session but performs no external network operation. The Demo self-test exercises connection, PWD/CWD, listing, keepalive, file and directory transfers, rename, create/delete, recursive round-trip behavior, conflict protection, disconnect reset and post-disconnect rejection.
+The built-in Demo profile uses `DemoFtpSession`; it performs no external FTP operation. The **Local Demo regression architecture** allows deterministic testing of:
 
-CI runs the complete local Demo regression on Windows and Linux, allowing destructive workflow testing without risking a real server.
+- connect/disconnect lifecycle;
+- PWD/CWD/listing;
+- upload/download;
+- byte-for-byte round trip;
+- rename/create/delete;
+- recursive directory transfers;
+- root-delete protection;
+- keepalive;
+- conflict behavior.
 
 ## Live real-server smoke architecture
 
-The optional live smoke harness is separate from deterministic CI. It reads credentials from environment variables/GitHub secrets, redacts sensitive values and performs only non-destructive operations: connect, PWD/list, keepalive and disconnect.
+The optional **Live real-server smoke architecture** is separate from Demo and is intentionally non-destructive. It performs connect/PWD/LIST/NOOP/disconnect against explicitly supplied test credentials. The password comes from protected CI secret storage and is redacted from test output.
 
-It deliberately contains no upload/rename/create/delete calls. See `docs/LIVE-SMOKE-TEST.md`.
+See `docs/LIVE-SMOKE-TEST.md`.
 
-## Dependency architecture
+## Windows/Linux UI parity
 
-Shipping projects have zero third-party NuGet `PackageReference` entries. Native Windows functionality comes from WPF/Windows APIs; Linux uses the system `libX11.so.6` ABI through audited interop.
+Windows and Linux share the same workflow hierarchy:
 
-Source audit rejects known telemetry/tracking SDK references, private signing files, unsupported mobile target frameworks and known Android/iOS/mobile source directories.
+1. product identity/sidebar;
+2. top menu/toolbar;
+3. Connection Log + Quick Connect;
+4. Local + Remote panes;
+5. transfer queue;
+6. status/diagnostics/settings/site management.
 
-## Platform scope
+0.1.3 also aligns transfer management semantics: pause/resume dispatch, failed retry, cancellation and queue-history cleanup are driven by the same Core queue service.
 
-Only Windows and Linux desktop applications ship from this line. Android, iOS, MacCatalyst and web/browser client targets are intentionally outside the active product scope.
+## Windows Setup transaction architecture
 
-## Release architecture
+Setup stages application and maintenance binaries before replacing an active installation. Candidate product/company/file-version identity is validated and downgrade protection runs before commit.
 
-CI validates every proposed change. Release publication is a separate gated workflow tied to version/channel metadata and the current release marker.
+Existing application/maintenance files keep independent rollback copies until later stages succeed. A later failure attempts to restore prior files; first-install partial commits are removed where appropriate.
 
-For 0.1.2 Beta the expected tag is `v0.1.2-beta`. The release workflow builds/tests/audits source, captures authentic UI, builds Windows x64/ARM64 Setup and portable packages, builds Linux x64/ARM64 packages, verifies version/hashes/signing policy, and then creates/synchronizes the public **GitHub Release**.
+The 0.1.3 Setup UI surfaces these transaction boundaries but does not change the underlying privilege model: installation remains per-user/as-invoker.
 
-A release is not considered complete merely because source was merged; canonical downloadable artifacts must be attached to the matching GitHub Release.
+## Privacy boundary
+
+Shipping application code has no telemetry, analytics, advertising, hidden crash upload, cloud profile synchronization or product account requirement. Network traffic is user-directed FTP/FTPS traffic plus explicitly opened links.
+
+Repository CI network activity is build/release infrastructure and is not application telemetry.
+
+## Dependency boundary
+
+Shipping projects have no third-party NuGet `PackageReference` dependencies. Source audit also rejects known mobile application targets and known telemetry SDK identifiers.
+
+## Release verification
+
+A public **GitHub Release** is produced only after the release workflow verifies the current version source. Required gates include Windows/Linux build, source audit, hardening audit, Core/Demo/queue tests, WPF/X11 runtime tests, authentic UI capture, packaging and checksum verification.
+
+The release workflow attaches canonical Windows and Linux assets to the GitHub Release rather than treating an unverified local build as an official binary.
+
+## Canonical screenshots
+
+The README image is generated by the real compiled WPF application at the canonical capture size. Screenshot generation is a build path, not a hand-authored mockup. `assets/readme/ghostftp-client.png` and Site Manager capture are treated as product documentation artifacts.
