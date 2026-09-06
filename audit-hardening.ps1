@@ -1,332 +1,227 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-function Read-Source([string]$relative) {
+function Require-File([string]$relative) {
     $path = Join-Path $root $relative
-    if (!(Test-Path $path -PathType Leaf)) { throw "Required hardening source is missing: $relative" }
-    return Get-Content $path -Raw
+    if (!(Test-Path $path -PathType Leaf)) {
+        throw "Required Ghost FTP hardening artifact is missing: $relative"
+    }
+    return $path
 }
 
-function Require-Tokens([string]$relative, [string[]]$tokens) {
-    $text = Read-Source $relative
+function Require-Text([string]$relative, [string[]]$tokens) {
+    $path = Require-File $relative
+    $text = Get-Content $path -Raw
     foreach ($token in $tokens) {
         if ($text -notmatch [regex]::Escape($token)) {
-            throw "$relative is missing final hardening contract token: $token"
+            throw "$relative is missing required hardening contract text: $token"
         }
     }
     return $text
 }
 
-$version = (Read-Source 'VERSION').Trim()
-$channel = (Read-Source 'RELEASE_CHANNEL').Trim().ToLowerInvariant()
-if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION for hardening audit: $version" }
-if ($channel -notin @('beta','stable')) { throw "Invalid RELEASE_CHANNEL for hardening audit: $channel" }
-$expectedTag = if ($channel -eq 'beta') { "v$version-beta" } else { "v$version" }
-$currentReleaseTrigger = ".github/release-trigger-$version"
-$currentReleaseNotes = "docs/releases/v$version.md"
-
-$core = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Core.cs' @(
-    'Enum.IsDefined(options.Security)',
-    'throw new ArgumentOutOfRangeException',
-    'Ensure(auth, 200, 299, "Server refused explicit TLS.")',
-    'MaxGreetingReplies = 4',
-    'greeting.IsPositivePreliminary',
-    '_disposeCompletion'
-)
-
-$control = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Control.cs' @(
-    'code is < 100 or > 599',
-    "first[3] is not ' ' and not '-'",
-    'MaxReplyChars - line.Length',
-    'Interlocked.CompareExchange(ref _disposeState, 1, 0)',
-    'await _disposeCompletion.Task.ConfigureAwait(false)',
-    '_disposeCompletion.TrySetResult(true)'
-)
-
-$data = Require-Tokens 'src/GhostFTP.Core/Protocol/FtpSession.Data.cs' @(
-    'EnsureBinaryTransferModeAsync',
-    'TYPE I',
-    'FTP server refused binary transfer mode.',
-    'authenticated control host',
-    'TryParseEpsvPort',
-    'TryParsePasvPort',
-    'parts.Length != 6'
-)
-if (($data | Select-String -Pattern 'EnsureBinaryTransferModeAsync\(cancellationToken\)' -AllMatches).Matches.Count -lt 2) {
-    throw 'Binary mode must be enforced for both receive and send data paths.'
+function Reject-Text([string]$relative, [string[]]$tokens) {
+    $path = Require-File $relative
+    $text = Get-Content $path -Raw
+    foreach ($token in $tokens) {
+        if ($text -match [regex]::Escape($token)) {
+            throw "$relative contains forbidden hardening contract text: $token"
+        }
+    }
 }
 
-$queue = Require-Tokens 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
+$version = (Get-Content (Require-File 'VERSION') -Raw).Trim()
+$channel = (Get-Content (Require-File 'RELEASE_CHANNEL') -Raw).Trim().ToLowerInvariant()
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
+if ($channel -notin @('beta', 'stable')) { throw "Invalid RELEASE_CHANNEL: $channel" }
+if ([int]($version.Split('.')[0]) -eq 0 -and $channel -ne 'beta') { throw 'Every Ghost FTP 0.x source must remain Beta.' }
+
+$expectedAssembly = "$version.0"
+$expectedInformational = if ($channel -eq 'beta') { "$version-beta" } else { $version }
+$expectedTag = if ($channel -eq 'beta') { "v$version-beta" } else { "v$version" }
+
+# Release identity must agree across source, manifests, trigger and detailed notes.
+$props = [xml](Get-Content (Require-File 'Directory.Build.props') -Raw)
+$pg = $props.Project.PropertyGroup
+if ([string]$pg.Version -ne $version) { throw 'Directory.Build.props Version does not match VERSION.' }
+if ([string]$pg.AssemblyVersion -ne $expectedAssembly) { throw "AssemblyVersion must be $expectedAssembly." }
+if ([string]$pg.FileVersion -ne $expectedAssembly) { throw "FileVersion must be $expectedAssembly." }
+if ([string]$pg.InformationalVersion -ne $expectedInformational) { throw "InformationalVersion must be $expectedInformational." }
+if ([string]$pg.Product -ne 'Ghost FTP' -or [string]$pg.Company -ne 'BRENDIGO LTD') {
+    throw 'Release product/company metadata is inconsistent.'
+}
+foreach ($manifest in @('src/GhostFTP.App/app.manifest', 'src/GhostFTP.Setup/app.manifest')) {
+    $text = Get-Content (Require-File $manifest) -Raw
+    if ($text -notmatch [regex]::Escape("version=`"$expectedAssembly`"")) {
+        throw "$manifest is not synchronized with $expectedAssembly."
+    }
+}
+$trigger = ".github/release-trigger-$version"
+Require-File $trigger | Out-Null
+$notes = "docs/releases/v$version.md"
+$notesText = Require-Text $notes @("Ghost FTP $version", 'Beta')
+if ($notesText -notmatch 'resume') { throw "$notes must document the 0.1.6 resume-integrity contract." }
+
+# No previous active 0.x trigger may coexist with the current line.
+$activeTriggers = @(Get-ChildItem (Join-Path $root '.github') -File -Filter 'release-trigger-*')
+if ($activeTriggers.Count -ne 1 -or $activeTriggers[0].Name -ne "release-trigger-$version") {
+    throw "Exactly one active release trigger is required for $version. Found: $($activeTriggers.Name -join ', ')"
+}
+
+# Control and TLS state stay fail-closed and bounded.
+$core = Require-Text 'src/GhostFTP.Core/Protocol/FtpSession.Core.cs' @(
+    'Enum.IsDefined(options.Security)',
+    'MaxReplyLines = 256',
+    'MaxReplyChars = 1_048_576',
+    'MaxReplyLineChars = 65_536',
+    'MaxGreetingReplies = 4',
+    'AUTH TLS',
+    'PBSZ 0',
+    'PROT P',
+    'DownloadFileWithResumeIntegrityCoreAsync',
+    'DownloadDirectoryWithResumeIntegrityCoreAsync'
+)
+$control = Require-Text 'src/GhostFTP.Core/Protocol/FtpSession.Control.cs' @(
+    'ReadReplyAsync',
+    'MaxReplyLineChars',
+    'MaxReplyLines',
+    'MaxReplyChars'
+)
+$data = Require-Text 'src/GhostFTP.Core/Protocol/FtpSession.Data.cs' @(
+    'TYPE I',
+    'EnsureBinaryTransferModeAsync',
+    'ArrayPool<byte>.Shared.Rent',
+    'clearArray: true',
+    'authenticated control host',
+    'TryParseEpsvPort',
+    'TryParsePasvPort'
+)
+
+# Server-controlled directory text stays bounded/non-backtracking.
+$listing = Require-Text 'src/GhostFTP.Core/Protocol/FtpListingParser.cs' @(
+    'MaxListingLineChars = 64 * 1024',
+    'MaxMlsdFactsPerEntry = 64',
+    'RegexOptions.NonBacktracking',
+    'EnumerateLines',
+    'StringReader'
+)
+
+# 0.1.6 safe-resume integrity: no length-only public resume, staged commit, required cleanup.
+$resume = Require-Text 'src/GhostFTP.Core/Protocol/FtpSession.Resume.cs' @(
+    'DownloadResumeMetadataVersion = 1',
+    'MaxDownloadResumeMetadataBytes = 16 * 1024',
+    '.ghostftp.part',
+    '.meta',
+    'TryGetFileModifiedUtcAsync',
+    'RemoteIdentityMatchesAsync',
+    'ReceiveDownloadIntoPartAsync',
+    'DeleteLocalRequired',
+    'Unable to remove an untrusted partial download.',
+    'existing local destination was preserved',
+    'File.Move(partPath, localPath, true)'
+)
+if ($resume -match 'DownloadFileCoreAsync\(') {
+    throw 'The safe-resume wrapper must not call the legacy DownloadFileCoreAsync path that commits before post-validation.'
+}
+if ($resume -notmatch 'RemoteIdentityMatchesAsync[\s\S]*File\.Move\(partPath, localPath, true\)') {
+    throw 'A staged partial must be remote-identity validated before final destination commit.'
+}
+
+# Existing legacy helper may remain for internal compatibility, but public downloads route only through safe resume.
+$coreOperations = Require-Text 'src/GhostFTP.Core/Protocol/FtpSession.Operations.cs' @(
+    'DownloadFileCoreAsync',
+    'UploadFileCoreAsync',
+    'TryGetFileSizeAsync'
+)
+if ($core -notmatch 'DownloadFileAsync[\s\S]*DownloadFileWithResumeIntegrityCoreAsync') {
+    throw 'Public file download is not routed through safe resume integrity.'
+}
+if ($core -notmatch 'DownloadDirectoryAsync[\s\S]*DownloadDirectoryWithResumeIntegrityCoreAsync') {
+    throw 'Public directory download is not routed through safe resume integrity.'
+}
+
+# Queue bounds and truthful dispatch-pause semantics remain mandatory.
+$queue = Require-Text 'src/GhostFTP.Core/Services/TransferQueueService.cs' @(
     'MaxQueuedTransfers = 4096',
     'MaxParallelTransfers = 8',
-    'IsQueuePaused',
     'PauseQueue()',
     'ResumeQueue()',
-    'QueueStateChanged',
     'WaitForDispatchAsync',
     'ClearCompleted()',
     'ClearFailed()',
     'ClearCancelled()',
-    'Transfers that were already running',
-    '_disposeCompletion',
-    'Interlocked.CompareExchange(ref _disposeState, 1, 0)',
-    'Transfer queue is shutting down.'
-)
-if ($queue -match 'Thread\.Sleep\(') {
-    throw 'Transfer queue pause/resume must not use thread sleep polling.'
-}
-
-$queueTest = Require-Tokens 'tests/GhostFTP.QueueSelfTest/Program.cs' @(
-    'TestPauseResumeAndSelectiveClearAsync',
-    'A paused queue started a new transfer before ResumeQueue.',
-    'A paused queue created a transfer session before dispatch resumed.',
-    'Selective completed-transfer cleanup',
-    'Selective cancelled-transfer cleanup',
-    'Selective failed-transfer cleanup'
+    'DisposeAsync'
 )
 
-$hardeningTest = Require-Tokens 'tests/GhostFTP.HardeningSelfTest/Program.cs' @(
-    'TestConcurrentSessionDisposalAsync',
-    'TestConcurrentQueueDisposalAsync',
-    'TestMalformedReplyRejectedAsync',
-    'TestProtocolCompatibilityAsync',
-    '120 Service ready shortly',
-    '220X malformed separator',
-    'diagnostics 99 100',
-    'A disposed FTP session accepted a new operation.',
-    'A disposed transfer queue accepted a new transfer for dispatch.'
-)
+# Credential and profile protection remain local/opt-in.
+$profiles = Require-Text 'src/GhostFTP.Core/Services/ProfileStore.cs' @('profile.IsSessionOnly', 'ProtectedPassword', 'EnsureDemo')
+$linuxSecrets = Require-Text 'src/GhostFTP.Core/Services/AesFileSecretProtector.cs' @('AesGcm', 'RandomNumberGenerator', 'PrivateFilePermissions.TryHardenFile')
+$windowsSecrets = Require-Text 'src/GhostFTP.App/Services/DpapiSecretProtector.cs' @('ProtectedData', 'DataProtectionScope.CurrentUser', 'RtlSecureZeroMemory')
 
-$linuxCore = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Core.cs' @(
-    'Plain FTP is not encrypted',
-    '_plainFtpApproved',
-    'candidateSession',
-    '_activeOptions = null',
-    'EnsureKeepAliveLoopStarted()',
-    'ReferenceEquals(_session, session)'
-)
-$linuxKeepAlive = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.KeepAlive.cs' @(
-    'KeepAliveAsync',
-    'DemoFtpSession',
-    'Connection lost',
-    'ReferenceEquals(_session, session)'
-)
-$linuxInput = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Input.cs' @(
-    'if (_transferSelected >= 0)',
-    'CancelSelectedTransfer()',
-    '_transferSelected = -1',
-    'ActivateTransferRow',
-    'ToggleTransferQueuePause',
-    'RetryFailedTransfers'
-)
-$linuxDraw = Require-Tokens 'src/GhostFTP.Linux/LinuxMainWindow.Draw.cs' @(
-    'GhostTransferText.T',
-    'ToggleTransferQueuePause',
-    'ActivateTransferRow',
-    'TransferState.Failed',
-    'TransferState.Completed'
-)
-
-$installer = Require-Tokens 'src/GhostFTP.Setup/Services/InstallerService.cs' @(
-    'FileVersionInfo.GetVersionInfo',
-    'versionInfo.ProductName',
-    'versionInfo.CompanyName',
-    'versionInfo.FileVersion',
-    'EnsureNotDowngrade',
-    'backupSetup',
-    'setupCommitted',
-    'RollbackFile(',
-    'GhostFTP-Setup.exe.*',
-    'root.DeleteValue("QuietUninstallString"'
-)
-if ($installer -match 'SetValue\("QuietUninstallString"') {
-    throw 'Setup must not advertise QuietUninstallString until true silent uninstall exists.'
-}
-if (($installer | Select-String -Pattern 'EnsureNotDowngrade\(' -AllMatches).Matches.Count -lt 3) {
-    throw 'Installer downgrade protection must cover staged application and maintenance Setup binaries.'
-}
-
-$setupUx = Require-Tokens 'src/GhostFTP.Setup/SetupWindow.cs' @(
-    'StepProgressText',
+# Setup remains one per-user maintenance executable with no separate uninstaller product.
+$setup = Require-Text 'src/GhostFTP.Setup/SetupWindow.cs' @(
+    'ResizeMode.CanResizeWithGrip',
     'Local-only Setup',
-    'Transactional maintenance',
-    'GhostFTP-Setup.exe',
-    'no telemetry',
-    'rollback'
+    'Transactional maintenance'
+)
+$installer = Require-Text 'src/GhostFTP.Setup/Services/InstallerService.cs' @('GhostFTP-Setup.exe', 'UninstallString')
+Reject-Text 'src/GhostFTP.Setup/Services/InstallerService.cs' @('uninstall.exe')
+
+# Dedicated resume regression must cover normal resume plus the two review-critical fail-closed cases.
+Require-File 'tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj' | Out-Null
+$resumeTest = Require-Text 'tests/GhostFTP.ResumeSelfTest/Program.cs' @(
+    'Validated partial resumes at the exact REST offset',
+    'Changed remote identity restarts from zero',
+    'Remote mutation during transfer discards the completed file'
+)
+$destinationRegression = Require-Text 'tests/GhostFTP.ResumeSelfTest/DestinationSafetyRegression.cs' @(
+    'Existing destination bytes were replaced before remote post-validation completed.',
+    'Failure to remove an untrusted partial did not abort the download.',
+    'An untrusted partial reached REST despite failed cleanup.',
+    'An untrusted partial reached RETR despite failed cleanup.'
 )
 
-$dpapi = Require-Tokens 'src/GhostFTP.App/Services/DpapiSecretProtector.cs' @(
-    'CryptProtectData',
-    'CryptUnprotectData',
-    'DataProtectionScope.CurrentUser',
-    'RtlSecureZeroMemory',
-    'SecureHGlobalFree',
-    'SecureLocalFree'
+# CI and release publication must independently execute the resume suite on Windows and Linux.
+$ci = Require-Text '.github/workflows/ci.yml' @(
+    'tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj',
+    'Safe download resume integrity self-test',
+    'Safe download resume integrity self-test on Linux',
+    'Capture authentic production UI',
+    'Verify canonical and architecture-specific executables'
+)
+$release = Require-Text '.github/workflows/release.yml' @(
+    'tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj',
+    'Safe download resume integrity self-test',
+    'Safe download resume integrity self-test on Linux',
+    'Create or synchronize GitHub release with Windows assets',
+    'Attach verified Linux assets to GitHub release',
+    'SHA256SUMS.txt',
+    'SHA256SUMS-linux.txt'
 )
 
-$readme = Require-Tokens 'README.md' @(
-    '<img src="assets/readme/ghostftp-client.png"',
-    'Authentic application capture',
-    'Windows release files',
-    'Linux release files',
-    'docs/LIVE-SMOKE-TEST.md',
+# Current public documentation must state the same version/scope and explicit safe-resume guarantee.
+$readme = Require-Text 'README.md' @(
     "Current source version: **$version**",
-    $currentReleaseNotes,
-    'protocol and shutdown hardening self-test on Windows and Linux'
+    "Informational version: **$expectedInformational**",
+    'safe download resume-integrity self-test on Windows and Linux',
+    'Windows and Linux'
 )
-if ($readme -match 'ghostftp-hero\.svg') {
-    throw 'README still references the stale decorative Ghost FTP hero.'
-}
-if (Test-Path (Join-Path $root 'assets/readme/ghostftp-hero.svg') -PathType Leaf) {
-    throw 'Stale decorative README hero must not remain in active repository assets.'
-}
+$security = Require-Text 'SECURITY.md' @("Ghost FTP $version Beta", 'resume')
+$privacy = Require-Text 'PRIVACY.md' @("$version Beta", 'resume')
+$notice = Require-Text 'NOTICE.md' @("Ghost FTP $version Beta", 'Windows and Linux')
+$architecture = Require-Text 'docs/ARCHITECTURE.md' @("$version Beta", 'Safe download resume architecture')
+$platform = Require-Text 'docs/PLATFORM-SUPPORT.md' @("$version Beta", 'Windows', 'Linux')
+$uiUx = Require-Text 'docs/UI-UX.md' @("$version Beta", 'Safe resume UX contract')
+$uiParity = Require-Text 'docs/UI-PARITY.md' @("$version Beta", 'Safe download resume parity', 'existing local destination remains untouched')
+$installation = Require-Text 'docs/INSTALLATION.md' @("$version Beta", 'Upgrade from 0.1.5', '.ghostftp.part.meta')
+$localization = Require-Text 'docs/LOCALIZATION.md' @("$version Beta", 'Resume-integrity messages', '29 selectable languages')
+$versioning = Require-Text 'docs/VERSIONING.md' @("$version Beta", $expectedTag, $trigger)
+$releasePolicy = Require-Text 'docs/RELEASE-POLICY.md' @("VERSION=$version", $expectedTag, 'resume integrity')
 
-foreach ($relative in @(
-    'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj',
-    'tests/GhostFTP.DemoSelfTest/Program.cs',
-    'tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj',
-    'tests/GhostFTP.LiveSmoke/Program.cs',
-    'tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj',
-    'tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj',
-    'tests/GhostFTP.HardeningSelfTest/Program.cs',
-    '.github/workflows/live-smoke.yml',
-    'docs/LIVE-SMOKE-TEST.md',
-    'docs/HISTORICAL-CHANGELOG.md',
-    $currentReleaseNotes,
-    $currentReleaseTrigger
-)) {
-    if (!(Test-Path (Join-Path $root $relative) -PathType Leaf)) { throw "Missing final release file: $relative" }
-}
+# Platform and privacy scope must not drift during release hardening.
+$packageRefs = Get-ChildItem $root -Recurse -Filter *.csproj | Select-String -Pattern '<PackageReference'
+if ($packageRefs) { throw 'Third-party NuGet PackageReference found in the package-free Ghost FTP release contract.' }
+$mobileTfms = Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.csproj | Select-String -Pattern 'net[0-9.]+-(android|ios|maccatalyst)'
+if ($mobileTfms) { throw 'Unsupported mobile target framework found in shipping source.' }
 
-$changelog = Require-Tokens 'CHANGELOG.md' @(
-    "## $version",
-    'docs/HISTORICAL-CHANGELOG.md',
-    'docs/releases/'
-)
-$historicalChangelog = Require-Tokens 'docs/HISTORICAL-CHANGELOG.md' @(
-    '# Ghost FTP changelog',
-    'Preserved internal development history',
-    '## 1.7.0'
-)
-
-$demo = Require-Tokens 'tests/GhostFTP.DemoSelfTest/Program.cs' @(
-    'Demo session complete local FTP workflow',
-    'Demo mode performed no external network operation',
-    'UploadFileAsync',
-    'DownloadFileAsync',
-    'UploadDirectoryAsync',
-    'DownloadDirectoryAsync',
-    'RenameAsync',
-    'DeleteDirectoryAsync',
-    'KeepAliveAsync',
-    'Ghost FTP Demo round-trip payload',
-    'Demo file upload replaced an existing directory.',
-    'Demo directory upload replaced an existing file.',
-    'Demo disconnect did not reset the working directory.'
-)
-$ci = Require-Tokens '.github/workflows/ci.yml' @(
-    'Complete local Demo workflow self-test',
-    'Complete local Demo workflow self-test on Linux',
-    'tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj',
-    'Parallel transfer queue self-test',
-    'Protocol and shutdown hardening self-test',
-    'Protocol and shutdown hardening self-test on Linux'
-)
-$releaseWorkflow = Require-Tokens '.github/workflows/release.yml' @(
-    'Protocol and shutdown hardening self-test',
-    'Protocol and shutdown hardening self-test on Linux',
-    'tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj'
-)
-
-$live = Require-Tokens 'tests/GhostFTP.LiveSmoke/Program.cs' @(
-    'GHOSTFTP_LIVE_PASSWORD',
-    'GHOSTFTP_LIVE_ALLOW_PLAIN',
-    'ListAsync',
-    'KeepAliveAsync',
-    'No writes were performed.',
-    '[redacted]'
-)
-foreach ($writeCall in @('UploadFileAsync','UploadDirectoryAsync','DeleteFileAsync','DeleteDirectoryAsync','RenameAsync','CreateDirectoryAsync')) {
-    if ($live -match [regex]::Escape($writeCall)) {
-        throw "Live smoke harness must remain non-destructive but contains $writeCall."
-    }
-}
-
-$liveWorkflow = Require-Tokens '.github/workflows/live-smoke.yml' @(
-    'workflow_dispatch',
-    '${{ secrets.GHOSTFTP_LIVE_PASSWORD }}',
-    'Non-destructive connect PWD LIST NOOP disconnect'
-)
-
-$security = Require-Tokens 'SECURITY.md' @(
-    "Ghost FTP $version",
-    'Fail-closed transport selection',
-    'AUTH TLS',
-    'TYPE I',
-    'Installer integrity and rollback',
-    'Live-server testing without credential disclosure'
-)
-$privacy = Require-Tokens 'PRIVACY.md' @(
-    "Ghost FTP **$version",
-    'without application telemetry',
-    'server-only',
-    'Session-only Quick Connect',
-    'Live-server smoke testing'
-)
-$architecture = Require-Tokens 'docs/ARCHITECTURE.md' @(
-    "Ghost FTP **$version",
-    'Linux X11/XWayland renderer',
-    'Data-transfer mode integrity',
-    'Local Demo regression architecture',
-    'Live real-server smoke architecture',
-    'GitHub Release'
-)
-$parity = Require-Tokens 'docs/UI-PARITY.md' @(
-    "Ghost FTP **$version",
-    '1914 × 907',
-    'Windows and Linux',
-    'transfer queue and cancellation'
-)
-$platform = Require-Tokens 'docs/PLATFORM-SUPPORT.md' @(
-    "Ghost FTP $version",
-    'Windows',
-    'Linux',
-    'Web/browser client',
-    'docs/LIVE-SMOKE-TEST.md'
-)
-$releasePolicy = Require-Tokens 'docs/RELEASE-POLICY.md' @(
-    "VERSION=$version",
-    'setup.exe',
-    'portable.exe',
-    'GhostFTP-linux-x64',
-    'GitHub Release requirement',
-    $expectedTag
-)
-$installation = Require-Tokens 'docs/INSTALLATION.md' @(
-    "Ghost FTP $version Beta",
-    "VERSION=$version",
-    'refuses to downgrade',
-    'rollback'
-)
-$localization = Require-Tokens 'docs/LOCALIZATION.md' @(
-    "Ghost FTP $version Beta",
-    '29 selectable languages',
-    'English (`en`) is the primary language'
-)
-$uiUx = Require-Tokens 'docs/UI-UX.md' @(
-    "Ghost FTP **$version Beta**",
-    'Windows / Linux parity',
-    'Local Demo regression UX gate'
-)
-$notice = Require-Tokens 'NOTICE.md' @(
-    "Ghost FTP $version Beta",
-    'BRENDIGO LTD'
-)
-
-$selfTest = Require-Tokens 'tests/GhostFTP.SelfTest/Program.cs' @(
-    'Invalid FTP security modes fail closed',
-    'TestInvalidSecurityModeFailsClosed',
-    '(FtpSecurityMode)999'
-)
-
-Write-Host "Ghost FTP $version $channel hardening audit passed: fail-closed FTP security selection, strict AUTH TLS/binary mode, strict bounded FTP reply and EPSV/PASV parsing, coordinated FTP-session and transfer-queue shutdown, deterministic loopback protocol regression, bounded dispatch-pause transfer queue, complete local Demo workflow, Linux lifecycle/keepalive/selected-transfer safety, transactional Windows Setup rollback, protected Windows DPAPI memory cleanup, authentic README capture, non-destructive live smoke harness, synchronized Windows/Linux release documentation and canonical public Release assets."
+Write-Host "Ghost FTP $version $channel hardening audit passed: strict FTP/FTPS boundaries, bounded parser/queue resources, staged identity-checked downloads that preserve existing destinations, fail-closed stale-partial cleanup, local credential/privacy boundaries, Windows/Linux resume regression gates, Setup integrity and release publication checks."

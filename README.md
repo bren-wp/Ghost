@@ -1,24 +1,24 @@
 <p align="center">
-  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.5 Beta — authentic production Windows desktop client" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.6 Beta — authentic production Windows desktop client" width="100%">
 </p>
 
 <p align="center"><strong>Authentic application capture generated from the compiled Ghost FTP desktop client — not a mockup, illustration or generated UI.</strong></p>
 
 # Ghost FTP
 
-**Ghost FTP** (`GhostFTP`) is a privacy-first native FTP/FTPS desktop workstation for **Windows and Linux**. It combines a modern dual-pane workflow, bounded parallel transfers, local-only profiles, strict TLS behavior, a resizable professional UI and a dependency-minimal C#/.NET codebase.
+**Ghost FTP** (`GhostFTP`) is a privacy-first native FTP/FTPS desktop workstation for **Windows and Linux**. It combines a modern dual-pane workflow, bounded parallel transfers, local-only profiles, strict TLS behavior, safe resumable downloads, a resizable professional UI and a dependency-minimal C#/.NET codebase.
 
 Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
 
 - Product: https://ghostftp.com
 - Publisher: https://brendigo.com
 - GitHub Releases: https://github.com/bren-wp/Ghost/releases
-- Current source version: **0.1.5**
+- Current source version: **0.1.6**
 - Current release channel: **Beta**
-- Informational version: **0.1.5-beta**
+- Informational version: **0.1.6-beta**
 - First stable target: **1.0.0**
 - Runtime baseline: **.NET 10 / C# 14**
-- Detailed release notes: [`docs/releases/v0.1.5.md`](docs/releases/v0.1.5.md)
+- Detailed release notes: [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md)
 
 ## What Ghost FTP is built for
 
@@ -26,31 +26,29 @@ Ghost FTP is a real desktop file-transfer client, not a web wrapper. It keeps th
 
 The workstation provides saved servers, session-only Quick Connect, Local and Remote file panes, upload/download queues, retry/cancellation/history cleanup, queue dispatch pause/resume, connection logs, local diagnostics, Site Manager, configurable retries/concurrency/timeouts/keepalive, 29 local languages, and native Windows/Linux renderers sharing the same protocol and transfer core.
 
-## 0.1.5 Beta highlights
+## 0.1.6 Beta highlights
 
-### Safer LIST / MLSD parsing
+### Safe resumable downloads
 
-0.1.5 places tighter resource limits around untrusted directory-listing text. Individual LIST/MLSD lines are bounded, MLSD fact count is bounded per entry, and LIST regexes use the .NET non-backtracking engine. Listing text is enumerated incrementally rather than creating a second full split/copy.
+Interrupted downloads are no longer resumed from a `.ghostftp.part` file based only on local length. When the server exposes both `SIZE` and `MDTM`, Ghost FTP stores a bounded local identity sidecar and permits REST resume only when host, port, security mode, remote path, size and modification timestamp still match.
 
-Unix symlink output is handled more accurately: the reported ` -> target` metadata is stripped before validating the safe link name, so a valid symlink is not discarded merely because its target is absolute. Symlinks remain non-directory entries and are not recursively followed.
+A pre-0.1.6, corrupt, oversized or stale partial is restarted from zero rather than appended blindly. If stale/untrusted staged bytes cannot be removed, Ghost FTP fails closed before REST/RETR instead of falling back to length-only reuse. If the server cannot provide a trustworthy `SIZE` + `MDTM` identity, Ghost FTP still performs a fresh download but does not retain an interrupted unverified partial as safely resumable state.
 
-### Lower transfer overhead
+### Staged commit and remote revision protection
 
-FTP data streams now use pooled 128 KiB buffers. Buffers are explicitly cleared before being returned to the shared pool because they may contain private user file data.
+For downloads with a verifiable remote identity, downloaded bytes stay in `.ghostftp.part` while Ghost FTP rechecks `SIZE` and `MDTM` after transfer. Only a matching revision is promoted to the final destination.
 
-Transfer progress uses one deliberate renderer-marshaling boundary rather than an extra ThreadPool hop and is throttled to a practical UI rate during active transfers. Terminal queue notifications are no longer duplicated.
+If the server-side object changes while bytes are in flight, the staged result is discarded and the transfer reports an integrity error. Any pre-existing destination remains byte-for-byte untouched because it is not replaced until validation succeeds. The same per-file integrity path is used by recursive directory downloads.
 
-Fast batches also no longer force one remote LIST refresh for every completed item; post-transfer Local/Remote refreshes are coalesced into a short batch refresh.
+### Dedicated deterministic testing
 
-### Cleaner workstation layout
+`GhostFTP.ResumeSelfTest` is an isolated package-free loopback suite. It verifies an exact valid REST offset, stale-identity restart from byte zero, byte-for-byte output, detection of a same-size remote revision change, preservation of an existing destination on rejected mutation, and fail-closed stale-partial cleanup before REST/RETR.
 
-The first-run Connection Log / Quick Connect area is shorter, leaving more space for Local/Remote file work. Ghost FTP now persists sidebar width and connection-panel height in addition to window size, transfer-panel height and Local/Remote ratio.
+Both Windows and Linux CI run this gate independently from the broader protocol hardening suite, and the publication workflow runs it again on both shipping platforms before release assets can be published.
 
-Windows Transfers now exposes a visible **Pause queue / Resume queue** action in the header. This remains a truthful **dispatch pause**: running transfers continue; new queued/retrying work waits.
+### 0.1.5 quality work retained
 
-### Expanded deterministic hardening tests
-
-The package-free `GhostFTP.HardeningSelfTest` suite now covers concurrent disposal, malformed control replies, pathological LIST/MLSD input, valid EPSV custom delimiters, malformed PASV tuples, preliminary `120 -> 220` greetings, settings backup recovery and persisted-layout bounds.
+The 0.1.5 listing/parser bounds, non-backtracking LIST parsing, pooled/cleared transfer buffers, lower-overhead progress delivery, coalesced pane refresh, persisted workstation dimensions and visible queue pause/resume action remain part of the 0.1.6 baseline.
 
 ## Supported protocols
 
@@ -81,15 +79,32 @@ The shipping client preserves these boundaries:
 - bounded retry and concurrency behavior;
 - isolated transfer sessions;
 - cancellation-safe coordinated shutdown;
-- clearing of pooled buffers that may contain transferred file data.
+- clearing of pooled buffers that may contain transferred file data;
+- bounded local resume metadata and fail-closed remote revision matching before REST resume;
+- staged download commit that preserves an existing destination until post-transfer validation succeeds.
 
 Read [`SECURITY.md`](SECURITY.md) for the complete hardening model.
+
+## Download resume integrity
+
+A resumable partial uses:
+
+```text
+<destination>.ghostftp.part
+<destination>.ghostftp.part.meta
+```
+
+The sidecar is local-only, capped at 16 KiB and contains no password, username, token or transferred file bytes. It identifies the selected endpoint and remote object revision.
+
+Resume remains an optimization: when the server cannot provide enough identity information, correctness takes priority and Ghost FTP restarts rather than trusting stale bytes. Untrusted staged state must be removed successfully before a fresh transfer can continue. A verifiable download remains staged until the remote revision is checked again, so integrity failure cannot overwrite an existing destination.
+
+See [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md).
 
 ## Privacy
 
 Ghost FTP is designed to run **without application telemetry**. The application contains no analytics SDK, advertising SDK, usage telemetry, user fingerprinting, hidden crash uploader, cloud profile synchronization, hidden product-account requirement or automatic background update checker.
 
-Quick Connect credentials are session-only unless the user explicitly saves a profile. Saved-password protection is opt-in. Windows uses the current-user DPAPI boundary; Linux uses AES-256-GCM with local user-private key material.
+Quick Connect credentials are session-only unless the user explicitly saves a profile. Saved-password protection is opt-in. Windows uses the current-user DPAPI boundary; Linux uses AES-256-GCM with local user-private key material. Resume metadata stays local and contains no credential material.
 
 Read [`PRIVACY.md`](PRIVACY.md).
 
@@ -135,7 +150,7 @@ Canonical Linux assets include:
 - `SHA256SUMS-linux.txt`;
 - `BUILD-INFO.txt`.
 
-Linux consumes the same FTP/FTPS parser, transfer queue, bounded resource model, localization and local persistence primitives.
+Linux consumes the same FTP/FTPS parser, transfer queue, staged download-resume integrity logic, bounded resource model, localization and local persistence primitives.
 
 ## Platform scope
 
@@ -166,6 +181,12 @@ dotnet restore GhostFTP.sln
 dotnet build GhostFTP.sln -c Release
 ```
 
+The isolated safe-resume regression project can also be run directly:
+
+```text
+dotnet run --project tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj -c Release
+```
+
 Official releases use repository CI/release gates rather than relying only on a local compile.
 
 ## Dependency policy
@@ -184,7 +205,8 @@ A Ghost FTP Beta source is not release-ready until the relevant Windows/Linux pi
 - Core self-test;
 - complete local Demo workflow self-test;
 - parallel transfer queue self-test;
-- protocol and shutdown hardening self-test on Windows and Linux, including parser/settings hardening cases;
+- protocol/parser/shutdown hardening self-test;
+- safe download resume-integrity self-test on Windows and Linux;
 - Windows WPF editable-input/localization smoke test;
 - Linux X11/XWayland runtime smoke test;
 - authentic Windows UI capture;
@@ -194,7 +216,7 @@ A Ghost FTP Beta source is not release-ready until the relevant Windows/Linux pi
 
 ## Documentation
 
-- [`docs/releases/v0.1.5.md`](docs/releases/v0.1.5.md) — detailed 0.1.5 Beta release notes
+- [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md) — detailed 0.1.6 Beta release notes
 - [`CHANGELOG.md`](CHANGELOG.md) — cumulative public version history
 - [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md) — preserved pre-reset engineering history
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture and trust boundaries

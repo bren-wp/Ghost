@@ -178,13 +178,13 @@ public sealed partial class FtpSession : IFtpSession
         LockedAsync(ct => DeleteDirectoryCoreAsync(InputGuard.RemotePath(remotePath), recursive, 0, new TraversalBudget(), ct), cancellationToken);
 
     public Task DownloadFileAsync(string remotePath, string localPath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default) =>
-        LockedAsync(ct => DownloadFileCoreAsync(InputGuard.RemotePath(remotePath), Path.GetFullPath(localPath), progress, ct), cancellationToken);
+        LockedAsync(ct => DownloadFileWithResumeIntegrityCoreAsync(InputGuard.RemotePath(remotePath), Path.GetFullPath(localPath), progress, ct), cancellationToken);
 
     public Task UploadFileAsync(string localPath, string remotePath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default) =>
         LockedAsync(ct => UploadFileCoreAsync(Path.GetFullPath(localPath), InputGuard.RemotePath(remotePath), progress, ct), cancellationToken);
 
     public Task DownloadDirectoryAsync(string remotePath, string localDirectory, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default) =>
-        LockedAsync(ct => DownloadDirectoryCoreAsync(InputGuard.RemotePath(remotePath), Path.GetFullPath(localDirectory), progress, ct), cancellationToken);
+        LockedAsync(ct => DownloadDirectoryWithResumeIntegrityCoreAsync(InputGuard.RemotePath(remotePath), Path.GetFullPath(localDirectory), progress, ct), cancellationToken);
 
     public Task UploadDirectoryAsync(string localDirectory, string remotePath, IProgress<(long transferred, long? total)>? progress = null, CancellationToken cancellationToken = default) =>
         LockedAsync(ct => UploadDirectoryCoreAsync(Path.GetFullPath(localDirectory), InputGuard.RemotePath(remotePath), progress, ct), cancellationToken);

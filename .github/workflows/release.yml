@@ -41,56 +41,41 @@ jobs:
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
           $channel = (Get-Content RELEASE_CHANNEL -Raw).Trim().ToLowerInvariant()
-
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "VERSION must use MAJOR.MINOR.PATCH format. Got: $version"
-          }
-          if ($channel -notin @('beta', 'stable')) {
-            throw "RELEASE_CHANNEL must be beta or stable. Got: $channel"
-          }
-
-          $major = [int]($version.Split('.')[0])
-          if ($major -eq 0 -and $channel -ne 'beta') {
-            throw 'All Ghost FTP 0.x releases must remain Beta.'
-          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "VERSION must use MAJOR.MINOR.PATCH format. Got: $version" }
+          if ($channel -notin @('beta', 'stable')) { throw "RELEASE_CHANNEL must be beta or stable. Got: $channel" }
+          if ([int]($version.Split('.')[0]) -eq 0 -and $channel -ne 'beta') { throw 'All Ghost FTP 0.x releases must remain Beta.' }
 
           $expectedTag = if ($channel -eq 'beta') { "v$version-beta" } else { "v$version" }
-          if ($env:GITHUB_REF -like 'refs/tags/*') {
-            $tag = $env:GITHUB_REF_NAME
-            if ($tag -ne $expectedTag) {
-              throw "Tag $tag does not match expected $channel tag $expectedTag."
-            }
+          if ($env:GITHUB_REF -like 'refs/tags/*' -and $env:GITHUB_REF_NAME -ne $expectedTag) {
+            throw "Tag $env:GITHUB_REF_NAME does not match expected tag $expectedTag."
           }
 
           $notes = "docs/releases/v$version.md"
           if (!(Test-Path $notes -PathType Leaf) -or (Get-Item $notes).Length -le 0) {
             throw "Required release notes are missing or empty: $notes"
           }
-
           $releaseNotes = Get-Content $notes -Raw
-          if ($releaseNotes -notmatch [regex]::Escape("Ghost FTP $version")) {
-            throw "$notes must identify Ghost FTP $version."
-          }
-          if ($channel -eq 'beta' -and $releaseNotes -notmatch '(?i)beta') {
-            throw "$notes must identify the release as Beta."
-          }
+          if ($releaseNotes -notmatch [regex]::Escape("Ghost FTP $version")) { throw "$notes must identify Ghost FTP $version." }
+          if ($channel -eq 'beta' -and $releaseNotes -notmatch '(?i)beta') { throw "$notes must identify the release as Beta." }
 
-          "GHOSTFTP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GHOSTFTP_CHANNEL=$channel" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GHOSTFTP_TAG=$expectedTag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GHOSTFTP_NOTES=$notes" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_VERSION=$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_CHANNEL=$channel" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_TAG=$expectedTag" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "GHOSTFTP_NOTES=$notes" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Restore release sources and live-smoke compile target
+      - name: Restore release sources and regression targets
         shell: pwsh
         run: |
           dotnet restore GhostFTP.sln
           dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
+          dotnet restore tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj
 
-      - name: Build release sources and live-smoke compile target
+      - name: Build release sources and regression targets
         shell: pwsh
         run: |
           dotnet build GhostFTP.sln -c Release --no-restore
           dotnet build tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj -c Release --no-restore
+          dotnet build tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj -c Release --no-restore
 
       - name: Dependency, version, channel, privacy, platform and signing audit
         shell: pwsh
@@ -103,11 +88,17 @@ jobs:
       - name: Core self-test
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-build
 
+      - name: Complete local Demo workflow self-test
+        run: dotnet run --project tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj -c Release --no-build
+
       - name: Parallel transfer queue self-test
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-build
 
       - name: Protocol and shutdown hardening self-test
         run: dotnet run --project tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj -c Release --no-build
+
+      - name: Safe download resume integrity self-test
+        run: dotnet run --project tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj -c Release --no-build
 
       - name: WPF editable input and localization smoke-test
         run: dotnet run --project tests/GhostFTP.UiSmoke/GhostFTP.UiSmoke.csproj -c Release --no-build
@@ -118,15 +109,10 @@ jobs:
           $output = Join-Path $PWD 'artifacts/ui'
           New-Item -ItemType Directory -Force $output | Out-Null
           dotnet run --project src/GhostFTP.App/GhostFTP.App.csproj -c Release --no-build -- --capture-ui $output
-
           foreach ($name in @('ghostftp-client.png', 'ghostftp-site-manager.png')) {
             $path = Join-Path $output $name
-            if (!(Test-Path $path -PathType Leaf)) {
-              throw "Required authentic UI capture is missing: $path"
-            }
-            if ((Get-Item $path).Length -lt 10000) {
-              throw "Required authentic UI capture is unexpectedly small: $path"
-            }
+            if (!(Test-Path $path -PathType Leaf)) { throw "Required authentic UI capture is missing: $path" }
+            if ((Get-Item $path).Length -lt 10000) { throw "Required authentic UI capture is unexpectedly small: $path" }
           }
 
           Add-Type -AssemblyName PresentationCore
@@ -142,9 +128,7 @@ jobs:
               throw "Authentic MainWindow capture must be 1914x907 but was $($frame.PixelWidth)x$($frame.PixelHeight)."
             }
           }
-          finally {
-            $stream.Dispose()
-          }
+          finally { $stream.Dispose() }
 
       - name: Upload authentic release UI captures
         uses: actions/upload-artifact@v7
@@ -172,7 +156,6 @@ jobs:
           $report.Add("Ghost FTP $env:GHOSTFTP_VERSION $env:GHOSTFTP_CHANNEL signing report")
           $report.Add("Generated: $([DateTimeOffset]::UtcNow.ToString('u'))")
           $report.Add('')
-
           foreach ($exe in Get-ChildItem ./release -Filter '*.exe' -File | Sort-Object Name) {
             $signature = Get-AuthenticodeSignature $exe.FullName
             if ($null -eq $signature.SignerCertificate) {
@@ -199,7 +182,6 @@ jobs:
             'release/SHA256SUMS.txt',
             'release/SIGNING.txt'
           )
-
           foreach ($path in $required) {
             if (!(Test-Path $path -PathType Leaf) -or (Get-Item $path).Length -le 0) {
               throw "Required GitHub Release asset is missing or empty: $path"
@@ -209,15 +191,9 @@ jobs:
           $expectedFileVersion = "$env:GHOSTFTP_VERSION.0"
           foreach ($exe in $required | Where-Object { $_ -like '*.exe' }) {
             $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $exe))
-            if ($versionInfo.FileVersion -ne $expectedFileVersion) {
-              throw "$exe has FileVersion '$($versionInfo.FileVersion)' but expected '$expectedFileVersion'."
-            }
-            if ($versionInfo.ProductName -ne 'Ghost FTP') {
-              throw "$exe does not identify ProductName Ghost FTP."
-            }
-            if ($versionInfo.CompanyName -ne 'BRENDIGO LTD') {
-              throw "$exe does not identify CompanyName BRENDIGO LTD."
-            }
+            if ($versionInfo.FileVersion -ne $expectedFileVersion) { throw "$exe has FileVersion '$($versionInfo.FileVersion)' but expected '$expectedFileVersion'." }
+            if ($versionInfo.ProductName -ne 'Ghost FTP') { throw "$exe does not identify ProductName Ghost FTP." }
+            if ($versionInfo.CompanyName -ne 'BRENDIGO LTD') { throw "$exe does not identify CompanyName BRENDIGO LTD." }
           }
 
           $hashLines = Get-Content 'release/SHA256SUMS.txt'
@@ -271,24 +247,15 @@ jobs:
 
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists; synchronizing detailed notes and verified Windows assets."
-            if ($channel -eq 'beta') {
-              gh release edit $tag --title $title --notes-file $notes --prerelease
-            }
-            else {
-              gh release edit $tag --title $title --notes-file $notes
-            }
+            if ($channel -eq 'beta') { gh release edit $tag --title $title --notes-file $notes --prerelease }
+            else { gh release edit $tag --title $title --notes-file $notes }
             if ($LASTEXITCODE -ne 0) { throw "Failed to update GitHub Release notes for $tag." }
             gh release upload $tag @assets --clobber
             if ($LASTEXITCODE -ne 0) { throw "Failed to refresh Windows GitHub Release assets for $tag." }
           }
           else {
-            if ($channel -eq 'beta') {
-              gh release create $tag @assets --target $env:GITHUB_SHA --title $title --notes-file $notes --prerelease
-            }
-            else {
-              gh release create $tag @assets --target $env:GITHUB_SHA --title $title --notes-file $notes
-            }
+            if ($channel -eq 'beta') { gh release create $tag @assets --target $env:GITHUB_SHA --title $title --notes-file $notes --prerelease }
+            else { gh release create $tag @assets --target $env:GITHUB_SHA --title $title --notes-file $notes }
             if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $tag." }
           }
 
@@ -313,34 +280,31 @@ jobs:
           channel="$(tr '[:upper:]' '[:lower:]' < RELEASE_CHANNEL | tr -d '\r\n ')"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION: $version" >&2; exit 1; }
           [[ "$channel" == "beta" || "$channel" == "stable" ]] || { echo "Invalid RELEASE_CHANNEL: $channel" >&2; exit 1; }
-          if [[ "${version%%.*}" == "0" && "$channel" != "beta" ]]; then
-            echo 'Every Ghost FTP 0.x releases must remain Beta.' >&2
-            exit 1
-          fi
+          if [[ "${version%%.*}" == "0" && "$channel" != "beta" ]]; then echo 'Every Ghost FTP 0.x release must remain Beta.' >&2; exit 1; fi
           tag="v$version"
           if [[ "$channel" == "beta" ]]; then tag="$tag-beta"; fi
-          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "$tag" ]]; then
-            echo "Tag $GITHUB_REF_NAME does not match expected $tag." >&2
-            exit 1
-          fi
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "$tag" ]]; then echo "Tag $GITHUB_REF_NAME does not match expected $tag." >&2; exit 1; fi
           echo "GHOSTFTP_VERSION=$version" >> "$GITHUB_ENV"
           echo "GHOSTFTP_CHANNEL=$channel" >> "$GITHUB_ENV"
           echo "GHOSTFTP_TAG=$tag" >> "$GITHUB_ENV"
 
-      - name: Restore Linux renderer and shared compile/test targets
+      - name: Restore Linux renderer and shared regression targets
         shell: bash
         run: |
           dotnet restore src/GhostFTP.Linux/GhostFTP.Linux.csproj
           dotnet restore tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj
+          dotnet restore tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj
           dotnet restore tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj
           dotnet restore tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj
+          dotnet restore tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj
           dotnet restore tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj
 
-      - name: Build Linux desktop client and test harnesses
+      - name: Build Linux desktop client and regression targets
         shell: bash
         run: |
           dotnet build src/GhostFTP.Linux/GhostFTP.Linux.csproj -c Release --no-restore
           dotnet build tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj -c Release --no-restore
+          dotnet build tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj -c Release --no-restore
           dotnet build tests/GhostFTP.LiveSmoke/GhostFTP.LiveSmoke.csproj -c Release --no-restore
 
       - name: Smoke-test real Linux X11/XWayland renderer
@@ -353,11 +317,17 @@ jobs:
       - name: Core self-test on Linux
         run: dotnet run --project tests/GhostFTP.SelfTest/GhostFTP.SelfTest.csproj -c Release --no-restore
 
+      - name: Complete local Demo workflow self-test on Linux
+        run: dotnet run --project tests/GhostFTP.DemoSelfTest/GhostFTP.DemoSelfTest.csproj -c Release --no-restore
+
       - name: Parallel transfer queue self-test on Linux
         run: dotnet run --project tests/GhostFTP.QueueSelfTest/GhostFTP.QueueSelfTest.csproj -c Release --no-restore
 
       - name: Protocol and shutdown hardening self-test on Linux
         run: dotnet run --project tests/GhostFTP.HardeningSelfTest/GhostFTP.HardeningSelfTest.csproj -c Release --no-build
+
+      - name: Safe download resume integrity self-test on Linux
+        run: dotnet run --project tests/GhostFTP.ResumeSelfTest/GhostFTP.ResumeSelfTest.csproj -c Release --no-build
 
       - name: Cross-platform release source audit
         shell: pwsh
@@ -387,9 +357,7 @@ jobs:
             release-linux/SHA256SUMS-linux.txt
             release-linux/BUILD-INFO.txt
           )
-          for path in "${required[@]}"; do
-            [[ -s "$path" ]] || { echo "Missing/empty Linux release asset: $path" >&2; exit 1; }
-          done
+          for path in "${required[@]}"; do [[ -s "$path" ]] || { echo "Missing/empty Linux release asset: $path" >&2; exit 1; }; done
           [[ -x release-linux/GhostFTP-linux-x64 ]] || { echo 'linux-x64 binary is not executable.' >&2; exit 1; }
           [[ -x release-linux/GhostFTP-linux-arm64 ]] || { echo 'linux-arm64 binary is not executable.' >&2; exit 1; }
           (cd release-linux && sha256sum -c SHA256SUMS-linux.txt)
