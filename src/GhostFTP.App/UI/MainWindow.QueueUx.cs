@@ -13,7 +13,7 @@ public sealed partial class MainWindow
         _queueList.SelectionMode = SelectionMode.Extended;
         _queueList.ContextMenu = CreateContextMenu(
             (L("Details"), (_, _) => ShowSelectedTransferDetails()),
-            ("Pause / resume queue", (_, _) => ToggleQueuePause()),
+            (GhostTransferText.T("PauseQueue"), (_, _) => ToggleQueuePause()),
             (L("RetrySelected"), (_, _) => RetrySelectedTransfers()),
             (GhostTransferText.T("RetryFailed"), (_, _) => RetryAllFailedTransfers()),
             (L("CancelSelected"), (_, _) => CancelSelectedTransfer()),
@@ -25,8 +25,10 @@ public sealed partial class MainWindow
             ("Copy source path", (_, _) => CopySelectedTransferSource()),
             ("Copy destination path", (_, _) => CopySelectedTransferDestination()));
 
+        _queuePauseMenuItem = _queueList.ContextMenu.Items.OfType<MenuItem>().ElementAtOrDefault(1);
         _queueList.MouseDoubleClick += (_, _) => ShowSelectedTransferDetails();
         _queueList.SelectionChanged += (_, _) => UpdateQueueManagementUi();
+        UpdateQueueManagementUi();
 
         _statusBadge.Cursor = Cursors.Hand;
         _statusBadge.ToolTip = "Connection status · click for local diagnostics";
