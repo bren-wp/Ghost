@@ -8,12 +8,14 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
+    private Button? _queuePauseButton;
+
     private void ConfigureQueueUx()
     {
         _queueList.SelectionMode = SelectionMode.Extended;
         _queueList.ContextMenu = CreateContextMenu(
             (L("Details"), (_, _) => ShowSelectedTransferDetails()),
-            (GhostTransferText.T("PauseQueue"), (_, _) => ToggleQueuePause()),
+            (GhostTransferText.T("PauseQueue"), (_, _) => ToggleQueuePauseFromVisibleControl()),
             (L("RetrySelected"), (_, _) => RetrySelectedTransfers()),
             (GhostTransferText.T("RetryFailed"), (_, _) => RetryAllFailedTransfers()),
             (L("CancelSelected"), (_, _) => CancelSelectedTransfer()),
@@ -26,6 +28,8 @@ public sealed partial class MainWindow
             ("Copy destination path", (_, _) => CopySelectedTransferDestination()));
 
         _queuePauseMenuItem = _queueList.ContextMenu.Items.OfType<MenuItem>().ElementAtOrDefault(1);
+        AddQueuePauseHeaderButton();
+        UpdateQueuePauseHeaderButton();
         _queueList.MouseDoubleClick += (_, _) => ShowSelectedTransferDetails();
         _queueList.SelectionChanged += (_, _) => UpdateQueueManagementUi();
         UpdateQueueManagementUi();
@@ -33,6 +37,50 @@ public sealed partial class MainWindow
         _statusBadge.Cursor = Cursors.Hand;
         _statusBadge.ToolTip = "Connection status · click for local diagnostics";
         _statusBadge.MouseLeftButtonUp += async (_, _) => await ShowConnectionDiagnosticsAsync();
+    }
+
+    private void AddQueuePauseHeaderButton()
+    {
+        // BuildTransfers places the queue list directly inside a DockPanel and the action WrapPanel
+        // in its docked header. Add pause/resume here so the primary control uses the same queue
+        // semantics as the context menu without duplicating transfer logic.
+        if (_queueList.Parent is not DockPanel dock)
+            return;
+
+        var header = dock.Children.OfType<Grid>().FirstOrDefault();
+        var actions = header?.Children.OfType<WrapPanel>().FirstOrDefault();
+        if (actions is null)
+            return;
+
+        if (actions.Children.Count > 0 && actions.Children[0] is Button firstAction)
+            firstAction.Margin = new Thickness(5, 0, 0, 0);
+
+        _queuePauseButton = GhostTheme.Button(GhostTransferText.T("PauseQueue"));
+        _queuePauseButton.Click += (_, _) => ToggleQueuePauseFromVisibleControl();
+        actions.Children.Insert(0, _queuePauseButton);
+    }
+
+    private void ToggleQueuePauseFromVisibleControl()
+    {
+        ToggleQueuePause();
+        UpdateQueuePauseHeaderButton();
+    }
+
+    private void UpdateQueuePauseHeaderButton()
+    {
+        if (_queuePauseButton is null)
+            return;
+
+        var paused = _queue?.IsQueuePaused == true;
+        _queuePauseButton.Content = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
+        _queuePauseButton.ToolTip = paused
+            ? "Resume dispatch of queued and retrying transfers."
+            : GhostTransferText.T("RunningContinue");
+
+        // The queue is created during asynchronous window initialization. Keeping this control
+        // enabled avoids a stale disabled visual when initialization completes after the shell is built;
+        // ToggleQueuePause itself remains a safe no-op until the queue exists.
+        _queuePauseButton.IsEnabled = true;
     }
 
     private void ShowSelectedTransferDetails()

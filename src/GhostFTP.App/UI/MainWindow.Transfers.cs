@@ -174,35 +174,66 @@ public sealed partial class MainWindow
         if (_queueList.SelectedItem is TransferJob job) CopyText(job.Destination);
     }
 
-    private async void QueueJobUpdated(object? sender, TransferJob job)
+    private void QueueJobUpdated(object? sender, TransferJob job)
     {
         UpdateQueueSummary();
         UpdateQueueManagementUi();
-        if (job.State == TransferState.Completed && _completedHandled.Add(job.Id))
+        if (job.State != TransferState.Completed)
+            return;
+
+        // A fast batch can complete several files within one UI frame. Refreshing both panes once
+        // per item serializes expensive FTP LIST operations and makes the workstation feel slower
+        // as throughput increases. Restart a short debounce instead so the batch produces one refresh.
+        _completionRefreshCts?.Cancel();
+        var refresh = new CancellationTokenSource();
+        _completionRefreshCts = refresh;
+        _ = RefreshAfterCompletedTransfersAsync(refresh);
+    }
+
+    private async Task RefreshAfterCompletedTransfersAsync(CancellationTokenSource owner)
+    {
+        try
         {
-            try
-            {
-                RefreshLocal();
+            await Task.Delay(TimeSpan.FromMilliseconds(250), owner.Token);
+            if (!ReferenceEquals(_completionRefreshCts, owner) || _busy)
+                return;
+
+            RefreshLocal();
+            if (IsConnected)
                 await RefreshRemoteAsync();
-            }
-            catch
-            {
-                // Transfer completion is already recorded; a follow-up refresh is best effort.
-            }
+        }
+        catch (OperationCanceledException) when (owner.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_completionRefreshCts, owner))
+                _completionRefreshCts = null;
+            owner.Dispose();
         }
     }
 
     private void UpdateQueueManagementUi()
     {
-        if (_queuePauseMenuItem is null)
-            return;
-
         var paused = _queue?.IsQueuePaused == true;
-        _queuePauseMenuItem.Header = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
-        _queuePauseMenuItem.ToolTip = paused
+        var label = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
+        var tooltip = paused
             ? "Resume dispatch of queued and retrying transfers."
             : GhostTransferText.T("RunningContinue");
-        _queuePauseMenuItem.IsEnabled = _queue is not null;
+
+        if (_queuePauseMenuItem is not null)
+        {
+            _queuePauseMenuItem.Header = label;
+            _queuePauseMenuItem.ToolTip = tooltip;
+            _queuePauseMenuItem.IsEnabled = _queue is not null;
+        }
+
+        if (_queuePauseButton is not null)
+        {
+            _queuePauseButton.Content = label;
+            _queuePauseButton.ToolTip = tooltip;
+            _queuePauseButton.IsEnabled = _queue is not null;
+        }
     }
 
     private void UpdateQueueSummary()

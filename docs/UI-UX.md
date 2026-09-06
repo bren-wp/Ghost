@@ -1,6 +1,6 @@
 # Ghost FTP UI / UX Guidelines
 
-This document defines the desktop interaction rules for Ghost FTP **0.1.4 Beta** and the Windows Setup experience. The goal is a clean, information-dense professional FTP workstation rendered in Ghost FTP's own modern visual language.
+This document defines the desktop interaction rules for Ghost FTP **0.1.5 Beta** and the Windows Setup experience. The goal is a clean, information-dense professional FTP workstation rendered in Ghost FTP's own modern visual language.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer/publisher shown on legal and publisher surfaces.
 
@@ -14,7 +14,8 @@ Ghost FTP is the product. **BRENDIGO LTD** is the developer/publisher shown on l
 6. **No account wall.** Users connect directly to their own FTP/FTPS server.
 7. **No decorative fake functionality.** Canonical screenshots are generated from the compiled application.
 8. **Queue state must be truthful.** Pause queue pauses new dispatch; it does not pretend to freeze an active FTP byte stream.
-9. **Failure state must be deterministic.** Protocol or lifecycle failure returns the UI to a stable state rather than leaving ambiguous busy controls.
+9. **Failure state must be deterministic.** Protocol/lifecycle failure returns the UI to a stable state.
+10. **High-rate transfer activity must not dominate the renderer.** Progress is useful only when it remains readable and responsive.
 
 ## Workstation hierarchy
 
@@ -26,11 +27,21 @@ The global toolbar is reserved for application-level Connect, Disconnect, Upload
 
 ## Quick Connect
 
-Host receives flexible width; Port stays compact; Security remains readable; Username/Password stay editable at the supported minimum size. Connect/Disconnect and session-only controls are secondary to credential entry. **Keep in this tab** is session-only and does not imply persistent password storage. Plain FTP approval is explicit for real non-Demo servers.
+Host receives flexible width; Port stays compact; Security remains readable; Username/Password stay editable at the supported minimum size. Connect/Disconnect and session-only controls remain secondary to credential entry. **Keep in this tab** is session-only and does not imply persistent password storage. Plain FTP approval is explicit for real non-Demo servers.
+
+0.1.5 uses a shorter default Connection Log / Quick Connect region to give Local/Remote file panes more first-run vertical space without removing fields or privacy/security cues.
 
 ## Resizing model
 
-Windows supports native resize/minimize/maximize/restore plus draggable sidebar, connection-area, Local/Remote and Transfers splitters. Split ratios and maximized state persist locally.
+Windows supports native resize/minimize/maximize/restore plus draggable sidebar, Connection Log / Quick Connect, Local/Remote and Transfers splitters.
+
+0.1.5 persists and bounds:
+
+- window width/height and maximized state;
+- saved-server sidebar width;
+- Connection Log / Quick Connect height;
+- Local/Remote pane ratio;
+- Transfers height.
 
 Linux reacts to X11/XWayland resize and condenses secondary toolbar/queue controls before hiding primary file-transfer operations.
 
@@ -46,6 +57,8 @@ Each pane shows title, current path, navigation, contextual actions, filter and 
 
 Lists prioritize Name, Type, Size, Modified and Remote Permissions where available. Folders sort before files. Columns resize with available pane width. Double-click behavior remains predictable: folders navigate, local files use OS behavior and remote files trigger the established download workflow.
 
+Server-provided listing text is never treated as trusted UI markup. The shared parser bounds lines/facts before entries are exposed to either renderer.
+
 ## Transfers queue
 
 The queue communicates direction, state, progress, bytes, speed, ETA, retry count, source and destination.
@@ -54,23 +67,33 @@ The queue communicates direction, state, progress, bytes, speed, ETA, retry coun
 
 **Pause queue** gates queued/retrying dispatch. Running transfers continue. **Resume queue** releases the dispatch gate. This behavior is identical across renderers because both use the same Core queue.
 
+0.1.5 makes Pause queue / Resume queue directly visible in the Windows Transfers header while retaining the synchronized context-menu action.
+
 ### Retry, cancellation and cleanup
 
-Windows exposes selected/failed retry plus selected/all cancellation and richer context cleanup/path copy. Linux exposes the principal retry/cancellation/cleanup controls in its native transfer header. Both use the same underlying bounded queue states.
+Windows exposes selected/failed retry plus selected/all cancellation and richer context cleanup/path copy. Linux exposes principal retry/cancellation/cleanup controls in its native transfer header. Both use the same bounded Core queue states.
+
+### Progress cadence
+
+Transfer progress must remain responsive without turning every data-buffer read/write into a render operation. Core throttles active renderer updates to an appropriate cadence while terminal state remains immediate. UI code must not add a second high-frequency timer/polling loop.
+
+### Completion refresh
+
+A completed transfer may require Local/Remote pane refresh, but a batch of completed jobs must not cause one remote LIST per completion. Windows coalesces burst completion refreshes into a single delayed refresh cycle.
 
 ### Coordinated shutdown
 
-0.1.4 hardens the shared shutdown semantics. Closing the application while the queue is paused or active releases dispatch waiters, cancels outstanding work, waits for workers and prevents new dispatch. UI code should treat queue shutdown as terminal rather than attempting to enqueue more jobs.
+Closing while the queue is paused or active releases dispatch waiters, cancels outstanding work, waits for workers and prevents new dispatch. UI code treats queue shutdown as terminal.
 
 ## Connection Log
 
-The log is a local operational surface, not a credential dump. It may show startup privacy state, profile count, connection/security status, listing/queue transitions and actionable operation errors. Passwords must never be logged.
+The log is a local operational surface, not a credential dump. It may show startup privacy state, profile count, connection/security status, listing/queue transitions and actionable errors. Passwords must never be logged.
 
 ## Protocol-error UX
 
-0.1.4 rejects malformed FTP reply framing and invalid passive-mode tuples more strictly. User-facing errors should describe the connection/listing failure without reproducing credentials or presenting malformed server input as trusted UI markup.
+Malformed FTP reply framing, invalid passive tuples and pathological listing input fail with actionable error state rather than partially trusted data. User-facing errors should describe the operation/failure without reproducing credentials or presenting raw server text as trusted markup.
 
-A valid preliminary `120 -> 220` greeting is handled transparently; a server stuck in repeated preliminary greetings eventually fails within the bounded protocol contract.
+A valid preliminary `120 -> 220` greeting is handled transparently; repeated preliminary greetings eventually fail inside the bounded protocol contract.
 
 ## Visual language
 
@@ -90,7 +113,7 @@ English is primary/default/fallback and the product exposes 29 local selectable 
 
 Both expose saved sites and Quick Connect, FTP / Explicit FTPS / Implicit FTPS, Local/Remote operations, transfer queue/cancellation/retry/pause, diagnostics/logging, keepalive, 29 local languages, local-only profile settings and Demo mode.
 
-The 0.1.4 protocol and shutdown hardening sits below both renderers in Core, so valid/malformed server behavior and lifecycle state are shared rather than reimplemented in UI code.
+The 0.1.5 parser, transfer-buffer and progress-delivery work sits below both renderers in Core, so those semantics are shared rather than reimplemented in UI code.
 
 See `docs/UI-PARITY.md` for the detailed parity contract.
 
@@ -110,18 +133,20 @@ The application recovers to a stable Offline/connected state after failure rathe
 
 The built-in Demo profile is part of release UX validation. The **Local Demo regression UX gate** verifies a complete local workflow can connect, navigate, list, transfer, rename, create/delete and disconnect without external network activity.
 
-## Protocol/shutdown regression UX gate
+## Protocol/parser/settings regression UX gate
 
-The deterministic hardening suite verifies that the UI's underlying shared Core can safely handle concurrent session/queue disposal, reject malformed reply framing and interoperate with a real loopback passive data flow. This prevents visible controls from depending on untested lifecycle assumptions.
+The deterministic hardening suite verifies that the shared Core safely handles concurrent session/queue disposal, malformed reply framing, alternate valid EPSV, malformed PASV, hostile listing input and corrupted persisted settings. UI behavior therefore rests on tested lifecycle/parser state rather than renderer assumptions.
 
 ## Authentic screenshot gate
 
 The canonical main screenshot is captured from the compiled Windows application at **1914 × 907**. Product documentation refreshes authentic captures after release-quality visual changes rather than editing screenshots manually or substituting conceptual art.
 
+The capture must be inspected for clipping, overlap, action reachability, queue label truthfulness and Site Manager consistency before a visual release is called verified.
+
 ## Performance
 
-UI handlers stay short. Network/transfer work uses async Core paths. Paused workers wait asynchronously rather than polling. Avoid blocking network calls, excessive full-list rebuilds and decorative effects that degrade large-list/concurrent-transfer interaction.
+UI handlers stay short. Network/transfer work uses async Core paths. Paused workers wait asynchronously rather than polling. Avoid blocking network calls, excessive full-list rebuilds, repeated post-transfer LIST requests and decorative effects that degrade large-list/concurrent-transfer interaction.
 
 ## Definition of done for a UI change
 
-A UI change is complete when the target builds, commands remain reachable at supported sizes, fields do not overlap, target-sensitive actions are not duplicated ambiguously, keyboard/mouse selection maps correctly, destructive actions are explicit, localization fallback works, security/privacy messaging remains accurate, Demo/queue/protocol/UI smoke gates pass, and authentic captures are refreshed when visuals change.
+A UI change is complete when the target builds, commands remain reachable at supported sizes, fields do not overlap, target-sensitive actions are not duplicated ambiguously, keyboard/mouse selection maps correctly, destructive actions are explicit, localization fallback works, security/privacy messaging remains accurate, Demo/queue/protocol/UI smoke gates pass, and authentic captures are refreshed/inspected when visuals change.

@@ -2,6 +2,58 @@
 
 This file tracks the active public Ghost FTP version line. The original pre-reset engineering changelog is preserved verbatim in [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md); detailed release bodies remain under [`docs/releases/`](docs/releases/).
 
+## 0.1.5 Beta — 2026-09-06
+
+### Listing/parser hardening
+
+- Added explicit per-line bounds for LIST and MLSD server-controlled input.
+- Added a per-entry MLSD fact-count bound to prevent pathological parser work.
+- Switched Unix/Windows LIST regular expressions to the .NET non-backtracking regex engine.
+- Replaced full listing split/copy processing with incremental `StringReader` line enumeration.
+- Fixed safe Unix symlink names being discarded when LIST reports an absolute ` -> target` value.
+- Expanded deterministic parser regression coverage for oversized lines, excessive MLSD facts and symlink handling.
+
+### Passive-mode regression coverage
+
+- Added deterministic EPSV coverage using a valid non-default delimiter.
+- Added malformed PASV tuple rejection coverage before a data socket can be established.
+- Retained strict six-value PASV tuple parsing, authenticated-control-host data-channel routing and bounded port validation from 0.1.4.
+
+### Transfer efficiency and renderer load
+
+- Reused bounded 128 KiB transfer buffers through `ArrayPool<byte>` rather than allocating a new large managed buffer for every data stream.
+- Explicitly clears pooled transfer buffers before returning them because they may contain private file contents.
+- Removed an unnecessary `Progress<T>` ThreadPool dispatch layer from transfer progress delivery.
+- Throttled active transfer renderer progress notifications to approximately 10 Hz while preserving immediate terminal state.
+- Removed redundant terminal queue notifications.
+- Coalesced burst transfer-completion Local/Remote refreshes so a batch does not issue one FTP LIST for every completed item.
+
+### Workstation quality
+
+- Added a visible **Pause queue / Resume queue** action directly in the Windows Transfers header while keeping the existing context action synchronized.
+- Persisted the saved-server sidebar width and Connection Log / Quick Connect height in addition to transfer-panel height, Local/Remote ratio and window state.
+- Bounded restored layout dimensions before use.
+- Reduced the default connection-area height to give Local/Remote panes more useful first-run workspace.
+- Preserved the dark Site Manager segmented General/Advanced design and the approved Ghost reference palette.
+
+### Settings and deterministic hardening tests
+
+- Added corrupted-primary-settings recovery coverage using the atomic `.bak` fallback.
+- Added persisted-layout normalization tests for invalid/oversized dimensions.
+- Added retry/concurrency bounds coverage.
+- Retained concurrent FTP-session and transfer-queue disposal regressions from 0.1.4.
+- Kept the hardening suite package-free and cross-platform.
+
+### Security, privacy and scope retained
+
+- Preserved fail-closed FTP security-mode validation, strict Explicit/Implicit FTPS behavior, TLS certificate/hostname validation and no FTPS-to-FTP downgrade.
+- Preserved required `TYPE I`, `PBSZ 0`, `PROT P`, command-injection guards, traversal bounds, local path containment and root-delete protection.
+- Preserved local-only profiles/settings, session-only Quick Connect by default, current-user DPAPI on Windows and AES-256-GCM local key protection on Linux.
+- Preserved zero application telemetry/tracking and zero third-party NuGet `PackageReference` dependencies in shipping/regression projects.
+- Preserved Windows/Linux-only shipping scope and the 29-language local catalog with English as primary/default/fallback.
+
+Detailed notes: [`docs/releases/v0.1.5.md`](docs/releases/v0.1.5.md)
+
 ## 0.1.4 Beta — 2026-09-06
 
 ### FTP protocol hardening

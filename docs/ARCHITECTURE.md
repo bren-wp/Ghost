@@ -1,6 +1,6 @@
 # Ghost FTP Architecture
 
-Ghost FTP **0.1.4 Beta** is one privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
+Ghost FTP **0.1.5 Beta** is one privacy-first FTP/FTPS desktop product with native Windows and Linux renderers, a shared platform-neutral protocol/transfer core, local-only persistence, bounded resource usage and release-time verification.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licensor.
 
@@ -9,7 +9,7 @@ Ghost FTP is the product. **BRENDIGO LTD** is the developer, publisher and licen
 The public release identity comes from root files:
 
 ```text
-VERSION=0.1.4
+VERSION=0.1.5
 RELEASE_CHANNEL=beta
 ```
 
@@ -39,53 +39,73 @@ Native Windows per-user Setup application. The same maintenance executable is in
 
 ### GhostFTP.HardeningSelfTest
 
-A package-free, cross-platform deterministic regression executable. It owns an in-process loopback fake FTP server and validates real Core protocol behavior without an Internet dependency. It is compiled and executed by Windows/Linux CI and release gates.
+Package-free, cross-platform deterministic regression executable. It owns in-process loopback FTP servers and validates real Core protocol behavior without an Internet dependency. Windows/Linux CI and release gates execute it.
 
 ## Connection architecture
 
-A user-selected connection becomes `FtpConnectionOptions`, which is validated again inside `FtpSession`. The chosen control mode is plain FTP, Explicit FTPS or Implicit FTPS. No transport fallback silently changes an FTPS request into plain FTP.
+A user-selected connection becomes `FtpConnectionOptions`, which is validated again inside `FtpSession`. The control mode is plain FTP, Explicit FTPS or Implicit FTPS. No transport fallback silently changes an FTPS request into plain FTP.
 
 Explicit FTPS requires successful `AUTH TLS`; encrypted sessions require `PBSZ 0` and `PROT P`.
 
 ### Control reply state machine
 
-0.1.4 accepts a bounded preliminary greeting sequence before requiring a final positive-completion greeting. This permits valid servers that send `120` followed by `220` but caps the sequence so an endpoint cannot hold the client in an unlimited greeting loop.
-
-Reply parsing enforces numeric `100..599` codes, standard space/hyphen framing, per-line size, multiline line count and total multiline character limits. Timeout and cancellation still wrap every control read/write.
+The bounded preliminary-greeting support introduced in 0.1.4 remains active: valid `120 -> 220` sequences interoperate, while repeated preliminary replies are capped. Reply parsing enforces numeric `100..599` codes, standard space/hyphen framing, per-line size, multiline line count and total multiline character limits.
 
 ## Data-transfer mode integrity
 
-Before upload/download data paths, Ghost FTP requires FTP binary mode (`TYPE I`). The transfer fails if the server refuses the required mode.
+Before upload/download data paths, Ghost FTP requires FTP binary mode (`TYPE I`). Passive connections prefer EPSV and can fall back to PASV. EPSV delimiter framing and port range are validated. PASV consumes exactly six tuple bytes and derives the port from `p1,p2`; the data socket remains tied to the authenticated control host.
 
-Passive data connections prefer EPSV and can fall back to PASV. EPSV delimiter framing and port range are validated. PASV consumes exactly the six tuple bytes and derives the port from `p1,p2`; unrelated trailing digits are ignored. The data socket remains tied to the authenticated control host rather than treating an arbitrary PASV address as trusted routing input.
+0.1.5 adds deterministic coverage for alternate valid EPSV delimiters and malformed PASV tuples that must fail before socket connection.
+
+## Directory-listing parser architecture
+
+LIST/MLSD payloads are server-controlled and therefore bounded before expensive parsing work.
+
+0.1.5 adds:
+
+- a 64 KiB per-line ceiling;
+- a bounded MLSD fact count per entry;
+- non-backtracking Unix/Windows LIST regexes;
+- incremental line enumeration through `StringReader` instead of a second full split/copy;
+- symlink metadata stripping before safe remote-name validation.
+
+The total listing data stream remains bounded independently. Safe symlink names are retained, but symlink targets are not treated as recursively traversable directories.
 
 ## Transfer queue architecture
 
-`TransferQueueService` is shared by both renderers. It provides bounded channel capacity, configurable/clamped worker count, isolated transfer sessions, per-job cancellation, bounded transient retries, progress/throughput/ETA state and UI synchronization-context dispatch when supplied.
+`TransferQueueService` is shared by both renderers. It provides bounded channel capacity, configurable/clamped workers, isolated transfer sessions, per-job cancellation, bounded transient retries, progress/throughput/ETA state and synchronization-context dispatch when supplied.
 
 ### Pause/resume model
 
-Pause/resume gates **dispatch**, not the byte stream of transfers already running. `PauseQueue()` creates an asynchronous resume gate. Workers about to start queued/retrying work await that gate. `ResumeQueue()` releases it. Running transfers are not interrupted by a queue pause.
+Pause/resume gates **dispatch**, not a byte stream already in progress. `PauseQueue()` creates an asynchronous resume gate. Workers about to start queued/retrying work await that gate. `ResumeQueue()` releases it. Running transfers continue.
+
+### Progress-delivery model
+
+0.1.5 removes the redundant `Progress<T>` ThreadPool hop from Core transfer progress. Transfer work reports through an inline progress adapter; renderer marshaling remains the one deliberate UI boundary. Active progress notifications are throttled to a bounded UI cadence while final terminal state is immediate.
 
 ### Coordinated shutdown
 
-0.1.4 adds a single-owner asynchronous disposal contract. The first `DisposeAsync()` caller completes the channel, releases paused dispatch waiters, cancels outstanding work, awaits workers and disposes cancellation resources. Concurrent disposal callers await the same completion task. New enqueue attempts fail once shutdown begins.
-
-This prevents cancellation-token and worker races during application close.
+The single-owner disposal contract remains: complete dispatch, release paused waiters, cancel outstanding work, await workers, then dispose cancellation resources. Concurrent disposal callers await the same completion task and new enqueue attempts fail once shutdown begins.
 
 ### Queue history
 
 Completed, failed and cancelled history can be removed selectively. `ClearFinished()` remains the aggregate cleanup action.
 
+## Transfer data-buffer architecture
+
+FTP data send/receive paths use pooled 128 KiB byte buffers to avoid repeated large managed allocations. Each rented buffer is cleared before being returned to `ArrayPool<byte>` because it may contain private transferred data.
+
 ## FTP session lifecycle architecture
 
-`FtpSession` serializes protocol operations through its gate. 0.1.4 coordinates disposal with an atomic state plus a shared completion task. Once shutdown begins, new operations are rejected; existing serialized work can unwind; transport cleanup runs once; later disposal callers wait for the same result. The gate itself is not disposed while another caller might still be waiting on it.
+`FtpSession` serializes protocol operations through its gate. Disposal uses an atomic state plus shared completion task. New operations are rejected once shutdown begins, transport cleanup runs once and concurrent disposers synchronize on the same completion path.
 
 ## Persistence architecture
 
 Installed mode uses the current user's local application-data directory. Portable mode uses a local `Data` directory beside the executable when the portable marker/name is active.
 
 Settings and profiles use bounded JSON files with atomic replacement/backup behavior and best-effort private filesystem permissions. Session-only profiles are explicitly excluded from persistent profile writes.
+
+0.1.5 expands persisted workstation state to include sidebar width and Connection Log / Quick Connect height. All persisted dimensions, retry values and concurrency are normalized before use. Corrupted primary settings can recover from the bounded local backup.
 
 ## Saved-secret architecture
 
@@ -95,7 +115,11 @@ The WPF application uses native DPAPI (`CryptProtectData`/`CryptUnprotectData`) 
 
 ### Linux
 
-Linux uses AES-256-GCM with a local user-private key file. Encryption/authentication data and file permission hardening remain local to that user profile.
+Linux uses AES-256-GCM with a local user-private key file and best-effort private permissions.
+
+## Completion refresh coalescing
+
+Windows transfer completion no longer triggers one immediate Local/Remote refresh for every completed job. A short cancellation-based debounce coalesces bursts into a single refresh cycle, reducing repeated FTP LIST commands and UI churn after batch transfers.
 
 ## Local Demo regression architecture
 
@@ -103,39 +127,31 @@ The built-in Demo profile uses `DemoFtpSession`; it performs no external FTP ope
 
 ## Local protocol hardening architecture
 
-`GhostFTP.HardeningSelfTest` creates only loopback listeners. Its protocol scenario exercises `120 -> 220`, USER/PASS, PWD, TYPE I, EPSV rejection/fallback, strict PASV, LIST over a real passive data socket and QUIT. Additional cases cover malformed reply framing and concurrent session/queue disposal.
-
-The fake PASV response includes valid tuple data followed by extra numbers. This is a deliberate regression trap against permissive “extract all digits” parsing.
+`GhostFTP.HardeningSelfTest` creates only loopback listeners. Coverage now includes concurrent session/queue disposal, malformed reply framing, bounded preliminary greetings, strict EPSV/PASV, real passive LIST flow, pathological LIST/MLSD parser input, safe symlink parsing and settings backup/normalization behavior.
 
 ## Live real-server smoke architecture
 
-The optional **Live real-server smoke architecture** is separate from Demo/hardening tests and is intentionally non-destructive. It performs connect/PWD/LIST/NOOP/disconnect against explicitly supplied test credentials. The password comes from protected CI secret storage and is redacted from test output.
-
-See `docs/LIVE-SMOKE-TEST.md`.
+The optional **Live real-server smoke architecture** is separate from Demo/hardening tests and intentionally non-destructive. It performs connect/PWD/LIST/NOOP/disconnect against explicitly supplied test credentials. See `docs/LIVE-SMOKE-TEST.md`.
 
 ## Windows/Linux UI parity
 
-Windows and Linux share the workflow hierarchy: product identity/sidebar, top menu/toolbar, Connection Log + Quick Connect, Local + Remote panes, transfer queue, and status/diagnostics/settings/site management. Transfer pause/resume, retry, cancellation and history cleanup are driven by the shared Core queue service.
+Windows and Linux share product identity/sidebar, top menu/toolbar, Connection Log + Quick Connect, Local + Remote panes, transfer queue, status/diagnostics/settings/site management and the same Core queue/protocol semantics.
 
 ## Windows Setup transaction architecture
 
-Setup stages application and maintenance binaries before replacing an active installation. Candidate product/company/file-version identity is validated and downgrade protection runs before commit.
-
-Existing application/maintenance files keep independent rollback copies until later stages succeed. A later failure attempts to restore prior files; first-install partial commits are removed where appropriate. Installation remains per-user/as-invoker.
+Setup stages application and maintenance binaries before replacing an active installation. Candidate identity and downgrade checks run before commit. Existing application/maintenance files keep rollback copies until later stages succeed; installation remains per-user/as-invoker.
 
 ## Privacy boundary
 
-Shipping application code has no telemetry, analytics, advertising, hidden crash upload, cloud profile synchronization or product account requirement. Network traffic is user-directed FTP/FTPS traffic plus explicitly opened links. Repository CI network activity is build/release infrastructure and is not application telemetry.
+Shipping application code has no telemetry, analytics, advertising, hidden crash upload, cloud profile synchronization or product account requirement. Network traffic is user-directed FTP/FTPS traffic plus explicitly opened links.
 
 ## Dependency boundary
 
-Shipping and regression-test projects have no third-party NuGet `PackageReference` dependencies. Source audit also rejects known mobile application targets and known telemetry SDK identifiers.
+Shipping and regression-test projects have no third-party NuGet `PackageReference` dependencies. Audits reject known mobile targets, telemetry SDK identifiers and private signing material.
 
 ## Release verification
 
-A public **GitHub Release** is produced only after the release workflow verifies the current version source. Required gates include Windows/Linux build, source audit, hardening audit, Core/Demo/queue tests, the protocol/shutdown hardening test, WPF/X11 runtime tests, authentic UI capture, packaging and checksum verification.
-
-The release workflow attaches canonical Windows and Linux assets to the GitHub Release rather than treating an unverified local build as an official binary.
+A public **GitHub Release** is produced only after exact-version source passes Windows/Linux build, source audit, hardening audit, Core/Demo/queue tests, protocol/parser/settings hardening tests, WPF/X11 runtime tests, authentic UI capture, packaging and checksum/runtime verification.
 
 ## Canonical screenshots
 

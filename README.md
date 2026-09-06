@@ -1,89 +1,56 @@
 <p align="center">
-  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.4 Beta — authentic production Windows desktop client" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.5 Beta — authentic production Windows desktop client" width="100%">
 </p>
 
 <p align="center"><strong>Authentic application capture generated from the compiled Ghost FTP desktop client — not a mockup, illustration or generated UI.</strong></p>
 
 # Ghost FTP
 
-**Ghost FTP** (`GhostFTP`) is a privacy-first native FTP/FTPS desktop workstation for **Windows and Linux**. It combines a modern dual-pane workflow, bounded parallel transfers, local-only profiles, strict TLS behavior, a premium resizable workstation UI and a dependency-minimal C#/.NET codebase.
+**Ghost FTP** (`GhostFTP`) is a privacy-first native FTP/FTPS desktop workstation for **Windows and Linux**. It combines a modern dual-pane workflow, bounded parallel transfers, local-only profiles, strict TLS behavior, a resizable professional UI and a dependency-minimal C#/.NET codebase.
 
 Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545639**), 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ, United Kingdom.
 
 - Product: https://ghostftp.com
 - Publisher: https://brendigo.com
 - GitHub Releases: https://github.com/bren-wp/Ghost/releases
-- Current source version: **0.1.4**
+- Current source version: **0.1.5**
 - Current release channel: **Beta**
-- Informational version: **0.1.4-beta**
+- Informational version: **0.1.5-beta**
 - First stable target: **1.0.0**
 - Runtime baseline: **.NET 10 / C# 14**
-- Detailed release notes: [`docs/releases/v0.1.4.md`](docs/releases/v0.1.4.md)
+- Detailed release notes: [`docs/releases/v0.1.5.md`](docs/releases/v0.1.5.md)
 
 ## What Ghost FTP is built for
 
-Ghost FTP is a real desktop file-transfer client, not a web wrapper. It keeps the mature dual-pane workflow expected from professional FTP clients while using a cleaner contemporary interface and explicit privacy/security boundaries.
+Ghost FTP is a real desktop file-transfer client, not a web wrapper. It keeps the familiar dual-pane workflow expected from professional FTP clients while using a cleaner contemporary interface and explicit privacy/security boundaries.
 
-The workstation provides:
+The workstation provides saved servers, session-only Quick Connect, Local and Remote file panes, upload/download queues, retry/cancellation/history cleanup, queue dispatch pause/resume, connection logs, local diagnostics, Site Manager, configurable retries/concurrency/timeouts/keepalive, 29 local languages, and native Windows/Linux renderers sharing the same protocol and transfer core.
 
-- saved servers and session-only Quick Connect profiles;
-- Local and Remote file panes;
-- upload/download queues;
-- queue retry, cancellation and selective cleanup controls;
-- queue-level pause/resume for **new dispatch**;
-- connection log and local diagnostics;
-- Site Manager;
-- configurable retries, concurrency, timeouts and keepalive;
-- 29 selectable local languages;
-- native Windows and native Linux renderers sharing the same protocol and transfer core.
+## 0.1.5 Beta highlights
 
-## 0.1.4 Beta highlights
+### Safer LIST / MLSD parsing
 
-### Protocol compatibility without permissive parsing
+0.1.5 places tighter resource limits around untrusted directory-listing text. Individual LIST/MLSD lines are bounded, MLSD fact count is bounded per entry, and LIST regexes use the .NET non-backtracking engine. Listing text is enumerated incrementally rather than creating a second full split/copy.
 
-Ghost FTP 0.1.4 accepts a bounded preliminary FTP greeting sequence such as `120 -> 220`, which improves compatibility with standards-compliant servers that are not immediately ready.
+Unix symlink output is handled more accurately: the reported ` -> target` metadata is stripped before validating the safe link name, so a valid symlink is not discarded merely because its target is absolute. Symlinks remain non-directory entries and are not recursively followed.
 
-At the same time, control replies are parsed more strictly:
+### Lower transfer overhead
 
-- reply codes must be numeric `100..599` values;
-- the reply framing separator must be a space or hyphen when present;
-- reply lines, multiline line count and total reply characters remain bounded;
-- malformed responses such as `220X ...` are rejected.
+FTP data streams now use pooled 128 KiB buffers. Buffers are explicitly cleared before being returned to the shared pool because they may contain private user file data.
 
-### Strict EPSV/PASV handling
+Transfer progress uses one deliberate renderer-marshaling boundary rather than an extra ThreadPool hop and is throttled to a practical UI rate during active transfers. Terminal queue notifications are no longer duplicated.
 
-Passive-mode parsing no longer extracts arbitrary digits from a server response.
+Fast batches also no longer force one remote LIST refresh for every completed item; post-transfer Local/Remote refreshes are coalesced into a short batch refresh.
 
-- EPSV validates the delimiter framing and port.
-- PASV parses exactly the six comma-separated values inside the passive tuple.
-- Each PASV tuple value must fit in `0..255`.
-- The data port comes only from the tuple's `p1,p2` values.
-- Trailing numeric diagnostics cannot alter the selected data port.
-- Data connections remain tied to the authenticated control host instead of trusting a PASV-supplied host.
+### Cleaner workstation layout
 
-### Race-safe shutdown
+The first-run Connection Log / Quick Connect area is shorter, leaving more space for Local/Remote file work. Ghost FTP now persists sidebar width and connection-panel height in addition to window size, transfer-panel height and Local/Remote ratio.
 
-FTP session and transfer-queue disposal are now coordinated single-owner operations. Concurrent `DisposeAsync()` callers wait for the same completion signal, post-shutdown operations are rejected deterministically, queue workers are allowed to stop before cancellation resources are disposed, and paused dispatch waiters are released during shutdown.
+Windows Transfers now exposes a visible **Pause queue / Resume queue** action in the header. This remains a truthful **dispatch pause**: running transfers continue; new queued/retrying work waits.
 
-### Deterministic protocol hardening tests
+### Expanded deterministic hardening tests
 
-`GhostFTP.HardeningSelfTest` runs on Windows and Linux with no external server or package dependency. An in-process loopback FTP server verifies the real control/data path, including USER/PASS, PWD, TYPE I, EPSV fallback, PASV, LIST and QUIT. Separate cases test malformed reply rejection and concurrent session/queue shutdown.
-
-## Transfer management
-
-Ghost FTP retains the workstation transfer improvements from the previous release line:
-
-- Pause queue / Resume queue;
-- Retry selected failed or cancelled transfers on Windows;
-- Retry all failed transfers on Windows and Linux;
-- Cancel selected or all active transfers;
-- Clear completed, failed or cancelled history selectively;
-- Clear all finished history;
-- inspect transfer state and copy source/destination paths on Windows;
-- aggregate running throughput and richer queue summaries;
-- selectable transfer rows in the Linux X11/XWayland renderer.
-
-**Pause means dispatch pause.** Transfers that are already running continue. Ghost FTP does not claim that arbitrary FTP servers can safely suspend an active byte stream unless resumable-transfer semantics have actually been negotiated.
+The package-free `GhostFTP.HardeningSelfTest` suite now covers concurrent disposal, malformed control replies, pathological LIST/MLSD input, valid EPSV custom delimiters, malformed PASV tuples, preliminary `120 -> 220` greetings, settings backup recovery and persisted-layout bounds.
 
 ## Supported protocols
 
@@ -105,30 +72,36 @@ The shipping client preserves these boundaries:
 - `PBSZ 0` / `PROT P` encrypted-data protection for FTPS;
 - required binary `TYPE I` transfer mode;
 - passive data connections tied to the authenticated control host;
-- strict EPSV/PASV port parsing;
+- strict EPSV/PASV tuple and port parsing;
 - CR/LF/NUL command-injection guards;
-- bounded control replies, listings, traversal and transfer-queue limits;
+- bounded control replies, directory listings, traversal and transfer-queue resources;
+- non-backtracking LIST parsing;
 - local path containment checks;
 - deletion confirmation and root/path protections;
 - bounded retry and concurrency behavior;
 - isolated transfer sessions;
-- cancellation-safe cleanup and coordinated shutdown.
+- cancellation-safe coordinated shutdown;
+- clearing of pooled buffers that may contain transferred file data.
 
-Read [`SECURITY.md`](SECURITY.md) for the threat and hardening model.
+Read [`SECURITY.md`](SECURITY.md) for the complete hardening model.
 
 ## Privacy
 
-Ghost FTP is designed to run **without application telemetry**.
-
-The application contains no analytics SDK, advertising SDK, usage telemetry, user fingerprinting, hidden crash uploader, cloud profile synchronization, hidden product-account requirement or automatic background update checker.
+Ghost FTP is designed to run **without application telemetry**. The application contains no analytics SDK, advertising SDK, usage telemetry, user fingerprinting, hidden crash uploader, cloud profile synchronization, hidden product-account requirement or automatic background update checker.
 
 Quick Connect credentials are session-only unless the user explicitly saves a profile. Saved-password protection is opt-in. Windows uses the current-user DPAPI boundary; Linux uses AES-256-GCM with local user-private key material.
 
-Read [`PRIVACY.md`](PRIVACY.md) for the complete privacy contract.
+Read [`PRIVACY.md`](PRIVACY.md).
+
+## Transfer queue semantics
+
+The shared bounded queue supports configurable concurrency, bounded transient retries, cancellation isolation, queued/running/retrying/completed/failed/cancelled state, progress/speed/ETA reporting, dispatch pause/resume and selective history cleanup.
+
+**Pause queue** pauses dispatch only. Transfers already running continue. Ghost FTP does not claim arbitrary active FTP byte streams can be frozen and resumed when the server has not negotiated such semantics.
 
 ## Windows
 
-The Windows renderer is native WPF and targets modern Windows desktop systems with per-monitor DPI awareness and long-path awareness.
+The Windows renderer is native WPF with per-monitor DPI awareness, long-path awareness and resizable/persisted workstation panes.
 
 ### Windows release files
 
@@ -162,34 +135,21 @@ Canonical Linux assets include:
 - `SHA256SUMS-linux.txt`;
 - `BUILD-INFO.txt`.
 
-The Linux client follows the same saved-site, Quick Connect, Local/Remote, transfer queue, privacy and transport-security model as Windows.
+Linux consumes the same FTP/FTPS parser, transfer queue, bounded resource model, localization and local persistence primitives.
 
 ## Platform scope
 
-Shipping desktop scope is intentionally limited to:
-
-- Windows x64/ARM64;
-- Linux x64/ARM64.
-
-Android, iOS, MacCatalyst and web application targets are not part of the shipping product scope.
+Shipping desktop scope is intentionally limited to Windows x64/ARM64 and Linux x64/ARM64. Android, iOS, macOS/MacCatalyst and web application targets are not part of this repository's shipping product scope.
 
 ## Localization
 
-Ghost FTP provides **29 selectable languages** from local application resources. **English (`en`) is the primary language, default language and final fallback.**
-
-No online translation API is used by the desktop client or Setup. Newly introduced technical strings safely fall back to English when a specific localized override is not yet available.
+Ghost FTP provides **29 selectable languages** from local application resources. **English (`en`) is the primary language, default language and final fallback.** No online translation API is used by the client or Setup.
 
 See [`docs/LOCALIZATION.md`](docs/LOCALIZATION.md).
 
-## Transfer queue semantics
-
-The transfer queue is bounded and uses isolated FTP sessions for transfer work where appropriate. It supports configurable concurrency, automatic transient retries, cancellation isolation, queued/running/retrying/completed/failed/cancelled state, progress/speed/ETA reporting, dispatch pause/resume and selective history cleanup.
-
-Queue pause waits asynchronously. It does not spin a polling loop and does not interrupt transfers that were already running.
-
 ## Demo mode
 
-The built-in Ghost FTP Demo profile is completely local. It opens no external FTP connection and is used by the regression suite to exercise listing, upload/download, rename, directory traversal, recursive transfer behavior, cleanup and disconnect lifecycle.
+The built-in Ghost FTP Demo profile is completely local. It opens no external FTP connection and is used by the regression suite to exercise listing, upload/download, rename, recursive directory behavior, cleanup and disconnect lifecycle.
 
 ## Real-server smoke testing
 
@@ -199,38 +159,32 @@ See [`docs/LIVE-SMOKE-TEST.md`](docs/LIVE-SMOKE-TEST.md).
 
 ## Build from source
 
-Requirements:
-
-- .NET 10 SDK;
-- Windows for the real WPF renderer/Setup build;
-- Linux with X11/XWayland runtime libraries for the native Linux renderer.
-
-Typical validation:
+Requirements are .NET 10 SDK, Windows for the real WPF renderer/Setup build, and Linux with X11/XWayland runtime libraries for the native Linux renderer.
 
 ```text
 dotnet restore GhostFTP.sln
 dotnet build GhostFTP.sln -c Release
 ```
 
-Official release builds use the repository release scripts and CI gates rather than relying only on a local compile.
+Official releases use repository CI/release gates rather than relying only on a local compile.
 
 ## Dependency policy
 
-Shipping and regression-test projects intentionally contain **zero third-party NuGet `PackageReference` dependencies**. Platform APIs are accessed through the .NET runtime/BCL, WPF on Windows, audited native Windows calls where necessary, and the audited X11 ABI layer on Linux.
+Shipping and regression-test projects intentionally contain **zero third-party NuGet `PackageReference` dependencies**. Platform APIs are accessed through the .NET runtime/BCL, WPF on Windows, audited native Windows calls where required, and the audited X11 ABI layer on Linux.
 
-Repository audits reject known telemetry/tracking SDK references and private signing-key material.
+Repository audits reject known telemetry/tracking SDK references, mobile-scope drift and private signing-key material.
 
 ## CI and release gates
 
-A Ghost FTP Beta source is not treated as release-ready until the relevant Windows/Linux pipeline passes:
+A Ghost FTP Beta source is not release-ready until the relevant Windows/Linux pipeline passes:
 
-- restore/build;
-- source/dependency/platform audit;
+- restore/build with warnings treated as errors;
+- source/dependency/platform/privacy audit;
 - final security hardening audit;
 - Core self-test;
 - complete local Demo workflow self-test;
 - parallel transfer queue self-test;
-- protocol and shutdown hardening self-test on Windows and Linux;
+- protocol and shutdown hardening self-test on Windows and Linux, including parser/settings hardening cases;
 - Windows WPF editable-input/localization smoke test;
 - Linux X11/XWayland runtime smoke test;
 - authentic Windows UI capture;
@@ -240,7 +194,7 @@ A Ghost FTP Beta source is not treated as release-ready until the relevant Windo
 
 ## Documentation
 
-- [`docs/releases/v0.1.4.md`](docs/releases/v0.1.4.md) — detailed 0.1.4 Beta release notes
+- [`docs/releases/v0.1.5.md`](docs/releases/v0.1.5.md) — detailed 0.1.5 Beta release notes
 - [`CHANGELOG.md`](CHANGELOG.md) — cumulative public version history
 - [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md) — preserved pre-reset engineering history
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture and trust boundaries
@@ -256,9 +210,7 @@ A Ghost FTP Beta source is not treated as release-ready until the relevant Windo
 
 ## Versioning
 
-The public source version is controlled by root `VERSION` and `RELEASE_CHANNEL` files. All 0.x releases remain Beta. Version **1.0.0** is reserved for the first stable public release.
-
-Historical engineering documents are preserved for traceability and do not override the current public version line.
+The public source version is controlled by root `VERSION` and `RELEASE_CHANNEL`. All 0.x releases remain Beta. Version **1.0.0** is reserved for the first stable public release. Historical engineering documents are preserved for traceability and do not override the current public version line.
 
 ## License
 

@@ -29,6 +29,8 @@ public sealed partial class MainWindow
                 _settings.ConcurrentTransfers);
             _queueList.ItemsSource = _queue.Jobs;
             _queue.JobUpdated += QueueJobUpdated;
+            UpdateQueueManagementUi();
+            UpdateQueueSummary();
             StartKeepAliveLoop();
 
             var profiles = await _profileStore.LoadAsync();
@@ -75,6 +77,7 @@ public sealed partial class MainWindow
         IsEnabled = false;
         try
         {
+            _completionRefreshCts?.Cancel();
             _connectionCts?.Cancel();
             CancelAllTransfers();
             if (_queue is not null)

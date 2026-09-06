@@ -1,11 +1,11 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.4 Beta** source line. Ghost FTP is developed and published by **BRENDIGO LTD**.
+This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.5 Beta** source line. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## Release identity
 
 ```text
-VERSION=0.1.4
+VERSION=0.1.5
 RELEASE_CHANNEL=beta
 ```
 
@@ -32,7 +32,7 @@ Use `portable.exe` (or an architecture-specific portable asset) when installed W
 
 ## Premium Setup workflow
 
-0.1.4 retains the canonical Ghost FTP dark Setup workflow:
+0.1.5 retains the canonical Ghost FTP dark Setup workflow:
 
 1. Welcome / language selection;
 2. license review;
@@ -47,7 +47,9 @@ A compact progress badge indicates the active wizard step. Setup explains the lo
 
 Ghost FTP uses a per-user install directory. No administrator-level machine-wide installation is claimed by the current Setup contract.
 
-Installed application data is stored in the current user's local Ghost FTP data directory. It can contain settings, saved site profiles and protected saved-password data when explicitly enabled. Uninstall allows the user to choose whether local profiles/settings should also be removed.
+Installed application data is stored in the current user's local Ghost FTP data directory. It can contain settings, saved-site profiles and protected saved-password data when explicitly enabled. Uninstall allows the user to choose whether local profiles/settings should also be removed.
+
+0.1.5 adds new local workstation-layout fields to settings. Existing 0.1.4/0.1.3 settings files remain compatible because missing fields receive bounded defaults.
 
 ## Windows saved passwords
 
@@ -59,7 +61,7 @@ Setup does not blindly overwrite the active application. The installer stages an
 
 Candidate validation checks expected executable/product/company/file-version identity. Setup **refuses to downgrade** an existing newer installation/maintenance binary.
 
-Before replacing an existing executable, Setup keeps an independent local backup. If a later stage fails, the installer attempts **rollback** of both application and maintenance binaries. During a first-time failed installation, newly committed partial binaries are removed where applicable.
+Before replacing an existing executable, Setup keeps an independent local backup. If a later stage fails, the installer attempts **rollback** of application and maintenance binaries. During a first-time failed installation, newly committed partial binaries are removed where applicable.
 
 ## Uninstall model
 
@@ -87,17 +89,23 @@ Typical use is to extract the versioned archive or place the executable in a use
 
 The .NET runtime is included in self-contained packages. The native renderer still requires a supported X11 environment/libraries because it uses Xlib directly. Ghost FTP does not bundle a separate GTK/Qt/Electron framework.
 
-## Upgrade from 0.1.3
+## Upgrade from 0.1.4
 
-Windows users may run 0.1.4 Setup over an existing 0.1.3 per-user installation. Setup performs product/version validation and transaction/rollback handling before committing new binaries.
+Windows users may run 0.1.5 Setup over an existing 0.1.4 per-user installation. Setup performs product/version validation and transaction/rollback handling before committing new binaries.
 
-0.1.4 changes the shared protocol/session/queue implementation but does not require a profile/settings migration. Local profiles and settings remain local and use the same persistence model.
+0.1.5 does not require a profile migration. Local profiles remain compatible. Settings gain bounded defaults for newly persisted sidebar/connection-panel dimensions.
 
-Linux users can replace the previous application binary/archive with the matching 0.1.4 architecture package. Existing installed-mode settings/profile files remain compatible with the current persistence format.
+Linux users can replace the previous application binary/archive with the matching 0.1.5 architecture package. Existing installed-mode settings/profile files remain compatible with the current persistence format.
 
-## Protocol/stability changes relevant to upgrades
+## Runtime changes relevant to upgrades
 
-0.1.4 adds stricter FTP reply and passive-mode validation plus coordinated session/queue shutdown. These are runtime hardening changes and do not modify the installer data layout. Servers that return malformed FTP reply framing or invalid PASV/EPSV tuples will now be rejected more explicitly rather than parsed permissively.
+0.1.5 strengthens LIST/MLSD parser bounds, adds additional EPSV/PASV regression coverage, reuses cleared transfer buffers, reduces transfer-progress scheduling overhead and coalesces burst post-transfer refreshes.
+
+These are runtime/quality changes and do not alter the install directory or profile format. Servers that send pathological listing lines or malformed passive tuples may now fail more explicitly instead of consuming permissive parser work.
+
+## Settings recovery
+
+Settings writes use atomic replacement plus a local backup. If the primary bounded JSON settings file is malformed, Ghost FTP attempts to load its bounded `.bak` copy; if both are invalid, safe defaults are used. 0.1.5 adds deterministic regression coverage for this path.
 
 ## Troubleshooting
 
@@ -119,4 +127,4 @@ That is expected portable behavior. Use the installed Setup build when settings/
 
 ## Verification
 
-Official public releases are generated by the release workflow after Windows/Linux build, audits, Core/queue/protocol hardening tests, renderer smoke tests, package verification and checksums. Prefer assets attached to the official GitHub Release over unverified third-party copies.
+Official public releases are generated by the release workflow after Windows/Linux build, source/security audits, Core/Demo/Queue/protocol-parser-settings hardening tests, renderer smoke tests, authentic Windows capture, package verification and checksums. Prefer assets attached to the official GitHub Release over unverified third-party copies.

@@ -61,6 +61,8 @@ public sealed class AppSettings
     public double WindowWidth { get; set; } = 1520;
     public double WindowHeight { get; set; } = 920;
     public bool WindowMaximized { get; set; }
+    public double SidebarWidth { get; set; } = 292;
+    public double ConnectionPanelHeight { get; set; } = 184;
     public double TransferPanelHeight { get; set; } = 198;
     public double LocalPaneFraction { get; set; } = 0.5;
 }
@@ -68,7 +70,7 @@ public sealed class AppSettings
 public sealed class AppSettingsStore
 {
     private const long MaxSettingsFileBytes = 1024 * 1024;
-    private static readonly Regex LanguageCodePattern = new("^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex LanguageCodePattern = new("^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$", RegexOptions.CultureInvariant | RegexOptions.Compiled | RegexOptions.NonBacktracking);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -202,6 +204,8 @@ public sealed class AppSettingsStore
         settings.KeepAliveSeconds = settings.KeepAliveSeconds == 0 ? 0 : Math.Clamp(settings.KeepAliveSeconds, 15, 600);
         settings.WindowWidth = ClampFinite(settings.WindowWidth, 980, 7680, 1520);
         settings.WindowHeight = ClampFinite(settings.WindowHeight, 640, 4320, 920);
+        settings.SidebarWidth = ClampFinite(settings.SidebarWidth, 220, 380, 292);
+        settings.ConnectionPanelHeight = ClampFinite(settings.ConnectionPanelHeight, 160, 360, 184);
         settings.TransferPanelHeight = ClampFinite(settings.TransferPanelHeight, 128, 440, 198);
         settings.LocalPaneFraction = ClampFinite(settings.LocalPaneFraction, 0.25, 0.75, 0.5);
     }
