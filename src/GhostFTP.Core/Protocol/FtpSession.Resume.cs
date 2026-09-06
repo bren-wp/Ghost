@@ -48,7 +48,7 @@ public sealed partial class FtpSession
                 TryDeleteLocal(partPath);
                 TryDeleteLocal(metadataPath);
             }
-            else if (partLength == remoteSize.Value)
+            else if (partLength == remoteSize!.Value)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(localPath) ?? Directory.GetCurrentDirectory());
                 File.Move(partPath, localPath, true);
@@ -100,8 +100,15 @@ public sealed partial class FtpSession
         {
             // Keep a validated partial and its sidecar for a future safe resume. If there is no
             // trustworthy identity sidecar, remove the partial so a later attempt cannot resume it.
-            if (!canIdentifyRemote || !File.Exists(metadataPath))
+            if (!File.Exists(partPath))
+            {
+                TryDeleteLocal(metadataPath);
+            }
+            else if (!canIdentifyRemote || !File.Exists(metadataPath))
+            {
                 TryDeleteLocal(partPath);
+                TryDeleteLocal(metadataPath);
+            }
             throw;
         }
     }
