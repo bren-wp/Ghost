@@ -15,7 +15,7 @@ public sealed partial class MainWindow
         _queueList.SelectionMode = SelectionMode.Extended;
         _queueList.ContextMenu = CreateContextMenu(
             (L("Details"), (_, _) => ShowSelectedTransferDetails()),
-            (GhostTransferText.T("PauseQueue"), (_, _) => ToggleQueuePause()),
+            (GhostTransferText.T("PauseQueue"), (_, _) => ToggleQueuePauseFromVisibleControl()),
             (L("RetrySelected"), (_, _) => RetrySelectedTransfers()),
             (GhostTransferText.T("RetryFailed"), (_, _) => RetryAllFailedTransfers()),
             (L("CancelSelected"), (_, _) => CancelSelectedTransfer()),
@@ -29,6 +29,7 @@ public sealed partial class MainWindow
 
         _queuePauseMenuItem = _queueList.ContextMenu.Items.OfType<MenuItem>().ElementAtOrDefault(1);
         AddQueuePauseHeaderButton();
+        UpdateQueuePauseHeaderButton();
         _queueList.MouseDoubleClick += (_, _) => ShowSelectedTransferDetails();
         _queueList.SelectionChanged += (_, _) => UpdateQueueManagementUi();
         UpdateQueueManagementUi();
@@ -55,8 +56,27 @@ public sealed partial class MainWindow
             firstAction.Margin = new Thickness(5, 0, 0, 0);
 
         _queuePauseButton = GhostTheme.Button(GhostTransferText.T("PauseQueue"));
-        _queuePauseButton.Click += (_, _) => ToggleQueuePause();
+        _queuePauseButton.Click += (_, _) => ToggleQueuePauseFromVisibleControl();
         actions.Children.Insert(0, _queuePauseButton);
+    }
+
+    private void ToggleQueuePauseFromVisibleControl()
+    {
+        ToggleQueuePause();
+        UpdateQueuePauseHeaderButton();
+    }
+
+    private void UpdateQueuePauseHeaderButton()
+    {
+        if (_queuePauseButton is null)
+            return;
+
+        var paused = _queue?.IsQueuePaused == true;
+        _queuePauseButton.Content = GhostTransferText.T(paused ? "ResumeQueue" : "PauseQueue");
+        _queuePauseButton.ToolTip = paused
+            ? "Resume dispatch of queued and retrying transfers."
+            : GhostTransferText.T("RunningContinue");
+        _queuePauseButton.IsEnabled = _queue is not null;
     }
 
     private void ShowSelectedTransferDetails()
