@@ -13,17 +13,20 @@ public sealed partial class FtpSession : IFtpSession
     private const int MaxReplyLines = 256;
     private const int MaxReplyChars = 1_048_576;
     private const int MaxReplyLineChars = 65_536;
+    private const int MaxGreetingReplies = 4;
     private const int MaxTraversalDepth = 64;
     private const int MaxTraversalEntries = 100_000;
     private static readonly Encoding ControlEncoding = new UTF8Encoding(false, false);
 
     private readonly FtpConnectionOptions _options;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly TaskCompletionSource<bool> _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TcpClient? _controlClient;
     private Stream? _controlStream;
     private StreamReader? _reader;
     private StreamWriter? _writer;
     private bool _disposed;
+    private int _disposeState;
     private bool _dataProtection;
     private HashSet<string> _features = new(StringComparer.OrdinalIgnoreCase);
 
@@ -73,6 +76,10 @@ public sealed partial class FtpSession : IFtpSession
 
             BuildControlTextStreams();
             var greeting = await ReadReplyAsync(cancellationToken).ConfigureAwait(false);
+            for (var replyCount = 1; greeting.IsPositivePreliminary && replyCount < MaxGreetingReplies; replyCount++)
+                greeting = await ReadReplyAsync(cancellationToken).ConfigureAwait(false);
+            if (greeting.IsPositivePreliminary)
+                throw new FtpException("FTP server sent too many preliminary greeting replies.", greeting.Code);
             Ensure(greeting, 200, 299, "Server did not accept the connection.");
 
             if (_options.Security == FtpSecurityMode.ExplicitTls)
@@ -114,7 +121,7 @@ public sealed partial class FtpSession : IFtpSession
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_disposed)
+            if (_disposed || Volatile.Read(ref _disposeState) != 0)
                 return;
             if (_writer is not null)
             {

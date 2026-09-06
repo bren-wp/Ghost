@@ -1,6 +1,6 @@
 # Ghost FTP Security
 
-This document describes the active security model for **Ghost FTP 0.1.3 Beta** developed and published by **BRENDIGO LTD**.
+This document describes the active security model for **Ghost FTP 0.1.4 Beta** developed and published by **BRENDIGO LTD**.
 
 Ghost FTP is a native FTP/FTPS desktop client for Windows and Linux. It does not implement SSH/SFTP and does not present FTP and SFTP as interchangeable protocols.
 
@@ -14,7 +14,7 @@ Supported modes are:
 
 Security mode values are validated before network setup. Unsupported enum values fail closed. Plain FTP is never selected as a hidden fallback from a failed TLS connection.
 
-Explicit FTPS requires a successful `AUTH TLS` response before the control channel is upgraded. TLS certificate and hostname validation use the platform's normal trust model; invalid certificates are not silently accepted.
+Explicit FTPS requires a successful `AUTH TLS` response before the control channel is upgraded. TLS certificate and hostname validation use the platform trust model; invalid certificates are not silently accepted.
 
 When TLS is active Ghost FTP requires:
 
@@ -22,11 +22,32 @@ When TLS is active Ghost FTP requires:
 - `PROT P`;
 - encrypted FTP data channels.
 
+## Control-channel protocol hardening
+
+Ghost FTP 0.1.4 tightens server-reply parsing while retaining standards-compatible behavior.
+
+- FTP reply codes must be numeric values in the `100..599` range.
+- When a fourth reply character is present it must use valid single-line (`space`) or multiline (`-`) framing.
+- Individual reply lines, multiline line count and total multiline characters are bounded.
+- Command/reply reads retain explicit timeout and cancellation boundaries.
+- A bounded sequence of preliminary `1xx` greetings is accepted before the required final positive-completion greeting. This supports valid `120 -> 220` servers without permitting an unbounded greeting loop.
+- Malformed replies such as `220X ...` fail closed.
+
+The deterministic hardening regression suite exercises both valid preliminary greeting behavior and malformed reply rejection on an in-process loopback FTP server.
+
 ## Data-transfer mode integrity
 
 Ghost FTP explicitly requests binary transfer mode with `TYPE I` before send/receive data paths. A server that refuses the required binary mode causes the transfer to fail rather than silently changing data semantics.
 
-Passive-mode handling prefers EPSV and can fall back to PASV. PASV host redirection is not trusted as an arbitrary network destination: the data connection remains tied to the authenticated control host.
+Passive-mode handling prefers EPSV and can fall back to PASV. 0.1.4 uses strict passive-response parsing:
+
+- EPSV validates delimiter framing and port range;
+- PASV parses exactly the six comma-separated values in the passive tuple;
+- every PASV tuple value must be `0..255`;
+- only `p1,p2` determine the passive data port;
+- unrelated trailing numeric diagnostics cannot alter the selected port.
+
+PASV host redirection is not trusted as an arbitrary network destination: the data connection remains tied to the authenticated control host. This preserves the FTP bounce/redirection defense while still using the server-provided passive port.
 
 ## Input and command safety
 
@@ -41,6 +62,7 @@ Protections include:
 - single remote-name validation;
 - remote-path normalization;
 - bounded reply lines/characters;
+- bounded directory-listing payload size;
 - bounded recursive traversal depth and entry count;
 - local path-containment checks.
 
@@ -48,19 +70,34 @@ Protections include:
 
 The transfer service uses bounded concurrency and isolated transfer sessions where required. The queue has a hard capacity and does not allow unbounded job accumulation.
 
-0.1.3 adds queue pause/resume. This is intentionally a **dispatch pause**:
+Queue pause/resume is intentionally a **dispatch pause**:
 
 - queued/retrying jobs wait asynchronously;
 - already-running transfers continue;
 - cancellation remains per-job;
-- disposing the queue releases paused waiters before shutdown;
 - no claim is made that a live FTP data stream can be arbitrarily frozen and resumed safely.
 
+0.1.4 hardens queue shutdown. A single disposal owner completes dispatch, releases paused waiters, cancels outstanding work, waits for worker termination, and only then disposes cancellation resources. Concurrent disposal callers await the same completion signal, and enqueue attempts made after shutdown starts fail deterministically.
+
 Retries are bounded and limited to failures classified as transient. Authentication and other permanent failures do not enter an uncontrolled retry loop.
+
+## FTP session lifecycle safety
+
+`FtpSession.DisposeAsync()` is idempotent and coordinated under concurrent callers. Once disposal begins:
+
+- new operations fail with the disposed-session boundary;
+- existing serialized work is allowed to leave its gate;
+- transport cleanup executes once;
+- concurrent disposal callers wait for completion;
+- the synchronization gate is not disposed out from under a waiting operation.
+
+This removes teardown races that could otherwise surface nondeterministic `SemaphoreSlim`/transport exceptions during application close or reconnect workflows.
 
 ## Local path and delete safety
 
 Ghost FTP normalizes and contains local paths before write/delete operations. Remote root/path protections and bounded recursive operations reduce accidental destructive traversal. User-facing destructive actions require explicit confirmation where configured.
+
+Downloads use partial files and size checks where the server exposes size information. Uploads use temporary remote paths, size verification where available, and rollback-oriented replacement semantics for an existing destination.
 
 ## Credential protection
 
@@ -90,17 +127,23 @@ The installed `GhostFTP-Setup.exe` is the maintenance/uninstall entry. A separat
 
 ## Dependency boundary
 
-Shipping projects are audited to contain zero third-party NuGet `PackageReference` dependencies. Source audits also reject known telemetry/tracking SDK identifiers and private signing-key material committed in source paths.
+Shipping and regression-test projects are audited to contain zero third-party NuGet `PackageReference` dependencies. Source audits also reject known telemetry/tracking SDK identifiers and private signing-key material committed in source paths.
 
 Native platform integration is limited to audited Windows APIs and the Linux X11 ABI layer used by the native renderer.
 
 ## Platform scope
 
-Shipping application targets are Windows and Linux. Source audit rejects Android/iOS/MacCatalyst target frameworks and known mobile source directories.
+Shipping application targets are Windows and Linux. Source audit rejects Android/iOS/MacCatalyst target frameworks and known mobile source directories. A Web/browser application is not part of the shipping product scope.
 
 ## Live-server testing without credential disclosure
 
 The optional real-server smoke harness is non-destructive. It performs connect/PWD/LIST/NOOP/disconnect only and obtains its password through the protected `GHOSTFTP_LIVE_PASSWORD` CI secret. Output is designed to use redacted credential handling. The live test is documented in `docs/LIVE-SMOKE-TEST.md`.
+
+## Local deterministic hardening test
+
+`GhostFTP.HardeningSelfTest` uses a process-local loopback FTP server and no external Internet dependency. It verifies concurrent session disposal, concurrent queue disposal, malformed reply rejection and a real control/data flow with `120 -> 220`, USER/PASS, PWD, TYPE I, EPSV fallback, PASV, LIST and QUIT.
+
+The PASV regression intentionally appends unrelated numeric diagnostics after the valid tuple so the test fails if passive parsing ever regresses to permissive digit extraction.
 
 ## Demo regression security
 
@@ -112,4 +155,4 @@ When reporting a vulnerability, include the affected Ghost FTP version, platform
 
 ## Release gate
 
-Ghost FTP 0.1.3 is release-ready only after the relevant Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow, transfer queue regression, renderer smoke tests, authentic UI capture, packaging and checksum verification.
+Ghost FTP 0.1.4 is release-ready only after the relevant Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow where applicable, transfer queue regression, protocol/shutdown hardening self-test, renderer smoke tests, authentic UI capture, packaging and checksum verification.

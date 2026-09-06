@@ -24,10 +24,4 @@ public sealed partial class FtpSession
 
     [GeneratedRegex("\\\"(?<path>(?:[^\\\"]|\\\"\\\")*)\\\"")]
     private static partial Regex PwdRegex();
-
-    [GeneratedRegex(@"\(.*\|(?<port>\d+)\|\)")]
-    private static partial Regex EpsvRegex();
-
-    [GeneratedRegex(@"\d+")]
-    private static partial Regex PasvNumberRegex();
 }
