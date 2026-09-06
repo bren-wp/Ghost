@@ -1,164 +1,151 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This guide describes the Windows and Linux installation model for **Ghost FTP 0.1.2 Beta**, developed and published by **BRENDIGO LTD**.
+This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.3 Beta** source line. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## Release identity
 
 ```text
-VERSION=0.1.2
+VERSION=0.1.3
 RELEASE_CHANNEL=beta
 ```
 
-All 0.x packages are Beta. Windows file/assembly version for this line is `0.1.2.0`; informational version is `0.1.2-beta`; expected public tag is `v0.1.2-beta`.
+Every public `0.x.y` package is Beta. Version 1.0.0 is reserved for the first stable release.
 
-## Windows download choices
+## Windows package choices
 
-### Setup x64
+### Setup
 
-`setup.exe` is the canonical Windows x64 installer/maintenance executable. It installs Ghost FTP for the current user and does not require a second dedicated uninstaller executable.
+Use `setup.exe` (or the architecture-specific Setup asset) for a normal per-user installation.
 
-### Portable x64
+Setup:
 
-`portable.exe` is the canonical x64 portable executable. It is self-contained and keeps portable application data under a local `Data` directory beside the executable.
+- runs as the current user (`asInvoker`);
+- installs under the current-user application location;
+- can create a desktop shortcut when selected;
+- writes the Windows Apps & features/uninstall registration;
+- stores a maintained `GhostFTP-Setup.exe` alongside the installation for future update/uninstall operations;
+- does not generate a separate `uninstall.exe`.
 
-### Windows ARM64
+### Portable
 
-- `setup-arm64.exe`
-- `portable-arm64.exe`
+Use `portable.exe` (or architecture-specific portable asset) when an installed Windows registration is not desired.
 
-Architecture-specific descriptive aliases are also published in the GitHub Release.
+Portable mode is detected by the portable executable name/marker and stores local Ghost FTP data under a `Data` directory beside the executable.
 
-## Per-user Setup model
+## Premium Setup workflow
 
-Ghost FTP Setup runs as a per-user installer (`asInvoker`). It installs the application into the current user's application area and registers per-user uninstall metadata. Normal installation should not require administrative elevation.
+0.1.3 Setup uses the same canonical Ghost FTP dark palette as the Windows client and includes:
 
-The installed maintenance executable is `GhostFTP-Setup.exe`. Windows uninstall registration points back to that maintenance Setup in uninstall mode. Ghost FTP intentionally does not create a separate `uninstall.exe`.
+1. Welcome / language selection;
+2. license review;
+3. install options;
+4. Ready summary;
+5. transactional progress;
+6. Finish / launch.
 
-## Installer flow
+A compact progress badge indicates the active wizard step. Setup also explains the local-only/no-telemetry model and that one maintained Setup executable handles installation, update and uninstall.
 
-The Setup UI is a native WPF wizard using the Ghost FTP dark product theme and the same local language catalog as the application. Typical flow:
+## Install location
 
-1. language selection;
-2. welcome/product information;
-3. license acceptance;
-4. install options such as desktop shortcut;
-5. ready confirmation;
-6. staged install/update progress;
-7. finish/launch.
+Ghost FTP uses a per-user install directory. No administrator-level machine-wide installation is claimed by the current Setup contract.
 
-Uninstall mode presents removal options including whether local Ghost FTP data should also be removed when that choice is available.
+## Local data
 
-## Staging and candidate validation
+Installed application data is stored in the current user's local Ghost FTP data directory. It can contain:
 
-Before replacing an active installation, Setup stages the incoming application and maintenance Setup binaries. Candidate checks verify expected Windows executable identity, Ghost FTP ProductName, BRENDIGO LTD CompanyName and the active release file version.
+- settings;
+- saved site profiles;
+- protected saved-password data when explicitly enabled.
 
-The installer **refuses to downgrade** an installed application or maintenance Setup to an older version. This applies to the staged application and Setup paths rather than only one executable.
+Uninstall allows the user to choose whether local profiles/settings should also be removed.
 
-## Transaction and rollback
+## Windows saved passwords
 
-Existing application and maintenance Setup binaries retain independent rollback copies until later installation stages complete.
+Saved passwords are optional. Windows protects them with the current-user DPAPI boundary. A reinstall under another Windows account does not imply that another user can decrypt the previous user's saved password data.
 
-If a later stage fails after one or both candidates have been committed, Setup attempts **rollback** of the prior binaries. During a first-time partial installation, newly committed binaries are removed where restoration is not possible because no previous file existed.
+## Update transaction
 
-Transaction/staging leftovers are cleaned as part of install/uninstall maintenance paths.
+Setup does not blindly overwrite the active application.
 
-This design reduces the chance that a failed update leaves a new app paired with an old maintenance Setup or vice versa.
+The installer stages and validates:
 
-## Uninstall
+- the application candidate;
+- the maintenance Setup candidate.
 
-Use the normal Windows installed-apps control panel/settings entry or run the installed maintenance Setup with its uninstall mode. The same maintenance executable performs removal; there is no separate uninstaller binary to build, sign or maintain.
+Candidate validation checks expected executable/product/company/file-version identity. Setup **refuses to downgrade** an existing newer installation/maintenance binary.
 
-Removing application binaries and removing local profiles/settings are intentionally distinct decisions so an uninstall does not silently destroy saved server configuration unless the user requests local-data removal.
+Before replacing an existing executable, Setup keeps an independent local backup. If a later stage fails, the installer attempts **rollback** of both application and maintenance binaries. During a first-time failed installation, newly committed partial binaries are removed where applicable.
 
-## Windows portable mode
+## Uninstall model
 
-Portable detection uses executable identity and/or `portable.flag`. Portable local data is stored under:
+The same installed `GhostFTP-Setup.exe` is registered as the normal uninstall command. This satisfies the requirement that installation and removal are handled by the maintained Setup program instead of generating a second uninstaller program.
 
-```text
-<Data beside portable executable>\Data
-```
+The current release deliberately does not advertise `QuietUninstallString` because a true silent-uninstall contract has not yet been implemented and tested.
 
-This can include settings and saved-site data. Protect the portable folder/media accordingly, especially if saved passwords are enabled.
+## Desktop shortcut
 
-Portable mode does not install Start Menu/Apps registration and does not require uninstall; close Ghost FTP and remove the portable files when no longer needed.
+The desktop shortcut is optional. Reinstall/update may preserve or recreate it according to the selected Setup option.
 
-## Saved passwords
+## Language
 
-Password persistence is opt-in.
+Setup exposes the same local language catalog used by the desktop product. English (`en`) is the primary/default/fallback language. The selected language is saved locally for Ghost FTP.
 
-Windows installed and portable profiles use current-user DPAPI protection for remembered passwords. Session-only Quick Connect passwords are not persisted.
+## Privacy during installation
 
-## Language selection
+Setup does not send install analytics, create a Ghost FTP account, upload machine inventory or register a tracking service. The installer uses local package resources and Windows registration APIs required to install/update/uninstall the program.
 
-Windows Setup consumes `GhostLocalization.SupportedLanguages`, the same 29-language local catalog used by the applications. English is the primary fallback. Setup does not contact an online translation service.
+## Windows architecture assets
 
-## Windows signatures and hashes
+Official releases may provide:
 
-Official releases include `SHA256SUMS.txt` and `SIGNING.txt`. Hashes correspond to final executable bytes after the signing step.
+- Windows x64 Setup;
+- Windows ARM64 Setup;
+- Windows x64 Portable;
+- Windows ARM64 Portable;
+- canonical aliases `setup.exe` and `portable.exe`.
 
-Stable releases require a valid trusted Authenticode signature under release policy. Beta builds report signature state; a Beta may be unsigned if production signing credentials are intentionally unavailable.
+Release pipeline verification confirms the required assets and matching version metadata before publication.
 
 ## Linux installation
 
-Linux release artifacts include self-contained executables and `.tar.gz` archives for x64 and ARM64.
+Ghost FTP Linux packages are self-contained application builds for x64/ARM64. The native renderer uses the system X11/XWayland environment and the supported system `libX11.so.6` ABI.
 
-Typical archive use:
+Typical use is to extract the versioned archive or place the executable in a user-controlled application directory and ensure it is executable.
 
-```bash
-tar -xzf GhostFTP-0.1.2-beta-linux-x64.tar.gz
-chmod +x GhostFTP-linux-x64
-./GhostFTP-linux-x64
-```
+The application stores normal installed-mode settings/profile data in the current user's local application-data path.
 
-The exact published archive name may include a versioned alias; use the matching 0.1.2 Beta GitHub Release asset.
+## Linux dependencies
 
-Linux is self-contained for .NET runtime purposes but requires a working X11/XWayland environment and the system `libX11.so.6` ABI used by the native renderer.
+The .NET runtime is included in self-contained packages. The native renderer still requires the supported host X11 libraries/environment because it uses Xlib directly.
 
-There is no Windows-style Setup executable on Linux.
+No separate GTK/Qt/Electron framework is bundled by Ghost FTP.
 
-## Linux saved passwords
+## Upgrade from 0.1.2
 
-Linux remembered passwords use AES-256-GCM with locally generated per-user key material and best-effort private file permissions. Session-only Quick Connect entries remain non-persistent.
+Windows users may run 0.1.3 Setup over an existing 0.1.2 per-user installation. Setup performs version validation and transaction/rollback handling before committing the new binaries.
 
-## Updates
+Local profiles/settings remain local and are not cloud-migrated.
 
-Ghost FTP has no hidden automatic background update check. Users obtain a newer release from the official product/repository release channel and run the new Setup or replace a portable/package executable deliberately.
-
-Setup itself enforces downgrade protection when installing over an existing Windows installation.
-
-## Verification after installation
-
-After starting Ghost FTP:
-
-- verify the title/About version is 0.1.2 Beta;
-- verify the expected language and theme;
-- optionally use the built-in Demo profile to test Local/Remote navigation and transfer workflow without network access;
-- for a real server, prefer explicit FTPS when supported;
-- confirm the connection log reports TLS when using FTPS;
-- confirm upload/download targets before destructive operations.
-
-## Real-server verification
-
-Developers can use the optional non-destructive live smoke harness described in `docs/LIVE-SMOKE-TEST.md`. Secrets are provided through environment variables/GitHub secrets and must never be committed.
+Linux users can replace the previous application binary/archive with the matching 0.1.3 architecture package. Existing installed-mode local settings/profile files use the same shared persistence model.
 
 ## Troubleshooting
 
-### Setup reports a downgrade
+### Setup reports a downgrade refusal
 
-Confirm that the downloaded Setup is newer than or equal to the installed Ghost FTP version. Ghost FTP intentionally blocks downgrades in the normal maintenance path.
+Confirm that the package version is newer than or equal to the installed application/maintenance version. Ghost FTP intentionally blocks a lower-version replacement.
 
-### Linux window does not start
+### Setup fails and returns to Ready
 
-Confirm an X11 or XWayland display is available and `libX11.so.6` is installed by the operating system.
+Review the displayed error and ensure the current user can write to the per-user install location. Setup attempts local rollback before returning control.
 
-### FTPS connection fails
+### Linux reports no X11/XWayland display
 
-Do not bypass certificate errors as a first response. Confirm host name, port, server certificate, explicit-vs-implicit mode and server FTPS configuration. Ghost FTP intentionally fails rather than silently downgrading an FTPS request to plaintext FTP.
+Ensure a working desktop display/session and `DISPLAY` environment are available and the supported X11 runtime libraries are installed.
 
-### Portable data is not in the user profile
+### Portable data appears beside the executable
 
-That is expected. Portable mode stores data beside the executable so it can remain self-contained.
+That is expected portable behavior. Use the normal installed Setup build when profile/settings data should live under the current user's application-data directory.
 
-## Release source
+## Verification
 
-The authoritative detailed release body is `docs/releases/v0.1.2.md`. Canonical binaries are the assets attached to the verified `v0.1.2-beta` GitHub Release, not arbitrary executables copied from intermediate build folders.
+Official public releases are generated by the release workflow after Windows/Linux build, audits, tests, package verification and checksums. Prefer assets attached to the official GitHub Release over unverified third-party copies.
