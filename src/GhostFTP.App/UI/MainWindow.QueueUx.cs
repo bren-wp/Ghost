@@ -13,18 +13,20 @@ public sealed partial class MainWindow
         _queueList.SelectionMode = SelectionMode.Extended;
         _queueList.ContextMenu = CreateContextMenu(
             (L("Details"), (_, _) => ShowSelectedTransferDetails()),
+            ("Pause / resume queue", (_, _) => ToggleQueuePause()),
             (L("RetrySelected"), (_, _) => RetrySelectedTransfers()),
+            (GhostTransferText.T("RetryFailed"), (_, _) => RetryAllFailedTransfers()),
             (L("CancelSelected"), (_, _) => CancelSelectedTransfer()),
             (L("CancelAll"), (_, _) => CancelAllTransfers()),
+            (GhostTransferText.T("ClearCompleted"), (_, _) => ClearCompletedTransfers()),
+            (GhostTransferText.T("ClearFailed"), (_, _) => ClearFailedTransfers()),
+            (GhostTransferText.T("ClearCancelled"), (_, _) => ClearCancelledTransfers()),
+            (L("ClearFinished"), (_, _) => ClearFinishedTransfers()),
             ("Copy source path", (_, _) => CopySelectedTransferSource()),
-            ("Copy destination path", (_, _) => CopySelectedTransferDestination()),
-            (L("ClearFinished"), (_, _) =>
-            {
-                _queue?.ClearFinished();
-                UpdateQueueSummary();
-            }));
+            ("Copy destination path", (_, _) => CopySelectedTransferDestination()));
 
         _queueList.MouseDoubleClick += (_, _) => ShowSelectedTransferDetails();
+        _queueList.SelectionChanged += (_, _) => UpdateQueueManagementUi();
 
         _statusBadge.Cursor = Cursors.Hand;
         _statusBadge.ToolTip = "Connection status · click for local diagnostics";
