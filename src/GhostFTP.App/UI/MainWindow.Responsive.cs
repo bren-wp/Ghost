@@ -8,6 +8,9 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
+    private const double DefaultConnectionPanelHeight = 214;
+    private const double DefaultTransferPanelHeight = 198;
+
     private void ConfigureResponsiveColumns()
     {
         _localList.SizeChanged += (_, _) => ResizeFileColumns(_localList);
@@ -30,21 +33,36 @@ public sealed partial class MainWindow
         if (_workspaceContent is null || _filePanesGrid is null)
             return;
 
-        _workspaceContent.RowDefinitions[4].MinHeight = 250;
-        _workspaceContent.RowDefinitions[5].Height = new GridLength(7);
-        _workspaceContent.RowDefinitions[6].MinHeight = 128;
-        _workspaceContent.RowDefinitions[6].MaxHeight = 440;
+        // The reference shell normalizes the desktop workspace to five active rows:
+        // connection area / splitter / file panes / splitter / transfers.
+        _workspaceContent.RowDefinitions[0].MinHeight = 160;
+        _workspaceContent.RowDefinitions[0].MaxHeight = 360;
+        _workspaceContent.RowDefinitions[1].Height = new GridLength(7);
+        _workspaceContent.RowDefinitions[2].MinHeight = 250;
+        _workspaceContent.RowDefinitions[3].Height = new GridLength(7);
+        _workspaceContent.RowDefinitions[4].MinHeight = 128;
+        _workspaceContent.RowDefinitions[4].MaxHeight = 440;
+
+        var connectionSplitter = CreateSplitter(GridResizeDirection.Rows, Cursors.SizeNS);
+        connectionSplitter.ToolTip = "Drag to resize Connection Log and Quick Connect · double-click to reset";
+        connectionSplitter.MouseDoubleClick += (_, _) =>
+            _workspaceContent.RowDefinitions[0].Height = new GridLength(DefaultConnectionPanelHeight);
+        Grid.SetRow(connectionSplitter, 1);
+        _workspaceContent.Children.Add(connectionSplitter);
 
         var transferSplitter = CreateSplitter(GridResizeDirection.Rows, Cursors.SizeNS);
-        transferSplitter.MouseDoubleClick += (_, _) => _workspaceContent.RowDefinitions[6].Height = new GridLength(198);
-        Grid.SetRow(transferSplitter, 5);
+        transferSplitter.ToolTip = "Drag to resize the Transfers queue · double-click to reset";
+        transferSplitter.MouseDoubleClick += (_, _) =>
+            _workspaceContent.RowDefinitions[4].Height = new GridLength(DefaultTransferPanelHeight);
+        Grid.SetRow(transferSplitter, 3);
         _workspaceContent.Children.Add(transferSplitter);
 
-        _filePanesGrid.ColumnDefinitions[0].MinWidth = 320;
+        _filePanesGrid.ColumnDefinitions[0].MinWidth = 280;
         _filePanesGrid.ColumnDefinitions[1].Width = new GridLength(7);
-        _filePanesGrid.ColumnDefinitions[2].MinWidth = 320;
+        _filePanesGrid.ColumnDefinitions[2].MinWidth = 280;
 
         var paneSplitter = CreateSplitter(GridResizeDirection.Columns, Cursors.SizeWE);
+        paneSplitter.ToolTip = "Drag to resize Local and Remote panes · double-click to reset";
         paneSplitter.MouseDoubleClick += (_, _) =>
         {
             _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -64,7 +82,8 @@ public sealed partial class MainWindow
 
         if (_workspaceContent is not null && _filePanesGrid is not null)
         {
-            _workspaceContent.RowDefinitions[6].Height = new GridLength(Math.Clamp(_settings.TransferPanelHeight, 128, 440));
+            _workspaceContent.RowDefinitions[4].Height = new GridLength(
+                Math.Clamp(_settings.TransferPanelHeight, 128, 440));
 
             var localFraction = Math.Clamp(_settings.LocalPaneFraction, 0.25, 0.75);
             _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(localFraction, GridUnitType.Star);
@@ -99,8 +118,13 @@ public sealed partial class MainWindow
         if (_workspaceContent is null || _filePanesGrid is null)
             return;
 
-        if (IsFinitePositive(_workspaceContent.RowDefinitions[6].ActualHeight))
-            _settings.TransferPanelHeight = Math.Clamp(_workspaceContent.RowDefinitions[6].ActualHeight, 128, 440);
+        if (IsFinitePositive(_workspaceContent.RowDefinitions[4].ActualHeight))
+        {
+            _settings.TransferPanelHeight = Math.Clamp(
+                _workspaceContent.RowDefinitions[4].ActualHeight,
+                128,
+                440);
+        }
 
         var local = _filePanesGrid.ColumnDefinitions[0].ActualWidth;
         var remote = _filePanesGrid.ColumnDefinitions[2].ActualWidth;
@@ -121,9 +145,7 @@ public sealed partial class MainWindow
             Background = GhostTheme.R("Border"),
             Cursor = cursor,
             Focusable = false,
-            ToolTip = direction == GridResizeDirection.Columns
-                ? "Drag to resize Local and Remote panes · double-click to reset"
-                : "Drag to resize the Transfers queue · double-click to reset"
+            Opacity = 0.72
         };
     }
 
