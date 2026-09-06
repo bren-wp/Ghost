@@ -14,17 +14,18 @@ Application network access is limited to user-directed FTP/FTPS activity and exp
 
 Keepalive is **server-only**. When enabled, `NOOP` is sent only to the active FTP/FTPS server. Ghost FTP does not redirect keepalive, transfer state or resume state through a product cloud service.
 
-The 0.1.6 resume-integrity work uses standard FTP `SIZE`, `MDTM` and `REST` commands against the user's selected server. It introduces no BRENDIGO LTD endpoint or third-party service.
+The 0.1.6 resume-integrity work uses standard FTP `SIZE`, `MDTM`, `REST` and normal transfer commands against the user's selected server. It introduces no BRENDIGO LTD endpoint or third-party service.
 
 ## Download resume metadata
 
 When a server exposes both usable `SIZE` and `MDTM`, Ghost FTP can store a small local sidecar next to an interrupted download:
 
 ```text
+<destination>.ghostftp.part
 <destination>.ghostftp.part.meta
 ```
 
-The sidecar is capped at 16 KiB and contains only the resume identity needed to avoid mixing stale bytes:
+The `.part` file contains staged user file bytes. The sidecar is capped at 16 KiB and contains only the resume identity needed to avoid mixing stale bytes:
 
 - metadata format version;
 - selected FTP host and port;
@@ -33,9 +34,15 @@ The sidecar is capped at 16 KiB and contains only the resume identity needed to 
 - remote size;
 - remote modification timestamp.
 
-It does **not** contain the username, password, account token or transferred file content. Resume metadata remains on the local device and is never uploaded to BRENDIGO LTD.
+The sidecar does **not** contain the username, password, account token or transferred file content. Resume metadata remains on the local device and is never uploaded to BRENDIGO LTD.
 
-If a partial cannot be tied to a trustworthy server identity, Ghost FTP restarts the download rather than retaining unverified resumable state.
+If a partial cannot be tied to a trustworthy server identity, Ghost FTP removes it before a fresh transfer. If local filesystem permissions or locks prevent removal of untrusted staged bytes, the download fails closed instead of transmitting the partial or sending it to another service.
+
+## Staged destination behavior
+
+For a verifiable download, new bytes remain in `.ghostftp.part` until the selected server's `SIZE` and `MDTM` revision is checked again. Ghost FTP does not replace an existing destination before that local commit point.
+
+If the remote object changed in flight, only the staged transfer state is discarded. A pre-existing destination remains on the user's device unchanged. This is a local file-safety rule and does not involve cloud backup, remote synchronization or a BRENDIGO LTD recovery service.
 
 ## Quick Connect
 
@@ -56,7 +63,7 @@ Plaintext passwords are not intentionally logged. Sensitive Windows intermediary
 
 ## Portable mode
 
-Portable mode stores Ghost FTP data under the portable executable directory when the portable marker/name is active. That data is local and is not cloud synchronized. Resume sidecars also remain beside the user-selected local transfer destination rather than becoming cloud profile data.
+Portable mode stores Ghost FTP data under the portable executable directory when the portable marker/name is active. That data is local and is not cloud synchronized. Resume sidecars remain beside the user-selected local transfer destination rather than becoming cloud profile data.
 
 ## Settings
 
@@ -64,7 +71,7 @@ Language, appearance, local path, queue concurrency, retries, timeouts, keepaliv
 
 ## Transfer queue
 
-Transfer jobs are local runtime state. Pause/resume dispatch, retry/cancellation, queue-history cleanup and progress reporting do not create a server-side queue or cloud coordination service.
+Transfer jobs are local runtime state. Pause/resume dispatch, retry/cancellation, queue-history cleanup and progress reporting do not create a server-side product queue or cloud coordination service.
 
 ## Transfer-buffer privacy
 
@@ -80,13 +87,13 @@ Setup remains per-user and local. It sends no install analytics, creates no Ghos
 
 ## Localization
 
-Ghost FTP ships a local **29-language** catalog. English (`en`) is primary/default/fallback. No translation API receives UI text, filenames, server details or credentials.
+Ghost FTP ships a local **29-language** catalog. English (`en`) is primary/default/fallback. No translation API receives UI text, filenames, server details, resume state or credentials.
 
 ## Local regression tests
 
 The built-in Demo profile is entirely local and opens no external FTP, telemetry or analytics connection.
 
-`GhostFTP.HardeningSelfTest` and the new `GhostFTP.ResumeSelfTest` use process-local loopback networking only. The resume suite verifies safe REST offset usage, stale-revision restart and in-flight remote mutation handling without contacting BRENDIGO LTD or a third-party server.
+`GhostFTP.HardeningSelfTest` and `GhostFTP.ResumeSelfTest` use process-local loopback networking only. The resume suite verifies safe REST offset usage, stale-revision restart, in-flight remote mutation handling, preservation of an existing destination and fail-closed stale-partial cleanup without contacting BRENDIGO LTD or a third-party server.
 
 ## Live-server smoke testing
 
@@ -98,6 +105,6 @@ Ghost FTP does not sell user data to advertisers and contains no advertising-net
 
 ## Release/privacy verification
 
-Before public release, audits check for telemetry SDK references, unsupported platform drift, private signing material and dependency/version inconsistencies. Windows/Linux CI verifies local Demo, transfer queue, protocol/parser/lifecycle hardening, dedicated safe-resume integrity, renderer smoke paths and package integrity.
+Before public release, audits check for telemetry SDK references, unsupported platform drift, private signing material and dependency/version inconsistencies. Windows/Linux CI and the publication workflow verify local Demo behavior, transfer queue, protocol/parser/lifecycle hardening, dedicated safe-resume integrity, renderer smoke paths and package integrity.
 
 For transport-security details see [`SECURITY.md`](SECURITY.md). For current implementation details see [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md).
