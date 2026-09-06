@@ -1,152 +1,120 @@
 # Ghost FTP platform support
 
-This document defines the shipping platform contract for **Ghost FTP 0.1.2 Beta**. Platform claims are based on source, CI/runtime tests and published release artifacts rather than marketing text.
+This document defines the shipping platform contract for **Ghost FTP 0.1.3 Beta**. Platform claims are based on source, CI runtime tests and release artifacts rather than repository description text.
 
 ## Current public line
 
 ```text
-VERSION=0.1.2
+VERSION=0.1.3
 RELEASE_CHANNEL=beta
 ```
 
 All 0.x builds remain Beta. The first stable target is **1.0.0**.
 
-## Supported desktop platforms
-
-### Windows
-
-Ghost FTP ships a native WPF desktop renderer targeting modern supported Windows environments through `net10.0-windows10.0.19041.0`.
-
-Release architectures:
-
-- Windows x64;
-- Windows ARM64.
-
-Release forms:
-
-- self-contained portable executable;
-- self-contained per-user Setup/maintenance executable.
-
-Windows application behavior includes native minimize, maximize, restore and resizing. The 0.1.2 workstation additionally exposes draggable sidebar, connection-area, Local/Remote and Transfers splitters.
-
-Saved passwords are opt-in and protected with Windows DPAPI for the current user.
-
-### Linux
-
-Ghost FTP ships a native .NET 10 X11/XWayland renderer, not a Wine package and not a web wrapper.
-
-Release architectures:
-
-- Linux x64;
-- Linux ARM64.
-
-Release forms:
-
-- self-contained executable;
-- `.tar.gz` archive.
-
-The application uses the system `libX11.so.6` ABI for native desktop window integration. XWayland environments are supported through the X11 compatibility path used by the renderer.
-
-Linux saved passwords are opt-in and protected with AES-256-GCM using local per-user key material.
-
 ## Shared engine
 
-Windows and Linux both reference the same platform-neutral `GhostFTP.Core` project for:
+Windows and Linux share:
 
-- FTP/FTPS connection lifecycle;
-- TLS negotiation;
-- FTP command/reply handling;
-- directory listing/navigation;
-- upload/download;
-- recursive directory operations;
-- transfer queue/cancellation/retry;
-- input/path validation;
-- local Demo session.
+- `GhostFTP.Core` FTP/FTPS protocol implementation;
+- transfer queue;
+- profiles/settings models;
+- input/path guards;
+- Demo FTP session;
+- `GhostFTP.Design` product identity, palette and localization semantics.
 
-They also share `GhostFTP.Design` for product identity, reference palette and the 29-language local catalog.
+## Windows
 
-This prevents platform-specific renderers from implementing incompatible protocol engines.
+**Supported shipping platform.**
 
-## Security parity
+Renderer: native WPF (`GhostFTP.App`) targeting modern Windows desktop systems.
 
-Both desktop platforms inherit the same core security rules:
+Official release builds include x64 and ARM64 variants. The Windows application is per-monitor DPI aware, long-path aware and uses per-user local settings/profile storage.
 
-- fail-closed security-mode selection;
-- explicit FTPS requires successful `AUTH TLS`;
-- normal TLS certificate-chain/hostname validation;
-- encrypted sessions require `PBSZ 0` and `PROT P`;
-- binary data transfer uses `TYPE I`;
-- passive data connections are constrained to the authenticated control host;
-- command/control input is bounded and CR/LF/NUL is rejected;
-- recursive traversal is bounded.
+Windows saved passwords are opt-in and use the current-user DPAPI boundary.
 
-Plain FTP remains an explicit legacy mode and is not advertised as secure.
+Windows packaging provides canonical `setup.exe` and `portable.exe` names plus architecture-specific variants.
+
+## Linux
+
+**Supported shipping platform.**
+
+Renderer: native C# X11/XWayland application (`GhostFTP.Linux`) using the system `libX11.so.6` ABI.
+
+Official release builds include self-contained x64 and ARM64 binaries/archives.
+
+Linux saved passwords are opt-in and protected with AES-256-GCM plus local user-private key material.
+
+0.1.3 Linux transfer UI includes selectable transfer rows, queue pause/resume dispatch, retry-failed, cancellation and queue cleanup controls using the same Core queue service as Windows.
+
+## Android
+
+Not a shipping target. No Android application package, TFM or source directory belongs to this desktop release line.
+
+## iOS
+
+Not a shipping target. No iOS application package, TFM or source directory belongs to this desktop release line.
+
+## MacCatalyst/macOS application
+
+Not a shipping target in the current release contract.
+
+## Web/browser client
+
+A **Web/browser client** is not part of the Ghost FTP desktop repository shipping scope. The project does not use a browser shell to claim Windows/Linux desktop parity.
+
+## Mobile-scope audit
+
+Repository source audit rejects known Android/iOS/MacCatalyst target-framework patterns and known mobile source directories. This keeps the project intentionally focused on Windows and Linux.
+
+## Protocol support across platforms
+
+Both shipping platforms support the same current protocol set:
+
+- FTP;
+- Explicit FTPS;
+- Implicit FTPS.
+
+SFTP/SSH is not currently implemented and must not be presented as an FTP security mode.
+
+## Localization
+
+Both platforms consume the same 29-language local catalog. English (`en`) is primary/default/fallback. No online translation service is required.
 
 ## Privacy parity
 
-Both platforms operate without application telemetry, analytics, advertising SDKs, tracking SDKs, automatic crash upload or cloud profile synchronization.
+Both platforms are designed without application telemetry, analytics, advertising SDKs, hidden crash upload, cloud profile sync or account requirement.
 
-Connection/profile data is local. Session-only Quick Connect entries are not persisted. No Ghost FTP account is required.
+Quick Connect is session-only unless explicitly saved.
 
-## Localization parity
+## Transfer parity
 
-Windows, Linux and Windows Setup use the same local `GhostLocalization.SupportedLanguages` catalog. English is the primary fallback and the current release exposes 29 selectable languages.
+Both platforms use the same bounded `TransferQueueService`. 0.1.3 queue state includes dispatch pause/resume, bounded transient retry, isolated cancellation, progress/speed state and selective finished-history cleanup.
 
-No online translation service is used.
+A queue pause does not interrupt already-running FTP byte streams.
 
-## Windows Setup
+## CI verification
 
-Setup is Windows-specific and is not copied to Linux. The installed maintenance `GhostFTP-Setup.exe` handles update and uninstall. Ghost FTP does not ship a separate `uninstall.exe`.
+Windows CI verifies:
 
-Setup validates staged application/maintenance candidates, rejects downgrades and maintains rollback copies until later install steps succeed.
+- solution build;
+- source and hardening audits;
+- Core/Demo/Queue self-tests;
+- WPF input/localization smoke test;
+- authentic UI capture;
+- Setup/Portable packaging and asset verification.
 
-## Portable mode
+Linux CI verifies:
 
-Windows portable builds store local data beside the executable under `Data`. Installed builds use per-user application data.
+- native renderer build;
+- X11/XWayland runtime smoke test;
+- Core/Demo/Queue self-tests;
+- source and hardening audits;
+- x64/ARM64 self-contained packaging and checksums.
 
-Linux packages use the normal Linux per-user application data path unless launched in a portable identity/configuration supported by the shared path model.
+## Real-server testing
 
-## Unsupported application platforms
+A non-destructive live-server harness is documented at [`docs/LIVE-SMOKE-TEST.md`](LIVE-SMOKE-TEST.md). It uses explicit credentials supplied through protected CI secrets and performs connect/PWD/LIST/NOOP/disconnect without write operations.
 
-The active Ghost FTP desktop line intentionally does **not** ship:
+## Release assets
 
-- Android application;
-- iOS application;
-- MacCatalyst application;
-- macOS native application;
-- **Web/browser client**.
-
-Source audit rejects known Android/iOS/mobile source directories and mobile target frameworks if they are reintroduced.
-
-A web/browser client is not considered equivalent to the native product because browser sandboxes cannot expose the same unrestricted local-file workflow and desktop credential-store semantics.
-
-## Runtime prerequisites
-
-Windows packages are self-contained for .NET runtime purposes. Linux release executables are also self-contained but require a working X11/XWayland environment and the system X11 ABI used by the renderer.
-
-No third-party NuGet package dependency is required by shipping projects.
-
-## CI and release evidence
-
-Platform support is gated by GitHub Actions:
-
-- solution builds on Windows and Linux;
-- source/dependency/platform audit;
-- Core self-test;
-- complete local Demo workflow on both platforms;
-- transfer queue self-test;
-- WPF UI smoke test;
-- Linux renderer/runtime checks;
-- authentic Windows UI capture;
-- Windows x64/ARM64 packaging;
-- Linux x64/ARM64 packaging.
-
-The optional real-server smoke harness is documented in `docs/LIVE-SMOKE-TEST.md`. It is secret-backed and non-destructive.
-
-## Release artifacts
-
-The expected 0.1.2 Beta GitHub Release tag is `v0.1.2-beta`.
-
-Windows canonical artifacts include `setup.exe`, `portable.exe`, ARM64 variants, architecture aliases, SHA-256 hashes and signing report. Linux canonical artifacts include x64/ARM64 executables and archives plus release hashes.
-
-A platform is considered publicly supported by a release only when its expected artifacts were produced from the exact release source and attached successfully to the matching GitHub Release.
+Official release assets are attached to the versioned GitHub Release only after the release workflow validates the current source version and expected platform packages.
