@@ -14,9 +14,12 @@ public static class Program
             await TestParallelWorkersAsync();
             await TestConcurrencyClampAsync();
             await TestCancellationIsolationAsync();
+            await TestPauseResumeAndSelectiveClearAsync();
             Console.WriteLine("PASS  Transfer queue runs bounded parallel jobs with isolated sessions");
             Console.WriteLine("PASS  Transfer queue concurrency limits are clamped safely");
             Console.WriteLine("PASS  Cancelling one transfer does not terminate unrelated queue work");
+            Console.WriteLine("PASS  Queue pause/resume blocks new dispatch without interrupting active-transfer semantics");
+            Console.WriteLine("PASS  Completed, cancelled and failed queue history can be cleared selectively");
             return 0;
         }
         catch (Exception ex)
@@ -104,6 +107,65 @@ public static class Program
             if (survivor.Progress < 99.999)
                 throw new InvalidOperationException("An unrelated survivor transfer did not reach 100% progress.");
         }
+    }
+
+    private static async Task TestPauseResumeAndSelectiveClearAsync()
+    {
+        var probe = new ConcurrencyProbe(delayMilliseconds: 80);
+        await using var queue = new TransferQueueService(
+            _ => Task.FromResult<(IFtpSession Session, bool DisposeAfter)>((new ProbeSession(probe), true)),
+            uiContext: null,
+            maxAutomaticRetries: 0,
+            concurrentTransferLimit: 2);
+
+        var stateChanges = 0;
+        queue.QueueStateChanged += (_, _) => Interlocked.Increment(ref stateChanges);
+        queue.PauseQueue();
+        if (!queue.IsQueuePaused)
+            throw new InvalidOperationException("PauseQueue did not expose the paused queue state.");
+
+        var first = queue.EnqueueUpload("paused-a", "/paused-a", isDirectory: false);
+        var second = queue.EnqueueUpload("paused-b", "/paused-b", isDirectory: false);
+        await Task.Delay(160);
+
+        if (first.State != TransferState.Queued || second.State != TransferState.Queued)
+            throw new InvalidOperationException("A paused queue started a new transfer before ResumeQueue.");
+        if (probe.SessionIds.Count != 0)
+            throw new InvalidOperationException("A paused queue created a transfer session before dispatch resumed.");
+
+        queue.ResumeQueue();
+        if (queue.IsQueuePaused)
+            throw new InvalidOperationException("ResumeQueue left the queue marked as paused.");
+        await WaitForSettledAsync(queue, TimeSpan.FromSeconds(10));
+
+        if (first.State != TransferState.Completed || second.State != TransferState.Completed)
+            throw new InvalidOperationException("Paused transfers did not complete after the queue resumed.");
+        if (Volatile.Read(ref stateChanges) < 2)
+            throw new InvalidOperationException("Queue pause/resume did not raise state-change notifications.");
+        if (queue.ClearCompleted() != 2 || queue.Jobs.Count != 0)
+            throw new InvalidOperationException("Selective completed-transfer cleanup did not remove only completed history.");
+
+        queue.PauseQueue();
+        var cancelled = queue.EnqueueUpload("paused-cancel", "/paused-cancel", isDirectory: false);
+        queue.Cancel(cancelled.Id);
+        queue.ResumeQueue();
+        await WaitForSettledAsync(queue, TimeSpan.FromSeconds(10));
+        if (cancelled.State != TransferState.Cancelled)
+            throw new InvalidOperationException("A transfer cancelled while queue dispatch was paused did not become Cancelled.");
+        if (queue.ClearCancelled() != 1 || queue.Jobs.Count != 0)
+            throw new InvalidOperationException("Selective cancelled-transfer cleanup did not remove cancelled history.");
+
+        await using var failingQueue = new TransferQueueService(
+            _ => throw new InvalidOperationException("synthetic permanent failure"),
+            uiContext: null,
+            maxAutomaticRetries: 0,
+            concurrentTransferLimit: 1);
+        var failed = failingQueue.EnqueueUpload("fail", "/fail", isDirectory: false);
+        await WaitForSettledAsync(failingQueue, TimeSpan.FromSeconds(10));
+        if (failed.State != TransferState.Failed)
+            throw new InvalidOperationException("Synthetic permanent transfer failure did not produce Failed state.");
+        if (failingQueue.ClearFailed() != 1 || failingQueue.Jobs.Count != 0)
+            throw new InvalidOperationException("Selective failed-transfer cleanup did not remove failed history.");
     }
 
     private static async Task WaitForSettledAsync(TransferQueueService queue, TimeSpan timeoutValue)
