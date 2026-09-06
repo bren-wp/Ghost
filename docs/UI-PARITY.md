@@ -1,6 +1,6 @@
 # Ghost FTP desktop UI parity contract
 
-Ghost FTP **0.1.4 Beta** is one desktop product with native Windows and Linux renderers. This document defines the visual/workflow contract that prevents the two implementations from drifting into separate products.
+Ghost FTP **0.1.5 Beta** is one desktop product with native Windows and Linux renderers. This document defines the visual/workflow contract that prevents the two implementations from drifting into separate products.
 
 ## Authentic reference
 
@@ -26,7 +26,7 @@ The palette contract uses a dark blue-black workspace, restrained blue borders, 
 
 ## Resizing
 
-Windows provides native window maximize/minimize/restore plus internal splitters for the sidebar, connection area, Local/Remote panes and Transfers queue. Layout state is persisted locally.
+Windows provides native window maximize/minimize/restore plus internal splitters for the sidebar, connection area, Local/Remote panes and Transfers queue. 0.1.5 persists/bounds all principal workstation dimensions, including sidebar width and Connection Log / Quick Connect height.
 
 Linux responds to native X11/XWayland window resize and uses the same logical proportions. Narrow rendering may hide secondary labels/buttons before primary transfer actions.
 
@@ -44,13 +44,25 @@ Contextual file operations are not redundantly duplicated as unrelated global to
 
 Windows and Linux share the same `TransferQueueService`, including bounded worker/concurrency/retry/cancellation behavior. The **transfer queue and cancellation** semantics are therefore a product contract rather than renderer-specific behavior.
 
-0.1.4 retains queued/running/retrying/completed/failed/cancelled state, dispatch pause/resume, retry failed, selected/all cancellation, finished-history cleanup, selected transfer rows and progress/speed display where width permits.
+Shared states remain queued/running/retrying/completed/failed/cancelled. Dispatch pause/resume, retry failed, selected/all cancellation, finished-history cleanup and progress/speed state come from the same Core service.
 
 Running transfers continue when the queue is paused. Neither renderer labels dispatch pause as suspension of an active FTP byte stream.
 
-0.1.4 also hardens the shared queue shutdown path: concurrent disposal callers coordinate, paused dispatch is released during shutdown, workers stop before cancellation resources are disposed, and new work is rejected after shutdown begins. Both renderers inherit this behavior through Core.
+0.1.5 keeps the Windows queue pause/resume action visible in the transfer header as well as the synchronized context menu. Linux keeps its native primary queue controls.
 
-Windows exposes the richer transfer context menu for selective cleanup and source/destination path copy. Linux exposes the same Core state and primary queue controls in the native transfer header.
+0.1.5 also shares a lower-overhead progress-delivery path: active progress is throttled for renderer efficiency while terminal state remains immediate.
+
+## Listing/parser parity
+
+Windows and Linux consume the same bounded LIST/MLSD parser. Per-line/fact limits, non-backtracking regexes, incremental line enumeration and safe Unix symlink-name handling are Core behavior, not renderer-specific approximations.
+
+## Transfer-buffer parity
+
+Both renderers use the same Core send/receive paths and therefore the same pooled 128 KiB transfer buffers. Buffers are cleared before returning to the pool because they may contain user file data.
+
+## Completion-refresh behavior
+
+Renderer-specific post-transfer refresh behavior may differ, but it must not create avoidable server load. Windows 0.1.5 coalesces burst completion refreshes rather than issuing one remote LIST for each completed transfer.
 
 ## Site Manager parity
 
@@ -59,6 +71,8 @@ Saved sites remain local on both platforms. Both renderers expose server identit
 ## Settings parity
 
 Both platforms use the same underlying settings for language, theme/appearance, retries, concurrent transfers, connection/command/transfer timeouts, keepalive and workspace state. English is primary/fallback and the shared catalog contains 29 languages.
+
+Windows persists extra workstation splitter dimensions that are specific to its richer resizable shell; these are still stored/normalized through the shared settings layer.
 
 ## Status and diagnostics
 
@@ -72,6 +86,7 @@ Connection state distinguishes offline, connecting, connected TLS, connected pla
 - Avoid excessive nested-card styling.
 - Do not restore duplicated file-operation controls removed from the workstation cleanup.
 - Keep transfer-management state visible without allowing the transfer panel to dominate the workspace.
+- Do not add renderer-local behavior that contradicts the shared Core queue/parser/security semantics.
 
 ## Setup parity with product visual language
 
@@ -79,4 +94,4 @@ Windows Setup is not a Linux component, but it follows the same Ghost FTP identi
 
 ## Parity verification
 
-CI builds both renderers and runs real Windows WPF / Linux X11 smoke paths. The Windows capture path produces the canonical 1914 × 907 reference image. Windows/Linux CI also executes the shared protocol/shutdown hardening suite so UI parity sits on the same verified Core lifecycle behavior.
+CI builds both renderers and runs real Windows WPF / Linux X11 smoke paths. The Windows capture path produces the canonical 1914 × 907 reference image. Windows/Linux CI also executes the shared Core/Demo/Queue/protocol-parser-settings hardening suites so UI parity sits on the same verified protocol, parser and lifecycle behavior.
