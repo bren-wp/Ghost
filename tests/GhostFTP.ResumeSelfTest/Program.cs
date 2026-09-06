@@ -10,22 +10,32 @@ namespace GhostFTP.ResumeSelfTest;
 
 public static class Program
 {
+    private static readonly TimeSpan PerTestTimeout = TimeSpan.FromSeconds(30);
+
     public static async Task<int> Main()
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
             ("Validated partial resumes at the exact REST offset", TestValidResumeAsync),
             ("Changed remote identity restarts from zero", TestChangedIdentityRestartsFromZeroAsync),
-            ("Remote mutation during transfer discards the completed file", TestRemoteMutationDiscardsCompletedFileAsync)
+            ("Remote mutation during transfer discards the completed file", TestRemoteMutationDiscardsCompletedFileAsync),
+            ("Existing destination survives rejected remote mutation", DestinationSafetyRegression.TestExistingDestinationSurvivesRemoteMutationAsync),
+            ("Untrusted partial cleanup failure aborts before REST/RETR", DestinationSafetyRegression.TestUntrustedPartialCleanupFailureAbortsBeforeRetrAsync)
         };
 
         var failures = new List<string>();
         foreach (var test in tests)
         {
+            Console.WriteLine("RUN   " + test.Name);
             try
             {
-                await test.Run().ConfigureAwait(false);
+                await test.Run().WaitAsync(PerTestTimeout).ConfigureAwait(false);
                 Console.WriteLine("PASS  " + test.Name);
+            }
+            catch (TimeoutException ex)
+            {
+                failures.Add(test.Name + ": timed out after " + PerTestTimeout + ". " + ex);
+                Console.WriteLine("FAIL  " + test.Name + " — timed out after " + PerTestTimeout.TotalSeconds + " seconds");
             }
             catch (Exception ex)
             {
