@@ -8,6 +8,8 @@ namespace GhostFTP.UI;
 
 public sealed partial class MainWindow
 {
+    private Button? _queuePauseButton;
+
     private void ConfigureQueueUx()
     {
         _queueList.SelectionMode = SelectionMode.Extended;
@@ -26,6 +28,7 @@ public sealed partial class MainWindow
             ("Copy destination path", (_, _) => CopySelectedTransferDestination()));
 
         _queuePauseMenuItem = _queueList.ContextMenu.Items.OfType<MenuItem>().ElementAtOrDefault(1);
+        AddQueuePauseHeaderButton();
         _queueList.MouseDoubleClick += (_, _) => ShowSelectedTransferDetails();
         _queueList.SelectionChanged += (_, _) => UpdateQueueManagementUi();
         UpdateQueueManagementUi();
@@ -33,6 +36,27 @@ public sealed partial class MainWindow
         _statusBadge.Cursor = Cursors.Hand;
         _statusBadge.ToolTip = "Connection status · click for local diagnostics";
         _statusBadge.MouseLeftButtonUp += async (_, _) => await ShowConnectionDiagnosticsAsync();
+    }
+
+    private void AddQueuePauseHeaderButton()
+    {
+        // BuildTransfers places the queue list directly inside a DockPanel and the action WrapPanel
+        // in its docked header. Add pause/resume here so the primary control uses the same queue
+        // semantics as the context menu without duplicating transfer logic.
+        if (_queueList.Parent is not DockPanel dock)
+            return;
+
+        var header = dock.Children.OfType<Grid>().FirstOrDefault();
+        var actions = header?.Children.OfType<WrapPanel>().FirstOrDefault();
+        if (actions is null)
+            return;
+
+        if (actions.Children.Count > 0 && actions.Children[0] is Button firstAction)
+            firstAction.Margin = new Thickness(5, 0, 0, 0);
+
+        _queuePauseButton = GhostTheme.Button(GhostTransferText.T("PauseQueue"));
+        _queuePauseButton.Click += (_, _) => ToggleQueuePause();
+        actions.Children.Insert(0, _queuePauseButton);
     }
 
     private void ShowSelectedTransferDetails()
