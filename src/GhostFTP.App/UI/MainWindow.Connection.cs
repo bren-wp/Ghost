@@ -32,8 +32,10 @@ public sealed partial class MainWindow
             StartKeepAliveLoop();
 
             var profiles = await _profileStore.LoadAsync();
-            foreach (var profile in profiles) _profiles.Add(profile);
-            if (_profiles.Count > 0) _profilesList.SelectedIndex = 0;
+            foreach (var profile in profiles)
+                _profiles.Add(profile);
+            if (_profiles.Count > 0)
+                _profilesList.SelectedIndex = 0;
             AppendConnectionLog($"Loaded {_profiles.Count} local saved-site profile(s).");
 
             RefreshLocal();
@@ -51,8 +53,7 @@ public sealed partial class MainWindow
             if (_captureDirectory is not null)
             {
                 // Documentation capture is a non-interactive CI/build path. A modal startup
-                // error would leave the runner blocked until the job timeout and hide the
-                // actual failure. Emit the full exception and terminate with a non-zero code.
+                // error would leave the runner blocked until timeout and hide the real failure.
                 Console.Error.WriteLine("Ghost FTP documentation capture failed:");
                 Console.Error.WriteLine(ex);
                 _allowClose = true;
@@ -66,7 +67,9 @@ public sealed partial class MainWindow
 
     private async void OnClosingAsync(object? sender, CancelEventArgs e)
     {
-        if (_allowClose) return;
+        if (_allowClose)
+            return;
+
         e.Cancel = true;
         CaptureWorkspaceSettings();
         IsEnabled = false;
@@ -74,8 +77,9 @@ public sealed partial class MainWindow
         {
             _connectionCts?.Cancel();
             CancelAllTransfers();
-            if (_queue is not null) await _queue.DisposeAsync();
-            if (_session is not null) await _session.DisposeAsync();
+            if (_queue is not null)
+                await _queue.DisposeAsync();
+            await DisconnectCoreAsync();
 
             if (_settingsStore is not null)
             {
@@ -99,7 +103,9 @@ public sealed partial class MainWindow
 
     private void ProfileSelected()
     {
-        if (_profilesList.SelectedItem is not ServerProfile profile || _profileStore is null) return;
+        if (_profilesList.SelectedItem is not ServerProfile profile || _profileStore is null)
+            return;
+
         _host.Text = profile.Host;
         _port.Text = profile.Port.ToString();
         _username.Text = profile.Username;
@@ -110,7 +116,9 @@ public sealed partial class MainWindow
 
     private async Task ConnectAsync()
     {
-        if (_busy) return;
+        if (_busy)
+            return;
+
         _busy = true;
         _connectionCts?.Cancel();
         _connectionCts?.Dispose();
@@ -133,14 +141,19 @@ public sealed partial class MainWindow
             }
             else
             {
-                var host = _host.Text.Trim();
-                if (string.IsNullOrWhiteSpace(host)) throw new InvalidOperationException("Host is required.");
-                if (!int.TryParse(_port.Text.Trim(), out var port) || port is < 1 or > 65535)
-                    throw new InvalidOperationException("Port must be between 1 and 65535.");
+                // Validate untrusted UI input before it reaches logging, DNS resolution or the
+                // FTP command channel. FtpSession validates again at the protocol boundary.
+                var host = InputGuard.Host(_host.Text);
+                if (!int.TryParse(_port.Text.Trim(), out var parsedPort))
+                    throw new InvalidOperationException("Port must be a number between 1 and 65535.");
+                var port = InputGuard.Port(parsedPort);
                 if (_security.SelectedIndex is < 0 or > 2)
                     throw new InvalidOperationException("Select a valid FTP security mode.");
 
                 var securityMode = (FtpSecurityMode)_security.SelectedIndex;
+                var username = InputGuard.CommandArgument(_username.Text.Trim(), "username");
+                var password = InputGuard.CommandArgument(_password.Password, "password");
+
                 if (securityMode == FtpSecurityMode.Plain && !GhostMessageDialog.Confirm(
                         this,
                         "Plain FTP is not encrypted",
@@ -148,15 +161,17 @@ public sealed partial class MainWindow
                         GhostLocalization.T("Continue"),
                         danger: true,
                         warning: true))
+                {
                     throw new OperationCanceledException(ct);
+                }
 
                 AppendConnectionLog($"Connecting to {host}:{port} using {securityMode}.");
                 newOptions = new FtpConnectionOptions
                 {
                     Host = host,
                     Port = port,
-                    Username = _username.Text.Trim(),
-                    Password = _password.Password,
+                    Username = username,
+                    Password = password,
                     Security = securityMode,
                     ConnectTimeout = TimeSpan.FromSeconds(_settings.ConnectTimeoutSeconds),
                     CommandTimeout = TimeSpan.FromSeconds(_settings.CommandTimeoutSeconds),
@@ -223,7 +238,9 @@ public sealed partial class MainWindow
 
     private ServerProfile? MatchingSelectedProfile()
     {
-        if (_profilesList.SelectedItem is not ServerProfile selected) return null;
+        if (_profilesList.SelectedItem is not ServerProfile selected)
+            return null;
+
         return string.Equals(_host.Text.Trim(), selected.Host, StringComparison.OrdinalIgnoreCase)
             && string.Equals(_port.Text.Trim(), selected.Port.ToString(), StringComparison.Ordinal)
             && string.Equals(_username.Text.Trim(), selected.Username, StringComparison.Ordinal)
@@ -234,7 +251,9 @@ public sealed partial class MainWindow
 
     private async Task DisconnectAsync()
     {
-        if (_busy) return;
+        if (_busy)
+            return;
+
         _busy = true;
         try
         {
@@ -261,18 +280,27 @@ public sealed partial class MainWindow
 
     private async Task DisconnectCoreAsync()
     {
-        if (_session is null) return;
+        // Clear authoritative state first so callbacks, queue workers and keepalive logic cannot
+        // observe a stale active session while QUIT/disposal is in progress.
+        var session = _session;
+        _session = null;
+        _activeOptions = null;
+
+        if (session is null)
+            return;
+
         try
         {
-            await _session.DisconnectAsync();
+            await session.DisconnectAsync();
         }
         catch
         {
-            // Best effort. Disposing the session is the important cleanup step.
+            // QUIT is best effort. Disposal below is the authoritative transport cleanup.
         }
-        await _session.DisposeAsync();
-        _session = null;
-        _activeOptions = null;
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     private async Task<(IFtpSession Session, bool DisposeAfter)> CreateTransferSessionAsync(CancellationToken cancellationToken)
@@ -297,7 +325,9 @@ public sealed partial class MainWindow
 
     private async Task RefreshRemoteAsync()
     {
-        if (!IsConnected) return;
+        if (!IsConnected)
+            return;
+
         try
         {
             var entries = await _session!.ListAsync(_remotePath);
