@@ -22,6 +22,7 @@ public static class Program
         {
             ("FTP session concurrent disposal is idempotent", TestConcurrentSessionDisposalAsync),
             ("Transfer queue concurrent disposal is idempotent", TestConcurrentQueueDisposalAsync),
+            ("Settings backup recovery and workstation bounds are deterministic", TestSettingsRecoveryAsync),
             ("Malformed FTP reply framing is rejected", TestMalformedReplyRejectedAsync),
             ("Listing parser bounds pathological input and preserves safe symlinks", TestListingParserHardeningAsync),
             ("EPSV custom delimiter interoperates without PASV downgrade", TestEpsvCustomDelimiterAsync),
@@ -98,6 +99,76 @@ public static class Program
         Assert(rejected.State == TransferState.Failed, "A disposed transfer queue accepted a new transfer for dispatch.");
         Assert(rejected.Error?.Contains("shutting down", StringComparison.OrdinalIgnoreCase) == true,
             "A disposed transfer queue did not report its shutdown state.");
+    }
+
+    private static async Task TestSettingsRecoveryAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ghostftp-settings-hardening-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "settings.json");
+        var store = new AppSettingsStore(path);
+
+        try
+        {
+            await store.SaveAsync(new AppSettings
+            {
+                SidebarWidth = 333,
+                ConnectionPanelHeight = 211,
+                TransferPanelHeight = 207,
+                LocalPaneFraction = 0.43,
+                WindowWidth = 1510,
+                WindowHeight = 900
+            }).ConfigureAwait(false);
+
+            await store.SaveAsync(new AppSettings
+            {
+                SidebarWidth = 347,
+                ConnectionPanelHeight = 225,
+                TransferPanelHeight = 218,
+                LocalPaneFraction = 0.57,
+                WindowWidth = 1600,
+                WindowHeight = 960
+            }).ConfigureAwait(false);
+
+            Assert(File.Exists(path + ".bak"), "Atomic settings replacement did not preserve a rollback backup.");
+            await File.WriteAllTextAsync(path, "{ this is intentionally corrupt json").ConfigureAwait(false);
+
+            var recovered = await store.LoadAsync().ConfigureAwait(false);
+            Assert(Math.Abs(recovered.SidebarWidth - 333) < 0.001, "Settings recovery did not restore the previous sidebar width from backup.");
+            Assert(Math.Abs(recovered.ConnectionPanelHeight - 211) < 0.001, "Settings recovery did not restore the previous connection-panel height from backup.");
+            Assert(Math.Abs(recovered.LocalPaneFraction - 0.43) < 0.001, "Settings recovery did not restore the previous Local/Remote split from backup.");
+
+            var boundedBackup = """
+            {
+              "languageCode": "invalid_language_code_that_is_far_too_long",
+              "sidebarWidth": 9999,
+              "connectionPanelHeight": 12,
+              "transferPanelHeight": 9999,
+              "localPaneFraction": -5,
+              "windowWidth": 99999,
+              "windowHeight": 1,
+              "concurrentTransfers": 999,
+              "automaticTransferRetries": -4
+            }
+            """;
+            await File.WriteAllTextAsync(path + ".bak", boundedBackup).ConfigureAwait(false);
+            await File.WriteAllTextAsync(path, "{ corrupt again").ConfigureAwait(false);
+
+            var bounded = await store.LoadAsync().ConfigureAwait(false);
+            Assert(bounded.LanguageCode == "en", "Invalid language code did not fail back to English.");
+            Assert(Math.Abs(bounded.SidebarWidth - 380) < 0.001, "Sidebar width was not clamped to its safe maximum.");
+            Assert(Math.Abs(bounded.ConnectionPanelHeight - 160) < 0.001, "Connection-panel height was not clamped to its safe minimum.");
+            Assert(Math.Abs(bounded.TransferPanelHeight - 440) < 0.001, "Transfer-panel height was not clamped to its safe maximum.");
+            Assert(Math.Abs(bounded.LocalPaneFraction - 0.25) < 0.001, "Local/Remote split was not clamped to its safe minimum.");
+            Assert(Math.Abs(bounded.WindowWidth - 7680) < 0.001, "Window width was not clamped to the supported maximum.");
+            Assert(Math.Abs(bounded.WindowHeight - 640) < 0.001, "Window height was not clamped to the supported minimum.");
+            Assert(bounded.ConcurrentTransfers == 8, "Concurrent transfer count was not clamped to the safe maximum.");
+            Assert(bounded.AutomaticTransferRetries == 0, "Automatic retry count was not clamped to the safe minimum.");
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
     }
 
     private static async Task TestMalformedReplyRejectedAsync()
