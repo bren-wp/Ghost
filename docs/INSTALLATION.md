@@ -1,11 +1,11 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows and Linux installation model used by the current **Ghost FTP 0.1.5 Beta** source line. Ghost FTP is developed and published by **BRENDIGO LTD**.
+This document describes the Windows and Linux installation model used by **Ghost FTP 0.1.6 Beta**. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## Release identity
 
 ```text
-VERSION=0.1.5
+VERSION=0.1.6
 RELEASE_CHANNEL=beta
 ```
 
@@ -15,24 +15,25 @@ Every public `0.x.y` package is Beta. Version 1.0.0 is reserved for the first st
 
 ### Setup
 
-Use `setup.exe` (or the architecture-specific Setup asset) for a normal per-user installation.
+Use `setup.exe` or the architecture-specific Setup asset for a normal per-user installation.
 
 Setup:
 
 - runs as the current user (`asInvoker`);
 - installs under the current-user application location;
 - can create a desktop shortcut when selected;
-- writes the Windows Apps & features/uninstall registration;
-- stores a maintained `GhostFTP-Setup.exe` alongside the installation for future update/uninstall operations;
-- does not generate a separate `uninstall.exe`.
+- writes Windows Apps & features/uninstall registration;
+- stores the maintained `GhostFTP-Setup.exe` beside the installation for future maintenance;
+- uses that same maintained Setup executable for uninstall;
+- does **not** generate a separate `uninstall.exe`.
 
 ### Portable
 
-Use `portable.exe` (or an architecture-specific portable asset) when installed Windows registration is not desired. Portable mode stores local Ghost FTP data under a `Data` directory beside the executable.
+Use `portable.exe` or an architecture-specific Portable asset when Windows installation registration is not wanted. Portable mode stores local Ghost FTP data under a `Data` directory beside the executable.
 
-## Premium Setup workflow
+## Setup workflow
 
-0.1.5 retains the canonical Ghost FTP dark Setup workflow:
+0.1.6 retains the premium Ghost FTP Setup workflow already established in the prior Beta line:
 
 1. Welcome / language selection;
 2. license review;
@@ -41,90 +42,124 @@ Use `portable.exe` (or an architecture-specific portable asset) when installed W
 5. transactional progress;
 6. Finish / launch.
 
-A compact progress badge indicates the active wizard step. Setup explains the local-only/no-telemetry model and that one maintained Setup executable handles installation, update and uninstall.
+Setup remains resizable, uses the canonical Ghost palette, explains the local-only/no-telemetry model and shows that one maintained Setup executable handles install/update/uninstall maintenance.
 
 ## Install location and local data
 
 Ghost FTP uses a per-user install directory. No administrator-level machine-wide installation is claimed by the current Setup contract.
 
-Installed application data is stored in the current user's local Ghost FTP data directory. It can contain settings, saved-site profiles and protected saved-password data when explicitly enabled. Uninstall allows the user to choose whether local profiles/settings should also be removed.
-
-0.1.5 adds new local workstation-layout fields to settings. Existing 0.1.4/0.1.3 settings files remain compatible because missing fields receive bounded defaults.
+Installed application data is stored in the current user's local Ghost FTP data directory. It can contain settings, saved-site profiles and protected saved-password data when explicitly enabled. Uninstall lets the user choose whether local profiles/settings should also be removed.
 
 ## Windows saved passwords
 
-Saved passwords are optional. Windows protects them with the current-user DPAPI boundary. A reinstall under another Windows account does not imply that another user can decrypt the previous user's saved password data.
+Saved passwords are optional and use the current-user DPAPI boundary. A reinstall under another Windows account does not imply that another user can decrypt a previous user's saved password data.
 
 ## Update transaction
 
-Setup does not blindly overwrite the active application. The installer stages and validates the application candidate and maintenance Setup candidate.
+Setup does not blindly overwrite an active installation. It stages and validates application and maintenance Setup candidates first.
 
-Candidate validation checks expected executable/product/company/file-version identity. Setup **refuses to downgrade** an existing newer installation/maintenance binary.
-
-Before replacing an existing executable, Setup keeps an independent local backup. If a later stage fails, the installer attempts **rollback** of application and maintenance binaries. During a first-time failed installation, newly committed partial binaries are removed where applicable.
+Candidate validation checks expected product/company/file-version identity. Setup refuses to downgrade a newer installation. Existing application and maintenance binaries retain rollback copies through the transaction; later-stage failure attempts local rollback before control is returned.
 
 ## Uninstall model
 
-The same installed `GhostFTP-Setup.exe` is registered as the normal uninstall command. The current release deliberately does not advertise `QuietUninstallString` because a true silent-uninstall contract has not yet been implemented and tested.
+The installed `GhostFTP-Setup.exe` is the normal uninstall command. The current release still does not advertise `QuietUninstallString` because a genuine tested silent-uninstall contract has not been implemented.
 
 ## Desktop shortcut and language
 
-The desktop shortcut is optional. Setup exposes the same local language catalog used by the desktop product. English (`en`) is the primary/default/fallback language and the selected language is saved locally.
+The desktop shortcut is optional. Setup exposes the same local language catalog as the desktop client. English (`en`) is primary/default/fallback and language choice is stored locally.
 
 ## Privacy during installation
 
-Setup does not send install analytics, create a Ghost FTP account, upload machine inventory or register a tracking service. It uses local package resources and Windows registration APIs required for install/update/uninstall.
+Setup sends no install analytics, creates no Ghost FTP account, uploads no machine inventory and installs no tracking or telemetry service. It uses only local package resources and Windows registration APIs needed for maintenance.
 
-## Windows architecture assets
+## Windows release assets
 
-Official releases may provide Windows x64/ARM64 Setup, Windows x64/ARM64 Portable, canonical aliases `setup.exe` / `portable.exe`, SHA-256 information and signing metadata. Release verification confirms required assets and matching version metadata before publication.
+Official releases provide canonical and architecture-specific Windows artifacts such as:
+
+- `setup.exe`
+- `portable.exe`
+- `setup-arm64.exe`
+- `portable-arm64.exe`
+- `GhostFTP-Setup-win-x64.exe`
+- `GhostFTP-Portable-win-x64.exe`
+- `GhostFTP-Setup-win-arm64.exe`
+- `GhostFTP-Portable-win-arm64.exe`
+- `SHA256SUMS.txt`
+- `SIGNING.txt`
+
+Release verification confirms required assets, product identity and matching version metadata before publication.
 
 ## Linux installation
 
-Ghost FTP Linux packages are self-contained application builds for x64/ARM64. The native renderer uses the system X11/XWayland environment and supported `libX11.so.6` ABI.
+Ghost FTP Linux packages are self-contained application builds for x64 and ARM64. The native renderer uses the system X11/XWayland environment and `libX11.so.6` ABI.
 
-Typical use is to extract the versioned archive or place the executable in a user-controlled application directory and ensure it is executable. Installed-mode settings/profile data remains under the current user's local application-data path.
+Typical installation is to extract the versioned archive or place the executable in a user-controlled application directory and ensure it is executable. Installed-mode settings/profile data stays under the current user's local application-data path.
 
-## Linux dependencies
+The .NET runtime is included in self-contained Linux packages. The renderer still requires a supported X11 environment/libraries; Ghost FTP does not bundle GTK, Qt or Electron.
 
-The .NET runtime is included in self-contained packages. The native renderer still requires a supported X11 environment/libraries because it uses Xlib directly. Ghost FTP does not bundle a separate GTK/Qt/Electron framework.
+## Upgrade from 0.1.5
 
-## Upgrade from 0.1.4
+Windows users can run 0.1.6 Setup over an existing 0.1.5 per-user installation. Setup validates product/version identity and preserves transactional rollback behavior.
 
-Windows users may run 0.1.5 Setup over an existing 0.1.4 per-user installation. Setup performs product/version validation and transaction/rollback handling before committing new binaries.
+No profile or settings migration is required. Existing local profiles and workstation settings remain compatible.
 
-0.1.5 does not require a profile migration. Local profiles remain compatible. Settings gain bounded defaults for newly persisted sidebar/connection-panel dimensions.
+Linux users can replace the previous binary/archive with the matching 0.1.6 architecture package. Existing installed-mode profile/settings files remain compatible.
 
-Linux users can replace the previous application binary/archive with the matching 0.1.5 architecture package. Existing installed-mode settings/profile files remain compatible with the current persistence format.
+## 0.1.6 download-resume state
+
+0.1.6 introduces bounded local sidecars for resumable downloads:
+
+```text
+<destination>.ghostftp.part
+<destination>.ghostftp.part.meta
+```
+
+These files are local temporary transfer state, not profile or account data. The metadata sidecar contains endpoint/security/path/remote revision information used to decide whether `REST` resume is safe; it does not contain the FTP password.
+
+A staged download does not replace an existing destination until its remote revision has been validated after transfer. If the server object changes while bytes are in flight, the staged result is discarded and the previous destination is preserved.
+
+If an old, corrupt or mismatched partial cannot be removed, Ghost FTP aborts instead of continuing with length-only resume. This is an intentional fail-closed behavior and may surface a local filesystem permission error that must be corrected before retrying.
 
 ## Runtime changes relevant to upgrades
 
-0.1.5 strengthens LIST/MLSD parser bounds, adds additional EPSV/PASV regression coverage, reuses cleared transfer buffers, reduces transfer-progress scheduling overhead and coalesces burst post-transfer refreshes.
+0.1.6 retains the 0.1.5 LIST/MLSD parser bounds, pooled/cleared transfer buffers, reduced progress-renderer scheduling and coalesced post-transfer pane refresh.
 
-These are runtime/quality changes and do not alter the install directory or profile format. Servers that send pathological listing lines or malformed passive tuples may now fail more explicitly instead of consuming permissive parser work.
+The principal runtime change is resumable-download integrity:
+
+- validated endpoint/path/SIZE/MDTM identity before REST;
+- no blind reuse of pre-0.1.6 partials;
+- staged commit after post-transfer revision validation;
+- preservation of an existing destination until commit;
+- deterministic cross-platform resume regression tests.
 
 ## Settings recovery
 
-Settings writes use atomic replacement plus a local backup. If the primary bounded JSON settings file is malformed, Ghost FTP attempts to load its bounded `.bak` copy; if both are invalid, safe defaults are used. 0.1.5 adds deterministic regression coverage for this path.
+Settings writes continue to use atomic replacement plus a local backup. If the primary bounded JSON settings file is malformed, Ghost FTP attempts the bounded `.bak` copy and falls back to safe defaults only when required.
 
 ## Troubleshooting
 
 ### Setup reports a downgrade refusal
 
-Confirm that the package version is newer than or equal to the installed application/maintenance version. Ghost FTP intentionally blocks a lower-version replacement.
+Confirm that the package version is newer than or equal to the installed application/maintenance version. Ghost FTP intentionally blocks lower-version replacement.
 
 ### Setup fails and returns to Ready
 
-Review the displayed error and ensure the current user can write to the per-user install location. Setup attempts local rollback before returning control.
+Review the displayed error and verify that the current user can write to the per-user install location. Setup attempts local rollback first.
+
+### A stale `.ghostftp.part` cannot be removed
+
+Check file/directory permissions, read-only attributes, locks and filesystem health. 0.1.6 intentionally refuses to resume an untrusted partial when cleanup cannot be proven successful.
 
 ### Linux reports no X11/XWayland display
 
-Ensure a working desktop display/session and `DISPLAY` environment are available and supported X11 runtime libraries are installed.
+Ensure a working desktop display/session, `DISPLAY` environment and supported X11 runtime libraries are available.
 
 ### Portable data appears beside the executable
 
-That is expected portable behavior. Use the installed Setup build when settings/profile data should live under the user's application-data directory.
+That is expected Portable behavior. Use the installed Setup build when settings/profile data should live under the user's application-data directory.
 
 ## Verification
 
-Official public releases are generated by the release workflow after Windows/Linux build, source/security audits, Core/Demo/Queue/protocol-parser-settings hardening tests, renderer smoke tests, authentic Windows capture, package verification and checksums. Prefer assets attached to the official GitHub Release over unverified third-party copies.
+Official 0.1.6 binaries are published only after Windows/Linux release gates pass source/security audits, Core/Demo/Queue/protocol hardening tests, **safe download resume integrity tests on both platforms**, renderer smoke tests, authentic Windows capture, packaging, asset identity checks and SHA-256/runtime verification.
+
+Prefer assets attached to the official GitHub Release over unverified third-party copies.
