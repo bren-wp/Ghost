@@ -22,6 +22,7 @@ public static class Program
             TestPasswordBox(failures);
             TestComboBox(failures);
             TestLocalization(failures);
+            TestReferenceCopy(failures);
             TestBrandIdentity(failures);
             TestSetupLanguageSwitchAndWizardRebuild(failures);
         }
@@ -40,6 +41,7 @@ public static class Program
             Console.WriteLine("PASS  Ghost FTP security selector");
             Console.WriteLine($"PASS  Ghost FTP application localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
             Console.WriteLine($"PASS  Ghost FTP Setup localization catalog ({GhostLocalization.SupportedLanguages.Count} languages)");
+            Console.WriteLine("PASS  Ghost FTP shared reference-shell fallback and Croatian UI copy");
             Console.WriteLine("PASS  Ghost FTP / BRENDIGO LTD product and publisher identity");
             Console.WriteLine("PASS  Ghost FTP Setup live language switching and wizard rebuild");
             return 0;
@@ -127,6 +129,53 @@ public static class Program
             "Unknown language did not fall back to English.", failures);
         Assert(GhostLocalization.T("Settings") == "Settings", "English application fallback text is incorrect.", failures);
         Assert(GhostSetupLocalization.T("Welcome") == "Welcome", "English Setup fallback text is incorrect.", failures);
+        GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
+    }
+
+    private static void TestReferenceCopy(List<string> failures)
+    {
+        var requiredKeys = new[]
+        {
+            "FileMenu",
+            "TransfersMenu",
+            "SearchRemote",
+            "ConnectionLog",
+            "ExplicitFtpsRecommended",
+            "TlsFirst",
+            "DoubleClickLocal",
+            "DoubleClickRemote",
+            "ResizeConnection",
+            "ResizeTransfers",
+            "ResizePanes",
+            "ResizeSidebar",
+            "SavedSites",
+            "ManageSavedSites",
+            "General",
+            "Advanced"
+        };
+
+        GhostLocalization.SetLanguage("en");
+        foreach (var key in requiredKeys)
+        {
+            var value = GhostReferenceText.T(key);
+            Assert(!string.IsNullOrWhiteSpace(value) && !string.Equals(value, key, StringComparison.Ordinal),
+                $"Reference-shell English copy is missing key '{key}'.", failures);
+        }
+        Assert(GhostReferenceText.T("TlsFirst") == "TLS first",
+            "Reference-shell English fallback text drifted.", failures);
+
+        GhostLocalization.SetLanguage("hr");
+        Assert(GhostReferenceText.T("FileMenu") == "Datoteka",
+            "Reference-shell Croatian File menu translation was not applied.", failures);
+        Assert(GhostReferenceText.T("SavedSites") != "Saved sites",
+            "Reference-shell Croatian saved-sites translation was not applied.", failures);
+        Assert(GhostReferenceText.T("ResizeSidebar") != "ResizeSidebar",
+            "Reference-shell Croatian resize guidance is missing.", failures);
+
+        GhostLocalization.SetLanguage("de");
+        Assert(GhostReferenceText.T("TlsFirst") == "TLS first",
+            "Reference-shell languages without dedicated copy must fall back to English locally.", failures);
+
         GhostLocalization.SetLanguage(GhostLocalization.DefaultLanguageCode);
     }
 
