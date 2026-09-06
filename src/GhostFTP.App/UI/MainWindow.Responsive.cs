@@ -44,14 +44,14 @@ public sealed partial class MainWindow
         _workspaceContent.RowDefinitions[4].MaxHeight = 440;
 
         var connectionSplitter = CreateSplitter(GridResizeDirection.Rows, Cursors.SizeNS);
-        connectionSplitter.ToolTip = "Drag to resize Connection Log and Quick Connect · double-click to reset";
+        connectionSplitter.ToolTip = R("ResizeConnection");
         connectionSplitter.MouseDoubleClick += (_, _) =>
             _workspaceContent.RowDefinitions[0].Height = new GridLength(DefaultConnectionPanelHeight);
         Grid.SetRow(connectionSplitter, 1);
         _workspaceContent.Children.Add(connectionSplitter);
 
         var transferSplitter = CreateSplitter(GridResizeDirection.Rows, Cursors.SizeNS);
-        transferSplitter.ToolTip = "Drag to resize the Transfers queue · double-click to reset";
+        transferSplitter.ToolTip = R("ResizeTransfers");
         transferSplitter.MouseDoubleClick += (_, _) =>
             _workspaceContent.RowDefinitions[4].Height = new GridLength(DefaultTransferPanelHeight);
         Grid.SetRow(transferSplitter, 3);
@@ -62,7 +62,7 @@ public sealed partial class MainWindow
         _filePanesGrid.ColumnDefinitions[2].MinWidth = 280;
 
         var paneSplitter = CreateSplitter(GridResizeDirection.Columns, Cursors.SizeWE);
-        paneSplitter.ToolTip = "Drag to resize Local and Remote panes · double-click to reset";
+        paneSplitter.ToolTip = R("ResizePanes");
         paneSplitter.MouseDoubleClick += (_, _) =>
         {
             _filePanesGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -151,7 +151,7 @@ public sealed partial class MainWindow
 
     private static GridSplitter CreateSplitter(GridResizeDirection direction, Cursor cursor)
     {
-        return new GridSplitter
+        var splitter = new GridSplitter
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
@@ -161,8 +161,21 @@ public sealed partial class MainWindow
             Background = GhostTheme.R("Border"),
             Cursor = cursor,
             Focusable = false,
-            Opacity = 0.72
+            Opacity = 0.52
         };
+
+        splitter.MouseEnter += (_, _) =>
+        {
+            splitter.Background = GhostTheme.R("Accent");
+            splitter.Opacity = 0.82;
+        };
+        splitter.MouseLeave += (_, _) =>
+        {
+            splitter.Background = GhostTheme.R("Border");
+            splitter.Opacity = 0.52;
+        };
+
+        return splitter;
     }
 
     private static bool IsFinitePositive(double value) =>

@@ -7,6 +7,7 @@ internal static class X11Native
     private const string X11 = "libX11.so.6";
     private const string LibC = "libc.so.6";
     private const int LcCType = 0;
+    private const long PMinSize = 1L << 4;
 
     internal const int KeyPress = 2;
     internal const int ButtonPress = 4;
@@ -45,6 +46,34 @@ internal static class X11Native
         internal ushort blue;
         internal byte flags;
         internal byte pad;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XAspect
+    {
+        internal int x;
+        internal int y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XSizeHints
+    {
+        internal nint flags;
+        internal int x;
+        internal int y;
+        internal int width;
+        internal int height;
+        internal int min_width;
+        internal int min_height;
+        internal int max_width;
+        internal int max_height;
+        internal int width_inc;
+        internal int height_inc;
+        internal XAspect min_aspect;
+        internal XAspect max_aspect;
+        internal int base_width;
+        internal int base_height;
+        internal int win_gravity;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -235,10 +264,27 @@ internal static class X11Native
     internal static extern int XSetWMProtocols(IntPtr display, nuint window, ref nuint protocols, int count);
 
     [DllImport(X11)]
+    private static extern void XSetWMNormalHints(IntPtr display, nuint window, ref XSizeHints hints);
+
+    [DllImport(X11)]
     internal static extern int XParseColor(IntPtr display, nuint colormap, string spec, ref XColor exact_def_return);
 
     [DllImport(X11)]
     internal static extern int XAllocColor(IntPtr display, nuint colormap, ref XColor screen_in_out);
+
+    internal static void SetMinimumWindowSize(IntPtr display, nuint window, int minimumWidth, int minimumHeight)
+    {
+        if (display == IntPtr.Zero || window == 0)
+            return;
+
+        var hints = new XSizeHints
+        {
+            flags = (nint)PMinSize,
+            min_width = Math.Max(1, minimumWidth),
+            min_height = Math.Max(1, minimumHeight)
+        };
+        XSetWMNormalHints(display, window, ref hints);
+    }
 
     internal static IntPtr XCreateFontSet(
         IntPtr display,

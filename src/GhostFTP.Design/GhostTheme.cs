@@ -65,7 +65,8 @@ public static class GhostTheme
             CornerRadius = new CornerRadius(radius),
             Padding = padding ?? new Thickness(14),
             Child = child,
-            SnapsToDevicePixels = true
+            SnapsToDevicePixels = true,
+            UseLayoutRounding = true
         };
     }
 
@@ -79,7 +80,8 @@ public static class GhostTheme
             CornerRadius = new CornerRadius(radius),
             Padding = padding ?? new Thickness(11),
             Child = child,
-            SnapsToDevicePixels = true
+            SnapsToDevicePixels = true,
+            UseLayoutRounding = true
         };
     }
 
@@ -93,7 +95,8 @@ public static class GhostTheme
             FontSize = size,
             FontWeight = weight ?? FontWeights.Normal,
             TextWrapping = TextWrapping.Wrap,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            SnapsToDevicePixels = true
         };
     }
 
@@ -132,7 +135,9 @@ public static class GhostTheme
             Padding = new Thickness(11, 6, 11, 6),
             MinHeight = GhostReferencePalette.CompactRowHeight,
             Cursor = Cursors.Hand,
-            Template = RoundedButtonTemplate()
+            Template = RoundedButtonTemplate(),
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true
         };
     }
 
@@ -156,7 +161,9 @@ public static class GhostTheme
             IsReadOnly = false,
             AcceptsReturn = false,
             AcceptsTab = false,
-            TextWrapping = TextWrapping.NoWrap
+            TextWrapping = TextWrapping.NoWrap,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true
         };
         SpellCheck.SetIsEnabled(box, false);
         ConfigureEditableControl(box);
@@ -178,7 +185,9 @@ public static class GhostTheme
             CaretBrush = R("Text"),
             VerticalContentAlignment = VerticalAlignment.Center,
             Focusable = true,
-            IsTabStop = true
+            IsTabStop = true,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true
         };
         ConfigureEditableControl(box);
         return box;
@@ -191,6 +200,7 @@ public static class GhostTheme
             Background = R(backgroundKey),
             CornerRadius = new CornerRadius(999),
             Padding = new Thickness(8, 3, 8, 3),
+            SnapsToDevicePixels = true,
             Child = new TextBlock
             {
                 Text = text,
@@ -215,6 +225,18 @@ public static class GhostTheme
             if (!control.IsKeyboardFocusWithin)
                 _ = control.Focus();
         };
+        control.GotKeyboardFocus += (_, _) => control.BorderBrush = R("Accent");
+        control.LostKeyboardFocus += (_, _) => control.BorderBrush = R("Border");
+        control.MouseEnter += (_, _) =>
+        {
+            if (!control.IsKeyboardFocusWithin && control.IsEnabled)
+                control.BorderBrush = R("BorderStrong");
+        };
+        control.MouseLeave += (_, _) =>
+        {
+            if (!control.IsKeyboardFocusWithin)
+                control.BorderBrush = R("Border");
+        };
     }
 
     private static void ApplyGlobalStyles(ResourceDictionary resources)
@@ -234,7 +256,8 @@ public static class GhostTheme
         var listItem = new Style(typeof(ListViewItem));
         listItem.Setters.Add(new Setter(Control.ForegroundProperty, R("Text")));
         listItem.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-        listItem.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
+        listItem.Setters.Add(new Setter(Control.BorderBrushProperty, Brushes.Transparent));
+        listItem.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(2, 0, 0, 0)));
         listItem.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 4, 7, 4)));
         listItem.Setters.Add(new Setter(Control.MarginProperty, new Thickness(0, 1, 0, 1)));
         listItem.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
@@ -243,6 +266,7 @@ public static class GhostTheme
         listItem.Triggers.Add(hover);
         var selected = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
         selected.Setters.Add(new Setter(Control.BackgroundProperty, R("AccentSoft")));
+        selected.Setters.Add(new Setter(Control.BorderBrushProperty, R("Accent")));
         selected.Setters.Add(new Setter(Control.ForegroundProperty, R("Text")));
         listItem.Triggers.Add(selected);
         resources[typeof(ListViewItem)] = listItem;
@@ -250,6 +274,8 @@ public static class GhostTheme
         var listBoxItem = new Style(typeof(ListBoxItem));
         listBoxItem.Setters.Add(new Setter(Control.ForegroundProperty, R("Text")));
         listBoxItem.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        listBoxItem.Setters.Add(new Setter(Control.BorderBrushProperty, Brushes.Transparent));
+        listBoxItem.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(2, 0, 0, 0)));
         listBoxItem.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(9, 7, 9, 7)));
         listBoxItem.Setters.Add(new Setter(Control.MarginProperty, new Thickness(0, 1, 0, 1)));
         listBoxItem.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
@@ -258,6 +284,7 @@ public static class GhostTheme
         listBoxItem.Triggers.Add(listHover);
         var listSelected = new Trigger { Property = ListBoxItem.IsSelectedProperty, Value = true };
         listSelected.Setters.Add(new Setter(Control.BackgroundProperty, R("AccentSoft")));
+        listSelected.Setters.Add(new Setter(Control.BorderBrushProperty, R("Accent")));
         listSelected.Setters.Add(new Setter(Control.ForegroundProperty, R("Text")));
         listBoxItem.Triggers.Add(listSelected);
         resources[typeof(ListBoxItem)] = listBoxItem;
@@ -293,6 +320,7 @@ public static class GhostTheme
         toolTip.Setters.Add(new Setter(Control.BorderBrushProperty, R("BorderStrong")));
         toolTip.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
         toolTip.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 5, 8, 5)));
+        toolTip.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 480d));
         resources[typeof(ToolTip)] = toolTip;
     }
 
@@ -319,7 +347,7 @@ public static class GhostTheme
         border.AppendChild(presenter);
         var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = border };
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Control.OpacityProperty, 0.92));
+        hover.Setters.Add(new Setter(Control.OpacityProperty, 0.94));
         template.Triggers.Add(hover);
         var pressed = new Trigger { Property = System.Windows.Controls.Button.IsPressedProperty, Value = true };
         pressed.Setters.Add(new Setter(Control.OpacityProperty, 0.82));

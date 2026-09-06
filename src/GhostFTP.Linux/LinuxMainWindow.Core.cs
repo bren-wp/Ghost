@@ -8,6 +8,9 @@ namespace GhostFTP.Linux;
 
 internal sealed partial class LinuxMainWindow : IDisposable
 {
+    private const int MinimumWindowWidth = 980;
+    private const int MinimumWindowHeight = 680;
+
     private sealed record LocalEntry(string Name, string FullPath, bool IsDirectory, long Size, DateTimeOffset Modified);
     private sealed record HitRegion(RectI Bounds, Action Action, string? ToolTip = null);
     private sealed class TextField
@@ -104,6 +107,9 @@ internal sealed partial class LinuxMainWindow : IDisposable
         _profileStore = new ProfileStore(_paths.ProfilesFile, _secretProtector);
 
         _settings = _settingsStore.LoadAsync().GetAwaiter().GetResult();
+        _width = (int)Math.Round(Math.Clamp(_settings.WindowWidth, MinimumWindowWidth, 7680));
+        _height = (int)Math.Round(Math.Clamp(_settings.WindowHeight, MinimumWindowHeight, 4320));
+
         var requestedLanguage = ParseArgument(args, "--lang") ?? _settings.LanguageCode;
         GhostLocalization.SetLanguage(GhostLocalization.NormalizeLanguageCode(requestedLanguage));
         _settings.LanguageCode = GhostLocalization.CurrentLanguageCode;
@@ -157,6 +163,8 @@ internal sealed partial class LinuxMainWindow : IDisposable
         try
         {
             _settings.LastLocalDirectory = _localPath;
+            _settings.WindowWidth = Math.Max(MinimumWindowWidth, _width);
+            _settings.WindowHeight = Math.Max(MinimumWindowHeight, _height);
             _settingsStore.SaveAsync(_settings).GetAwaiter().GetResult();
         }
         catch
@@ -219,6 +227,7 @@ internal sealed partial class LinuxMainWindow : IDisposable
         if (_window == 0)
             throw new InvalidOperationException("X11 could not create the Ghost FTP window.");
 
+        X11Native.SetMinimumWindowSize(_display, _window, MinimumWindowWidth, MinimumWindowHeight);
         X11Native.XStoreName(_display, _window, $"{GhostProduct.DisplayName} · {GhostProduct.ReleaseChannelDisplay}");
         X11Native.XSelectInput(
             _display,
@@ -267,6 +276,19 @@ internal sealed partial class LinuxMainWindow : IDisposable
         _cAccentSoft = Color(light ? "#E9E5FF" : "#2B245C");
         _cDanger = Color("#EF5265");
         _cSuccess = Color("#2FCB8C");
+
+        // The reference renderer normally installs its canonical dark menu/toolbar palette on
+        // first draw. A user-selected Light theme must keep the light colors produced here.
+        if (light)
+        {
+            _cMenu = _cSurface;
+            _cToolbar = _cSurface2;
+            _referencePaletteApplied = true;
+        }
+        else
+        {
+            _referencePaletteApplied = false;
+        }
     }
 
     private nuint Color(string hex)

@@ -1,137 +1,87 @@
 # Ghost FTP Security
 
-This document describes the active security model for **Ghost FTP 0.1.6 Beta** developed and published by **BRENDIGO LTD**.
+This document describes the active security model for **Ghost FTP 0.1.7 Beta**, developed and published by **BRENDIGO LTD**.
 
-Ghost FTP is a native FTP/FTPS desktop client for Windows and Linux. It does not implement SSH/SFTP and does not present FTP and SFTP as interchangeable protocols.
+Ghost FTP is a native FTP/FTPS desktop client for Windows and Linux. It supports plain FTP, Explicit FTPS (`AUTH TLS`) and Implicit FTPS. It does not implement SSH/SFTP and does not present SFTP as an FTP security mode.
 
 ## Fail-closed transport selection
 
-Supported modes are plain FTP, Explicit FTPS (`AUTH TLS`) and Implicit FTPS. Security-mode values are validated before network setup; undefined values fail closed. A failed TLS request is never silently retried as plain FTP.
-
-Explicit FTPS requires a successful `AUTH TLS` reply before control-channel upgrade. TLS certificate and hostname validation use the platform trust model. When TLS is active Ghost FTP requires `PBSZ 0`, `PROT P` and encrypted FTP data channels.
+Security-mode values are validated before network setup. Undefined modes fail closed, and a failed TLS request is never silently retried as plain FTP. Explicit FTPS requires successful `AUTH TLS`; encrypted sessions require `PBSZ 0`, `PROT P`, certificate validation and hostname validation through the platform trust model.
 
 ## Control-channel protocol hardening
 
-FTP control replies are strictly bounded and framed:
+FTP replies are bounded and framed before use. Reply codes must be numeric `100..599`, the fourth character must use standard space/hyphen framing, line length/multiline count/total characters are bounded, and command/reply work retains cancellation and timeout boundaries. A bounded preliminary `1xx` greeting sequence is accepted before the final service-ready reply; malformed framing fails closed.
 
-- reply codes must be numeric `100..599` values;
-- the fourth reply character, when present, must be a space or hyphen;
-- reply-line length, multiline count and total characters are bounded;
-- command/reply operations retain timeout and cancellation boundaries;
-- a bounded preliminary `1xx` greeting sequence is accepted before the final positive-completion greeting;
-- malformed responses such as `220X ...` fail closed.
+## Data-channel integrity
 
-The deterministic loopback hardening suite verifies valid `120 -> 220` interoperability and malformed-reply rejection.
-
-## Data-transfer mode integrity
-
-Ghost FTP explicitly requires binary transfer mode with `TYPE I` before send/receive data paths. Refusal by the server fails the transfer rather than silently changing data semantics.
-
-Passive mode prefers EPSV and can fall back to PASV. EPSV validates delimiter framing and port; PASV parses exactly six tuple values, validates each value as `0..255`, and derives the data port only from `p1,p2`. Data sockets remain tied to the authenticated control host rather than trusting a PASV-supplied host.
+Ghost FTP requires binary mode (`TYPE I`) before upload/download data paths. Passive mode prefers EPSV and can fall back to PASV. EPSV delimiter/port framing and PASV's exact six-byte tuple are validated. Passive data sockets stay tied to the authenticated control host rather than trusting a PASV-supplied host address.
 
 ## Safe download resume integrity
 
-0.1.6 changes partial-download resume from an offset-only optimization to a fail-closed remote-identity workflow.
+The **safe download resume model** introduced in 0.1.6 remains mandatory in 0.1.7. A `.ghostftp.part` file can use REST resume only when a bounded `.ghostftp.part.meta` sidecar proves the same host, port, FTP security mode, normalized remote path, server `SIZE` and server `MDTM` revision.
 
-A `.ghostftp.part` file is eligible for REST resume only when Ghost FTP has a bounded local sidecar and can match all of these values against the active connection and current server state:
+Resume metadata is versioned, capped at **16 KiB** before deserialization, and contains no username, password, token or transferred file contents. Missing, malformed, oversized, legacy or stale metadata does not authorize resume.
 
-- FTP host;
-- FTP port;
-- selected FTP security mode;
-- normalized remote path;
-- server-reported `SIZE`;
-- server-reported `MDTM` timestamp.
-
-The resume metadata format is versioned and capped at **16 KiB** before deserialization. It does not contain usernames, passwords, tokens or transferred file contents.
-
-If metadata is missing, malformed, oversized or does not match the selected endpoint/remote revision, Ghost FTP treats both the sidecar and staged bytes as untrusted. Their removal is a required safety operation. If the filesystem refuses deletion, Ghost FTP aborts before REST or RETR; it does not fall back to the legacy length-only resume path.
-
-If the server does not expose both usable `SIZE` and `MDTM`, Ghost FTP can still perform a fresh download but does not retain an interrupted partial as trusted resumable state.
+Untrusted staged bytes must be removed before a fresh transfer can continue. If deletion cannot be proven successful, Ghost FTP aborts before `REST` or `RETR` rather than falling back to length-only reuse.
 
 ### Staged destination commit
 
-A verifiable download remains in `.ghostftp.part` after the data stream completes. Ghost FTP re-queries `SIZE` and `MDTM` while the previous destination, if one exists, remains untouched.
+A verifiable download remains in `.ghostftp.part` after data transfer. Ghost FTP rechecks `SIZE` and `MDTM` while any existing destination remains untouched. Only a matching remote revision allows `File.Move(..., overwrite: true)` to commit the staged file. If the remote object changed in flight, staged state is discarded and the previous destination remains byte-for-byte intact.
 
-Only a matching remote revision allows the staged file to replace the final destination. If the remote object changed while bytes were in flight, staged bytes and their resume metadata are discarded and the operation fails with an integrity error. An existing local destination is preserved byte-for-byte.
+FTP `SIZE`/`MDTM` metadata is not a cryptographic hash. Ghost FTP does not claim stronger identity guarantees than the selected FTP server provides.
 
-A full-length validated partial is still considered staged and must pass the same revision check before promotion.
+## Parser, input and resource bounds
 
-FTP metadata is not a cryptographic content identity. A server whose `MDTM` granularity cannot distinguish two same-size replacements inside the same reported timestamp inherently provides a weaker identity signal; Ghost FTP does not overstate that limitation.
+Server-controlled LIST/MLSD text is bounded per payload, line and MLSD fact count. Unix/Windows LIST parsing uses non-backtracking regular expressions and incremental line enumeration. Command arguments reject CR/LF/NUL injection, host/port/path/name values are normalized through shared guards, directory traversal is bounded, local paths are contained, and transfer queue capacity/concurrency/retries are clamped.
 
-## Listing parser resource bounds
+## Transfer queue and lifecycle safety
 
-Server-controlled LIST/MLSD text is treated as untrusted input. Each line and MLSD fact count is bounded, Unix/Windows LIST patterns use the .NET non-backtracking regex engine, listing lines are enumerated incrementally and Unix symlink target metadata is removed before safe entry-name validation. Symlink targets are not recursively followed by parser semantics.
+`TransferQueueService` uses a bounded channel, isolated transfer sessions where appropriate, cancellation isolation and bounded retry. Queue pause/resume gates **dispatch only**; running FTP streams continue. Shutdown releases paused waiters, completes dispatch, cancels work and awaits workers before disposing resources.
 
-## Input and command safety
-
-Untrusted user/server values are bounded and normalized before becoming protocol commands. Protections include host and port validation, CR/LF/NUL command-injection rejection, bounded command arguments, single remote-name validation, remote-path normalization, bounded directory-listing payload size, bounded recursive traversal depth/entry count and local path-containment checks.
-
-## Transfer queue safety
-
-`TransferQueueService` uses a bounded channel, clamped concurrency, isolated transfer sessions where appropriate, per-job cancellation and bounded transient retries.
-
-Queue pause/resume is intentionally a **dispatch pause**. Queued/retrying jobs wait asynchronously, already-running transfers continue, and no claim is made that an arbitrary active FTP data stream can be frozen safely.
-
-Shutdown remains coordinated: a single disposal owner releases paused waiters, stops dispatch, cancels work, waits for workers and then disposes cancellation resources. Concurrent disposal callers await the same completion signal; post-shutdown enqueue fails deterministically.
+`FtpSession.DisposeAsync()` is coordinated and idempotent for concurrent callers. New operations are rejected once shutdown begins and transport cleanup executes once.
 
 ## Transfer-buffer confidentiality
 
-FTP data paths reuse bounded 128 KiB pooled buffers to reduce repeated large-object allocation. Because those buffers may hold private file contents, they are explicitly cleared before returning to the shared pool.
-
-## FTP session lifecycle safety
-
-`FtpSession.DisposeAsync()` is idempotent and coordinated under concurrent callers. Once disposal begins, new operations fail, existing serialized work can unwind, transport cleanup executes once and concurrent disposal callers wait for the shared completion state.
+FTP data paths rent bounded 128 KiB buffers from `ArrayPool<byte>`. Rented buffers are cleared before pool return because they may contain private file content.
 
 ## Local path and destructive-operation safety
 
-Ghost FTP normalizes and contains local paths before write/delete operations. Remote root protections and bounded recursive operations reduce destructive traversal risk. User-facing destructive operations require confirmation when configured.
-
-Downloads use staged partial files and identity/size validation where server metadata permits it. Uploads use temporary remote paths, size verification where available and rollback-oriented replacement semantics for an existing destination.
+Downloads use staged local files and identity validation where server metadata permits it. Uploads use temporary remote paths, size verification where available and rollback-oriented replacement behavior. Root/path protections and explicit destructive confirmations reduce accidental deletion risk.
 
 ## Credential protection
 
-### Windows
+Saved passwords are opt-in. Windows uses the current-user DPAPI boundary; sensitive intermediary buffers are zeroed where practical. Linux uses AES-256-GCM with local user-private key material and best-effort private filesystem permissions. Session-only Quick Connect is not persisted unless the user explicitly saves a site.
 
-Saved passwords are opt-in and protected by the current-user Windows DPAPI boundary through native `CryptProtectData` / `CryptUnprotectData`. Sensitive plaintext/intermediate buffers are explicitly zeroed where practical before release.
+### Saved-site input boundary
 
-### Linux
+0.1.7 aligns saved-site validation more tightly across renderers. Linux validates profile name, host, port, username and initial remote path before a newly created site is persisted; `ProfileStore` normalizes again at the persistence boundary. Windows Site Manager retains the same shared `InputGuard` boundary. Credentials are never written to the connection log or resume metadata.
 
-Saved passwords are opt-in and protected with AES-256-GCM using local user-private key material. Key/profile files receive best-effort private filesystem permissions.
+## Desktop/UI hardening relevant to security
 
-### Session-only Quick Connect
-
-Quick Connect stays session-only unless the user deliberately saves a site/profile. Passwords are never written to the connection log or resume metadata.
+0.1.7 UI polish does not weaken protocol or storage rules. Windows keeps native WPF editor templates while making focus/selection states clearer. Linux Light theme/window-state corrections affect only local rendering/settings. X11 minimum-window hints prevent a geometry mismatch from shrinking the supported workstation below 980×680; they do not add network privileges or background services.
 
 ## Installer integrity and rollback
 
-Windows Setup stages and validates the application executable and maintenance Setup candidate before replacing an installation. Validation covers Ghost FTP product/publisher/file-version identity. Setup refuses downgrade of newer installed binaries, retains rollback copies through the transaction and attempts rollback after later-stage failure.
+Windows Setup stages and validates application and maintenance candidates before replacing an installation. Product/publisher/version identity is checked, downgrade is refused, rollback copies are retained through the transaction, and the same installed `GhostFTP-Setup.exe` handles maintenance/uninstall. No separate `uninstall.exe` is generated.
 
-The installed `GhostFTP-Setup.exe` is the maintenance/uninstall entry. A separate uninstaller executable is not generated. `QuietUninstallString` is not advertised until a genuine tested silent-uninstall contract exists.
+## Dependency, privacy and platform boundary
 
-## Dependency boundary
-
-Shipping and regression-test projects are audited to contain zero third-party NuGet `PackageReference` dependencies. Audits also reject known telemetry/tracking SDK identifiers, private signing-key material and unsupported mobile targets.
-
-## Platform scope
-
-Shipping application targets are Windows and Linux. Android, iOS, MacCatalyst/macOS application targets and a Web/browser client are outside this repository's shipping scope.
+Shipping/regression projects are audited to contain zero third-party NuGet `PackageReference` dependencies. Audits reject known telemetry/tracking SDK identifiers, private signing material and unsupported mobile targets. Shipping scope is Windows and Linux only; Android, iOS, MacCatalyst/macOS application targets and a Web/browser client are outside this repository's product scope.
 
 ## Deterministic regression suites
 
-`GhostFTP.HardeningSelfTest` uses process-local loopback FTP listeners and no Internet dependency to verify session/queue disposal, malformed replies, LIST/MLSD bounds, safe symlink parsing, EPSV/PASV behavior and real control/data flow.
+`GhostFTP.HardeningSelfTest` uses process-local loopback FTP listeners to verify session/queue disposal, malformed replies, parser bounds, EPSV/PASV behavior and real control/data flow. `GhostFTP.ResumeSelfTest` independently verifies exact safe REST resume, stale-identity restart, in-flight remote-revision rejection, preservation of an existing destination and fail-closed stale-partial cleanup before REST/RETR. The Demo suite remains local-only.
 
-`GhostFTP.ResumeSelfTest` is isolated from the general hardening executable and validates exact safe REST resume, stale remote-identity restart from zero, byte-for-byte output, in-flight remote revision rejection, preservation of an existing destination and fail-closed stale-partial cleanup before REST/RETR. It also uses loopback only and has no third-party package dependency.
+The Windows UI smoke suite additionally verifies native editable controls, all 29 application/Setup languages, Setup live language switching, product identity and 0.1.7 shared reference-shell English/Croatian fallback behavior.
 
-The built-in Demo regression remains local-only and opens no external FTP, analytics or telemetry connection.
+## Live-server testing
 
-## Live-server testing without credential disclosure
-
-The optional real-server smoke harness is non-destructive: connect/PWD/LIST/NOOP/disconnect only. Its password comes from protected `GHOSTFTP_LIVE_PASSWORD` CI secret storage and is not committed to the repository. See `docs/LIVE-SMOKE-TEST.md`.
+The optional live-server smoke harness is non-destructive: connect/PWD/LIST/NOOP/disconnect only. Passwords come from protected CI secret storage and are not committed to the repository. See `docs/LIVE-SMOKE-TEST.md`.
 
 ## Reporting security issues
 
-Include the affected Ghost FTP version, platform, reproducible steps and expected/observed result. Do not place real FTP passwords, private keys or confidential server content in public issues.
+Include affected version, platform, reproducible steps and expected/observed result. Never place real FTP passwords, private keys or confidential server content in public issues.
 
 ## Release gate
 
-Ghost FTP 0.1.6 is release-ready only after exact-head Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core self-test, Demo workflow, transfer queue regression, protocol/parser/settings hardening self-test, dedicated safe-resume integrity self-test, renderer smoke tests, authentic UI capture, packaging and checksum/runtime verification. The publication workflow independently reruns the safe-resume suite on Windows and Linux before official assets can be considered complete.
+**Ghost FTP 0.1.7 Beta** is release-ready only after exact-head Windows/Linux CI passes build, dependency/source audit, final hardening audit, Core/Demo/Queue/protocol/parser/lifecycle tests, safe download resume-integrity tests, Windows UI smoke, Linux X11/XWayland runtime smoke, authentic UI capture, packaging and checksum/runtime verification. The publication workflow independently reruns the integrity gates before official Windows/Linux assets are complete.

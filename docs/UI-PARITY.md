@@ -1,6 +1,6 @@
 # Ghost FTP desktop UI parity contract
 
-Ghost FTP **0.1.6 Beta** is one desktop product with native Windows and Linux renderers. This document defines the workflow and behavioral contract that prevents the two implementations from drifting into separate products.
+Ghost FTP **0.1.7 Beta** is one desktop product with native Windows and Linux renderers. This document defines the workflow and behavioral contract that prevents the two implementations from drifting into separate products.
 
 ## Authentic reference
 
@@ -20,13 +20,15 @@ Native controls may differ, but user-facing information architecture and operati
 
 ## Canonical palette
 
-`GhostReferencePalette` is authoritative. Windows WPF, Windows Setup and Linux X11/XWayland rendering use equivalent dark blue-black surfaces, restrained borders, violet primary/focus accents, explicit success/danger states, compact radii and readable secondary text.
+`GhostReferencePalette` is authoritative for the dark workstation. Windows WPF, Windows Setup and Linux X11/XWayland rendering use equivalent dark blue-black surfaces, restrained borders, violet primary/focus accents, explicit success/danger states, compact radii and readable secondary text.
+
+Windows and Linux may also expose Light/System appearance choices. A selected Light theme must not be overwritten by the dark reference palette during redraw. 0.1.7 explicitly enforces that rule in the Linux renderer.
 
 ## Resizing and workspace state
 
-Windows provides native resize/maximize/minimize/restore plus internal splitters for sidebar, connection area, Local/Remote panes and Transfers. Persisted dimensions are normalized before use.
+Windows provides native resize/maximize/minimize/restore plus internal splitters for sidebar, connection area, Local/Remote panes and Transfers. Persisted dimensions are normalized before use. Splitters expose visible hover feedback and localized drag/reset guidance.
 
-Linux responds to native X11/XWayland resize and preserves the same logical hierarchy. Narrow layouts may hide secondary labels before primary file-transfer operations.
+Linux responds to native X11/XWayland resize, restores normalized local window width/height, persists final dimensions on shutdown and publishes a **980 × 680** minimum workstation size using X11 WM normal hints. Narrow layouts may hide secondary labels before primary file-transfer operations.
 
 ## Quick Connect parity
 
@@ -48,7 +50,7 @@ Windows keeps the visible Pause queue / Resume queue transfer-header action and 
 
 ## Safe download resume parity
 
-0.1.6 makes resumable-download integrity a shared Core contract rather than renderer-specific behavior.
+The 0.1.6+ resumable-download integrity model remains a shared Core contract rather than renderer-specific behavior.
 
 Both Windows and Linux therefore use the same rules:
 
@@ -81,7 +83,13 @@ Renderer-specific refresh scheduling may differ, but it must not create avoidabl
 
 Saved sites remain local on both platforms. Saved passwords are opt-in and protected by the platform-local mechanism: current-user DPAPI on Windows and AES-256-GCM with local user-private key material on Linux.
 
+0.1.7 keeps saved-site validation aligned across renderers: profile names reject control characters/oversized input and host, port, username and initial remote path pass the shared `InputGuard` boundary before newly created Linux profiles are persisted. `ProfileStore` normalizes again at the persistence boundary.
+
 Both platforms use the same underlying language, appearance, retry, concurrency, timeout, keepalive and workspace settings model. English remains primary/default/fallback and the local catalog contains 29 languages.
+
+## Reference-shell copy
+
+Reference-workstation strings such as resize guidance, TLS-first status, local/remote double-click hints and Site Manager section copy live in `GhostReferenceText` where practical. Croatian has explicit 0.1.7 reference-shell coverage; other configured languages without a dedicated reference string fall back locally to English. No online translation lookup is permitted.
 
 ## Status, diagnostics and privacy
 
@@ -94,6 +102,7 @@ Resume sidecars contain no password and remain local temporary transfer metadata
 - Keep primary actions visible before secondary actions.
 - Do not overlap toolbar/search/language controls at supported compact widths.
 - Use consistent row heights, borders, focus and selected states.
+- Keep keyboard focus visually discoverable without replacing native editor controls.
 - Avoid excessive nested-card styling.
 - Do not restore duplicated global file operations removed from the workstation cleanup.
 - Keep queue state visible without allowing Transfers to dominate the workspace.
@@ -105,14 +114,14 @@ Windows Setup follows the same Ghost FTP identity, palette, typography, compact 
 
 ## Verification
 
-0.1.6 parity is gated by real Windows and Linux execution rather than documentation claims. CI and the release workflow run:
+0.1.7 parity is gated by real Windows and Linux execution rather than documentation claims. CI and the release workflow run:
 
 - shared Core regression tests;
 - complete local Demo workflow tests;
 - transfer queue tests;
 - protocol/parser/lifecycle hardening tests;
 - **safe download resume integrity tests on Windows and Linux**;
-- Windows WPF editable-input/localization smoke tests;
+- Windows WPF editable-input/localization/reference-copy smoke tests;
 - Linux X11/XWayland renderer smoke tests;
 - source/security audits;
 - release packaging and checksum/runtime verification.
