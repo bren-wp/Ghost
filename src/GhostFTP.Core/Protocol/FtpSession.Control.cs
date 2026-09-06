@@ -160,26 +160,30 @@ public sealed partial class FtpSession
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed || Volatile.Read(ref _disposeState) != 0, this);
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
             return;
 
-        await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_disposed)
-                return;
-            _disposed = true;
-            await ResetTransportAsync().ConfigureAwait(false);
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _disposed = true;
+                await ResetTransportAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         finally
         {
-            _gate.Release();
-            _gate.Dispose();
+            Volatile.Write(ref _disposeState, 2);
         }
     }
 
