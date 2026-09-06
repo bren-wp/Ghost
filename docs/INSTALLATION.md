@@ -1,11 +1,11 @@
 # Ghost FTP Installation, Update and Uninstall Guide
 
-This document describes the Windows and Linux installation model used by **Ghost FTP 0.1.6 Beta**. Ghost FTP is developed and published by **BRENDIGO LTD**.
+This document describes the Windows and Linux installation model used by **Ghost FTP 0.1.7 Beta**. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## Release identity
 
 ```text
-VERSION=0.1.6
+VERSION=0.1.7
 RELEASE_CHANNEL=beta
 ```
 
@@ -33,7 +33,7 @@ Use `portable.exe` or an architecture-specific Portable asset when Windows insta
 
 ## Setup workflow
 
-0.1.6 retains the premium Ghost FTP Setup workflow already established in the prior Beta line:
+0.1.7 retains the premium Ghost FTP Setup workflow established in the prior Beta line:
 
 1. Welcome / language selection;
 2. license review;
@@ -97,17 +97,23 @@ Typical installation is to extract the versioned archive or place the executable
 
 The .NET runtime is included in self-contained Linux packages. The renderer still requires a supported X11 environment/libraries; Ghost FTP does not bundle GTK, Qt or Electron.
 
-## Upgrade from 0.1.5
+### Linux workstation geometry in 0.1.7
 
-Windows users can run 0.1.6 Setup over an existing 0.1.5 per-user installation. Setup validates product/version identity and preserves transactional rollback behavior.
+The Linux renderer now restores the normalized local `WindowWidth` and `WindowHeight` settings at launch and saves the final dimensions on shutdown. It also publishes a 980×680 minimum size through X11 WM normal hints so a compliant window manager cannot shrink the workstation below the supported rendering contract.
 
-No profile or settings migration is required. Existing local profiles and workstation settings remain compatible.
+This state remains local. It is normal settings data and is not synchronized or reported to Ghost FTP.
 
-Linux users can replace the previous binary/archive with the matching 0.1.6 architecture package. Existing installed-mode profile/settings files remain compatible.
+## Upgrade from 0.1.6
 
-## 0.1.6 download-resume state
+Windows users can run 0.1.7 Setup over an existing 0.1.6 per-user installation. Setup validates product/version identity and preserves transactional rollback behavior.
 
-0.1.6 introduces bounded local sidecars for resumable downloads:
+No profile or settings migration is required. Existing local profiles, resume metadata and workstation settings remain compatible.
+
+Linux users can replace the previous binary/archive with the matching 0.1.7 architecture package. Existing installed-mode profile/settings files remain compatible. Linux will begin honoring the previously stored window width/height values on launch.
+
+## Download-resume state
+
+The safe resume model introduced in 0.1.6 remains unchanged in 0.1.7 and uses bounded local sidecars:
 
 ```text
 <destination>.ghostftp.part
@@ -118,19 +124,19 @@ These files are local temporary transfer state, not profile or account data. The
 
 A staged download does not replace an existing destination until its remote revision has been validated after transfer. If the server object changes while bytes are in flight, the staged result is discarded and the previous destination is preserved.
 
-If an old, corrupt or mismatched partial cannot be removed, Ghost FTP aborts instead of continuing with length-only resume. This is an intentional fail-closed behavior and may surface a local filesystem permission error that must be corrected before retrying.
+If an old, corrupt or mismatched partial cannot be removed, Ghost FTP aborts instead of continuing with length-only resume. This is intentional fail-closed behavior and may surface a local filesystem permission error that must be corrected before retrying.
 
 ## Runtime changes relevant to upgrades
 
-0.1.6 retains the 0.1.5 LIST/MLSD parser bounds, pooled/cleared transfer buffers, reduced progress-renderer scheduling and coalesced post-transfer pane refresh.
+0.1.7 retains the bounded LIST/MLSD parser, pooled/cleared transfer buffers, reduced progress-renderer scheduling, coalesced post-transfer pane refresh and staged safe-resume integrity model.
 
-The principal runtime change is resumable-download integrity:
+The principal runtime/UI corrections are:
 
-- validated endpoint/path/SIZE/MDTM identity before REST;
-- no blind reuse of pre-0.1.6 partials;
-- staged commit after post-transfer revision validation;
-- preservation of an existing destination until commit;
-- deterministic cross-platform resume regression tests.
+- Linux persisted window width/height are applied at startup and saved on shutdown;
+- Linux publishes a supported minimum X11 window geometry;
+- Linux Light theme is no longer replaced by the dark reference palette during redraw;
+- newly created Linux saved sites are validated before persistence;
+- Windows focus/selection states, splitters and Site Manager presentation are polished without replacing native WPF editors.
 
 ## Settings recovery
 
@@ -148,11 +154,15 @@ Review the displayed error and verify that the current user can write to the per
 
 ### A stale `.ghostftp.part` cannot be removed
 
-Check file/directory permissions, read-only attributes, locks and filesystem health. 0.1.6 intentionally refuses to resume an untrusted partial when cleanup cannot be proven successful.
+Check file/directory permissions, read-only attributes, locks and filesystem health. Ghost FTP intentionally refuses to resume an untrusted partial when cleanup cannot be proven successful.
 
 ### Linux reports no X11/XWayland display
 
 Ensure a working desktop display/session, `DISPLAY` environment and supported X11 runtime libraries are available.
+
+### Linux cannot be resized below 980×680
+
+That is intentional in 0.1.7. The native renderer publishes this minimum to keep the sidebar, file panes and transfer workstation inside the supported geometry contract.
 
 ### Portable data appears beside the executable
 
@@ -160,6 +170,6 @@ That is expected Portable behavior. Use the installed Setup build when settings/
 
 ## Verification
 
-Official 0.1.6 binaries are published only after Windows/Linux release gates pass source/security audits, Core/Demo/Queue/protocol hardening tests, **safe download resume integrity tests on both platforms**, renderer smoke tests, authentic Windows capture, packaging, asset identity checks and SHA-256/runtime verification.
+Official 0.1.7 binaries are published only after Windows/Linux release gates pass source/security audits, Core/Demo/Queue/protocol hardening tests, **safe download resume integrity tests on both platforms**, renderer smoke tests, authentic Windows capture, packaging, asset identity checks and SHA-256/runtime verification.
 
 Prefer assets attached to the official GitHub Release over unverified third-party copies.
