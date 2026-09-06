@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using GhostFTP.Core.Models;
@@ -11,20 +10,7 @@ namespace GhostFTP.ResumeSelfTest;
 
 internal static class DestinationSafetyRegression
 {
-    [ModuleInitializer]
-    internal static void Run()
-    {
-        RunAsync().GetAwaiter().GetResult();
-    }
-
-    private static async Task RunAsync()
-    {
-        await TestExistingDestinationSurvivesRemoteMutationAsync().ConfigureAwait(false);
-        await TestUntrustedPartialCleanupFailureAbortsBeforeRetrAsync().ConfigureAwait(false);
-        Console.WriteLine("PASS  Staged download preserves existing destination and stale cleanup fails closed");
-    }
-
-    private static async Task TestExistingDestinationSurvivesRemoteMutationAsync()
+    internal static async Task TestExistingDestinationSurvivesRemoteMutationAsync()
     {
         var content = Encoding.UTF8.GetBytes("Ghost FTP changing remote payload");
         var previous = Encoding.UTF8.GetBytes("existing local file that must survive");
@@ -66,7 +52,7 @@ internal static class DestinationSafetyRegression
         }
     }
 
-    private static async Task TestUntrustedPartialCleanupFailureAbortsBeforeRetrAsync()
+    internal static async Task TestUntrustedPartialCleanupFailureAbortsBeforeRetrAsync()
     {
         var content = Encoding.UTF8.GetBytes("Ghost FTP trusted remote revision");
         var modified = new DateTimeOffset(2026, 9, 6, 20, 45, 0, TimeSpan.Zero);
