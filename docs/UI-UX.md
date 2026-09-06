@@ -1,6 +1,6 @@
 # Ghost FTP UI / UX Guidelines
 
-This document defines the desktop interaction rules for Ghost FTP **0.1.3 Beta** and the Windows Setup experience. The goal is a clean, information-dense professional FTP workstation rendered in Ghost FTP's own modern visual language.
+This document defines the desktop interaction rules for Ghost FTP **0.1.4 Beta** and the Windows Setup experience. The goal is a clean, information-dense professional FTP workstation rendered in Ghost FTP's own modern visual language.
 
 Ghost FTP is the product. **BRENDIGO LTD** is the developer/publisher shown on legal and publisher surfaces.
 
@@ -11,312 +11,117 @@ Ghost FTP is the product. **BRENDIGO LTD** is the developer/publisher shown on l
 3. **Credentials remain visually private.** Password values are masked and never echoed into the connection log.
 4. **Desktop space is user-controlled.** Users can resize the main window and important workstation regions.
 5. **Primary work remains visible.** Optional controls yield before they overlap connection or transfer actions.
-6. **No account wall.** Users connect to their own FTP/FTPS server without creating a Ghost FTP account.
+6. **No account wall.** Users connect directly to their own FTP/FTPS server.
 7. **No decorative fake functionality.** Canonical screenshots are generated from the compiled application.
-8. **Queue state must be truthful.** “Pause queue” pauses dispatch of new work; it does not falsely claim to freeze an already-running FTP byte stream.
+8. **Queue state must be truthful.** Pause queue pauses new dispatch; it does not pretend to freeze an active FTP byte stream.
+9. **Failure state must be deterministic.** Protocol or lifecycle failure returns the UI to a stable state rather than leaving ambiguous busy controls.
 
 ## Workstation hierarchy
 
-The approved desktop information architecture is:
-
-- saved-server sidebar;
-- menu and primary toolbar;
-- Connection Log + Quick Connect;
-- Local + Remote file panes;
-- Transfers queue;
-- status area.
-
-This hierarchy is the visual contract on both desktop platforms even when WPF and X11 require different native rendering primitives.
+The approved desktop information architecture is saved-server sidebar, menu/primary toolbar, Connection Log + Quick Connect, Local + Remote panes, Transfers queue and status area. This hierarchy is the visual contract on Windows and Linux even though WPF and X11 use different native primitives.
 
 ## Clean toolbar rule
 
-The global toolbar is reserved for application-level actions:
-
-- Connect;
-- Disconnect;
-- Upload;
-- Download;
-- Refresh;
-- Site Manager;
-- Settings;
-- Diagnostics where layout permits.
-
-Context-sensitive New folder, Rename and Delete actions remain inside Local/Remote panes. Do not reintroduce ambiguous global duplicates just to fill toolbar space.
+The global toolbar is reserved for application-level Connect, Disconnect, Upload, Download, Refresh, Site Manager, Settings and Diagnostics where space permits. Contextual New folder, Rename and Delete actions stay inside Local/Remote panes.
 
 ## Quick Connect
 
-Normal workstation layout keeps these credential controls compact and aligned:
-
-- Host;
-- Port;
-- Security;
-- Username;
-- Password.
-
-Connect/Disconnect and session-only privacy controls use the secondary row so credential fields retain useful width.
-
-Rules:
-
-- Host receives the largest flexible width.
-- Port stays compact.
-- Security shows the selected mode without clipping normal labels.
-- Username/Password remain usable at the supported minimum window width.
-- **Keep in this tab** is session-only and must not imply persistent password storage.
-- Plain FTP approval must be explicit for a real non-Demo server.
+Host receives flexible width; Port stays compact; Security remains readable; Username/Password stay editable at the supported minimum size. Connect/Disconnect and session-only controls are secondary to credential entry. **Keep in this tab** is session-only and does not imply persistent password storage. Plain FTP approval is explicit for real non-Demo servers.
 
 ## Resizing model
 
-Windows supports:
+Windows supports native resize/minimize/maximize/restore plus draggable sidebar, connection-area, Local/Remote and Transfers splitters. Split ratios and maximized state persist locally.
 
-- native window resize/minimize/maximize/restore;
-- draggable saved-server sidebar width;
-- draggable Connection Log / Quick Connect split;
-- draggable Local / Remote split;
-- draggable Transfers queue height.
-
-Splitters use restrained shared border tokens and correct resize cursors. Double-click restores a sensible reference split where implemented.
-
-Local/Remote ratio, Transfers height and maximized state persist in local settings.
-
-Linux reacts to native X11/XWayland window resizing and adapts toolbar/queue controls according to available width.
+Linux reacts to X11/XWayland resize and condenses secondary toolbar/queue controls before hiding primary file-transfer operations.
 
 ## Compact window behavior
 
-The main desktop must remain usable at smaller supported sizes. Optional language/search or secondary queue controls hide/condense before primary connect/file-transfer actions collide.
-
-Do not solve compact layout by horizontal overflow. Prefer:
-
-- hiding optional duplication;
-- ellipsizing secondary text;
-- wrapping explanatory copy in dialogs;
-- preserving Local/Remote and transfer actions.
+Do not solve compact layout by creating permanent horizontal overflow. Hide optional duplication, ellipsize secondary copy, wrap explanatory dialog text and preserve Local/Remote and transfer actions first.
 
 ## Local / Remote panes
 
-Each pane shows title, current path, navigation, contextual actions, filter and file list.
-
-Local actions:
-
-- Upload;
-- Refresh;
-- New folder;
-- Rename;
-- Delete.
-
-Remote actions:
-
-- Download;
-- Refresh;
-- New folder;
-- Rename;
-- Delete.
-
-Destructive actions use the danger token. Primary transfer actions use the accent token. Disabled commands must look disabled.
+Each pane shows title, current path, navigation, contextual actions, filter and file list. Local exposes Upload; Remote exposes Download. Both expose Refresh, New folder, Rename and Delete. Destructive actions use the danger treatment; primary transfers use the accent treatment; disabled commands visibly disable.
 
 ## File-list behavior
 
-Lists prioritize Name, then Type, Size, Modified and Remote Permissions where available. Columns resize with the pane instead of forcing a permanent horizontal scrollbar.
-
-Folders sort before files. Names use case-insensitive normal workstation ordering.
-
-Double-click behavior must remain predictable: folders navigate; Local files open through OS behavior; Remote files queue a download where established by the renderer.
+Lists prioritize Name, Type, Size, Modified and Remote Permissions where available. Folders sort before files. Columns resize with available pane width. Double-click behavior remains predictable: folders navigate, local files use OS behavior and remote files trigger the established download workflow.
 
 ## Transfers queue
 
-The queue communicates:
-
-- item;
-- direction;
-- state;
-- progress;
-- transferred bytes;
-- speed;
-- ETA;
-- retry count;
-- source;
-- destination.
-
-0.1.3 adds a richer transfer-management contract.
+The queue communicates direction, state, progress, bytes, speed, ETA, retry count, source and destination.
 
 ### Pause / resume
 
-**Pause queue** gates new queued/retrying dispatch. Transfers already running continue. The UI should make this distinction clear rather than imply byte-stream suspension.
+**Pause queue** gates queued/retrying dispatch. Running transfers continue. **Resume queue** releases the dispatch gate. This behavior is identical across renderers because both use the same Core queue.
 
-**Resume queue** releases the dispatch gate and allows waiting jobs to start.
+### Retry, cancellation and cleanup
 
-### Retry
+Windows exposes selected/failed retry plus selected/all cancellation and richer context cleanup/path copy. Linux exposes the principal retry/cancellation/cleanup controls in its native transfer header. Both use the same underlying bounded queue states.
 
-Windows exposes Retry selected plus Retry failed. Linux exposes retry-failed as a primary queue-management action at supported widths. Automatic transient retry remains separately controlled by Settings.
+### Coordinated shutdown
 
-### Cancellation
-
-Both platforms preserve selected/all cancellation. Linux transfer rows are selectable so selected cancellation targets the actual highlighted job rather than an implicit last-item fallback.
-
-### Cleanup
-
-Windows exposes selective Clear completed / Clear failed / Clear cancelled in addition to Clear finished. Linux exposes the most important cleanup actions in the native transfer header and shares the same underlying selective Core operations.
-
-### Queue summary
-
-Where room permits, show useful operational state such as running, retrying, queued, failed, cancelled and completed counts. Windows also surfaces aggregate active throughput.
-
-Background queue work must never block the UI thread.
+0.1.4 hardens the shared shutdown semantics. Closing the application while the queue is paused or active releases dispatch waiters, cancels outstanding work, waits for workers and prevents new dispatch. UI code should treat queue shutdown as terminal rather than attempting to enqueue more jobs.
 
 ## Connection Log
 
-The log is a local operational surface, not a credential/debug dump. It may show:
+The log is a local operational surface, not a credential dump. It may show startup privacy state, profile count, connection/security status, listing/queue transitions and actionable operation errors. Passwords must never be logged.
 
-- startup privacy status;
-- profile load count;
-- connect/disconnect state;
-- security mode/TLS state;
-- directory-list completion;
-- transfer queue transitions;
-- operation errors.
+## Protocol-error UX
 
-Passwords must never be logged. Errors should be actionable without exposing secrets.
+0.1.4 rejects malformed FTP reply framing and invalid passive-mode tuples more strictly. User-facing errors should describe the connection/listing failure without reproducing credentials or presenting malformed server input as trusted UI markup.
+
+A valid preliminary `120 -> 220` greeting is handled transparently; a server stuck in repeated preliminary greetings eventually fails within the bounded protocol contract.
 
 ## Visual language
 
-The canonical palette is `GhostReferencePalette`. Windows WPF, Windows Setup and Linux should remain aligned with its dark navy surfaces, restrained blue borders and violet accent.
+`GhostReferencePalette` is canonical. Windows WPF, Windows Setup and Linux remain aligned around dark navy surfaces, restrained blue borders and violet accent. Use surface depth, compact radii, thin borders, typography, focus/selection states and consistent spacing rather than decorative effects.
 
-Visual hierarchy comes from:
+## Density and accessibility
 
-- surface depth;
-- compact radii;
-- thin borders;
-- typography;
-- selected/hover/focus states;
-- consistent spacing.
-
-Avoid oversized dashboard cards, unnecessary gradients and decorative animations that reduce workstation clarity.
-
-## Density
-
-Ghost FTP is an information-dense desktop utility. Controls should not consume more vertical space than needed.
-
-0.1.3 intentionally tightens:
-
-- button height/padding;
-- card padding/radius;
-- list row padding;
-- table headers;
-- badges.
-
-Density must not come at the expense of readable focus states or input hit targets.
-
-## Typography
-
-Windows uses Segoe UI Variable / Segoe UI fallback. Linux uses its native locale-aware X11 font-set path. External font downloads are not permitted at runtime.
-
-## Accessibility and keyboard behavior
-
-Editable controls remain genuinely focusable/editable. Buttons display a visible accent focus border. Tab order follows the visible Quick Connect flow. Destructive confirmation remains visually distinct.
-
-Keyboard shortcuts such as F2/F5/Delete must continue to map to the current selected context rather than an unrelated pane.
+Ghost FTP is an information-dense utility, but compact controls must retain readable focus state and usable hit targets. Editable controls remain genuinely focusable/editable. Tab order follows the visible workflow. F2/F5/Delete shortcuts map to the current selected context.
 
 ## Localization layout
 
-English is the primary/default/fallback language and the product exposes 29 local selectable languages.
-
-Longer translated labels must not overlap controls. A missing localized technical string falls back to English; no online localization service is permitted.
-
-`GhostTransferText` provides local shared queue-management copy introduced in 0.1.3, with explicit Croatian overrides and English fallback for the rest of the catalog where a new native translation is not yet present.
+English is primary/default/fallback and the product exposes 29 local selectable languages. Longer translated labels must not overlap controls. Missing technical strings fall back to English; no online localization service is permitted.
 
 ## Windows / Linux parity
 
-**Windows / Linux parity** means the same product workflow, security, privacy and transfer semantics—not pixel-identical use of incompatible native primitives.
+**Windows / Linux parity** means the same product workflow, security, privacy and transfer semantics, not pixel-identical native widgets.
 
-Both expose:
+Both expose saved sites and Quick Connect, FTP / Explicit FTPS / Implicit FTPS, Local/Remote operations, transfer queue/cancellation/retry/pause, diagnostics/logging, keepalive, 29 local languages, local-only profile settings and Demo mode.
 
-- saved sites and Quick Connect;
-- FTP / Explicit FTPS / Implicit FTPS;
-- Local/Remote browsing and file operations;
-- transfer queue, cancellation, retry and dispatch pause/resume;
-- local diagnostics/logging;
-- keepalive;
-- 29-language local catalog;
-- local-only profile settings;
-- Demo mode.
+The 0.1.4 protocol and shutdown hardening sits below both renderers in Core, so valid/malformed server behavior and lifecycle state are shared rather than reimplemented in UI code.
 
 See `docs/UI-PARITY.md` for the detailed parity contract.
 
 ## Windows Setup UX
 
-Setup must look like a premium Ghost FTP surface, not a generic bootstrapper.
+Setup remains a premium Ghost FTP surface with product identity, canonical palette, step progress, 29-language selector, local-only/privacy messaging, explicit license acceptance, install/update/uninstall summary, transactional rollback messaging, resize support and completion/launch state.
 
-0.1.3 Setup includes:
-
-- Ghost FTP icon/product identity;
-- canonical dark palette/accent;
-- clear numbered step progress;
-- shared 29-language selector;
-- local-only/privacy messaging;
-- explicit license acceptance;
-- concise install/update/uninstall summary;
-- transactional validation/rollback messaging;
-- resizable window with sensible minimum dimensions;
-- clear completion/launch state.
-
-The same installed `GhostFTP-Setup.exe` handles future maintenance/uninstall. UX must not imply a separate `uninstall.exe` exists.
-
-Busy installation stages block accidental close.
+The same installed `GhostFTP-Setup.exe` handles future maintenance/uninstall. Busy install stages block accidental close.
 
 ## Error UX
 
-User-facing errors state the operation and useful underlying reason without leaking credentials.
+User-facing errors state the operation and useful reason without leaking credentials. Examples include invalid host/port, TLS failure, malformed server protocol response, passive data negotiation failure, unavailable initial path, remote permission failure, local filesystem error, cancellation and package/Setup rollback failure.
 
-Examples:
-
-- invalid host/port before network attempt;
-- TLS refusal/certificate failure;
-- unavailable saved initial path;
-- remote permission failure;
-- local filesystem error;
-- cancelled connection/transfer;
-- package validation or Setup rollback failure.
-
-The application should recover to a stable Offline/connected state after failures rather than leave controls in an ambiguous busy state.
+The application recovers to a stable Offline/connected state after failure rather than leaving an ambiguous busy state.
 
 ## Local Demo regression UX gate
 
 The built-in Demo profile is part of release UX validation. The **Local Demo regression UX gate** verifies a complete local workflow can connect, navigate, list, transfer, rename, create/delete and disconnect without external network activity.
 
-This catches regressions where an action remains visible while its underlying session/transfer behavior no longer works.
+## Protocol/shutdown regression UX gate
 
-## Transfer regression UX gate
-
-Because 0.1.3 exposes pause/resume, CI must prove that:
-
-- paused queued work does not start early;
-- Resume releases the work;
-- cancellation while paused remains responsive;
-- selective queue cleanup does not remove unrelated history.
-
-The UI should not ship a transfer-management command that is only decorative.
+The deterministic hardening suite verifies that the UI's underlying shared Core can safely handle concurrent session/queue disposal, reject malformed reply framing and interoperate with a real loopback passive data flow. This prevents visible controls from depending on untested lifecycle assumptions.
 
 ## Authentic screenshot gate
 
-The canonical main screenshot is captured from the compiled Windows application at **1914 × 907**. Product documentation must refresh authentic captures after verified release-quality visual changes rather than manually editing screenshots or substituting conceptual art.
+The canonical main screenshot is captured from the compiled Windows application at **1914 × 907**. Product documentation refreshes authentic captures after release-quality visual changes rather than editing screenshots manually or substituting conceptual art.
 
 ## Performance
 
-UI handlers stay short. Network/transfer work uses async/core queue paths. Paused workers wait asynchronously rather than polling. Avoid full-list rebuilds or blocking network calls on the UI thread.
-
-Stable interaction under large listings and concurrent transfers takes priority over visual effects.
+UI handlers stay short. Network/transfer work uses async Core paths. Paused workers wait asynchronously rather than polling. Avoid blocking network calls, excessive full-list rebuilds and decorative effects that degrade large-list/concurrent-transfer interaction.
 
 ## Definition of done for a UI change
 
-A UI change is complete when:
-
-- target builds successfully;
-- core commands remain reachable at supported sizes;
-- text/fields do not overlap;
-- target-sensitive file actions are not duplicated ambiguously;
-- keyboard/mouse input works;
-- selection maps to the intended operation;
-- destructive actions remain explicit;
-- localization fallback remains valid;
-- security/privacy messaging stays accurate;
-- Demo/queue/UI smoke gates pass;
-- authentic captures are refreshed for release-quality visual changes.
+A UI change is complete when the target builds, commands remain reachable at supported sizes, fields do not overlap, target-sensitive actions are not duplicated ambiguously, keyboard/mouse selection maps correctly, destructive actions are explicit, localization fallback works, security/privacy messaging remains accurate, Demo/queue/protocol/UI smoke gates pass, and authentic captures are refreshed when visuals change.
