@@ -36,8 +36,13 @@ public sealed partial class FtpSession
             throw new FtpException("FTP server closed the control connection unexpectedly.");
         if (first.Length > MaxReplyLineChars)
             throw new FtpException("FTP response line exceeded safe parsing limits.");
-        if (first.Length < 3 || !int.TryParse(first.AsSpan(0, 3), NumberStyles.None, CultureInfo.InvariantCulture, out var code))
+        if (first.Length < 3
+            || !int.TryParse(first.AsSpan(0, 3), NumberStyles.None, CultureInfo.InvariantCulture, out var code)
+            || code is < 100 or > 599
+            || (first.Length > 3 && first[3] is not ' ' and not '-'))
+        {
             throw new FtpException("FTP server returned a malformed response.");
+        }
 
         var lines = new List<string> { first };
         var charCount = first.Length;
@@ -46,7 +51,7 @@ public sealed partial class FtpSession
             var terminator = code.ToString("000", CultureInfo.InvariantCulture) + " ";
             while (true)
             {
-                if (lines.Count >= MaxReplyLines || charCount >= MaxReplyChars)
+                if (lines.Count >= MaxReplyLines)
                     throw new FtpException("FTP response exceeded safe parsing limits.", code);
 
                 var line = await _reader.ReadLineAsync(cancellationToken)
@@ -57,6 +62,8 @@ public sealed partial class FtpSession
                     throw new FtpException("FTP server closed a multiline response unexpectedly.", code);
                 if (line.Length > MaxReplyLineChars)
                     throw new FtpException("FTP response line exceeded safe parsing limits.", code);
+                if (charCount > MaxReplyChars - line.Length)
+                    throw new FtpException("FTP response exceeded safe parsing limits.", code);
 
                 lines.Add(line);
                 charCount += line.Length;
