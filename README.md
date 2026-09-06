@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.6 Beta — authentic production Windows desktop client" width="100%">
+  <img src="assets/readme/ghostftp-client.png" alt="Ghost FTP 0.1.7 Beta — authentic production Windows desktop client" width="100%">
 </p>
 
 <p align="center"><strong>Authentic application capture generated from the compiled Ghost FTP desktop client — not a mockup, illustration or generated UI.</strong></p>
@@ -13,12 +13,12 @@ Ghost FTP is developed and published by **BRENDIGO LTD** (Company number **16545
 - Product: https://ghostftp.com
 - Publisher: https://brendigo.com
 - GitHub Releases: https://github.com/bren-wp/Ghost/releases
-- Current source version: **0.1.6**
+- Current source version: **0.1.7**
 - Current release channel: **Beta**
-- Informational version: **0.1.6-beta**
+- Informational version: **0.1.7-beta**
 - First stable target: **1.0.0**
 - Runtime baseline: **.NET 10 / C# 14**
-- Detailed release notes: [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md)
+- Detailed release notes: [`docs/releases/v0.1.7.md`](docs/releases/v0.1.7.md)
 
 ## What Ghost FTP is built for
 
@@ -26,11 +26,23 @@ Ghost FTP is a real desktop file-transfer client, not a web wrapper. It keeps th
 
 The workstation provides saved servers, session-only Quick Connect, Local and Remote file panes, upload/download queues, retry/cancellation/history cleanup, queue dispatch pause/resume, connection logs, local diagnostics, Site Manager, configurable retries/concurrency/timeouts/keepalive, 29 local languages, and native Windows/Linux renderers sharing the same protocol and transfer core.
 
-## 0.1.6 Beta highlights
+## 0.1.7 Beta highlights
 
-### Safe resumable downloads
+### Desktop UI quality and consistency
 
-Interrupted downloads are no longer resumed from a `.ghostftp.part` file based only on local length. When the server exposes both `SIZE` and `MDTM`, Ghost FTP stores a bounded local identity sidecar and permits REST resume only when host, port, security mode, remote path, size and modification timestamp still match.
+Windows now exposes clearer keyboard-focus and hover states on editable fields, a visible accent edge on selected file/profile rows, bounded tooltips and stronger interactive feedback on the resizable workstation splitters. Site Manager uses the shared workstation copy for its principal sections and guidance so the dialog feels like part of the same product rather than a separate utility.
+
+The reference-shell copy has also been expanded for resize guidance, local/remote double-click behavior, diagnostics status text, saved-site management and TLS-first guidance. Croatian has explicit local strings for the new reference copy while all other configured languages continue to fall back to local English without any online translation service.
+
+### Linux window and theme corrections
+
+The native Linux X11/XWayland renderer now opens with the normalized window dimensions stored in local Settings instead of always starting at a hard-coded 1500×900 size. The final dimensions are persisted on shutdown and a 980×680 X11 WM minimum-size hint keeps window-manager geometry aligned with the supported workstation layout.
+
+The selected Light theme is now retained by the Linux reference renderer at startup and after saving Settings instead of being overwritten by the canonical dark palette on the next draw. Linux saved-site creation also validates profile name, host, port, username and initial remote path before persistence.
+
+### Safe resumable downloads retained
+
+The 0.1.6 safe-resume integrity model remains fully active. Interrupted downloads are not trusted from local length alone: `.ghostftp.part.meta` identity, endpoint/path binding, `SIZE`/`MDTM` validation, staged destination commit and fail-closed stale-partial cleanup remain required wherever safe resume is possible.
 
 A pre-0.1.6, corrupt, oversized or stale partial is restarted from zero rather than appended blindly. If stale/untrusted staged bytes cannot be removed, Ghost FTP fails closed before REST/RETR instead of falling back to length-only reuse. If the server cannot provide a trustworthy `SIZE` + `MDTM` identity, Ghost FTP still performs a fresh download but does not retain an interrupted unverified partial as safely resumable state.
 
@@ -44,11 +56,11 @@ If the server-side object changes while bytes are in flight, the staged result i
 
 `GhostFTP.ResumeSelfTest` is an isolated package-free loopback suite. It verifies an exact valid REST offset, stale-identity restart from byte zero, byte-for-byte output, detection of a same-size remote revision change, preservation of an existing destination on rejected mutation, and fail-closed stale-partial cleanup before REST/RETR.
 
-Both Windows and Linux CI run this gate independently from the broader protocol hardening suite, and the publication workflow runs it again on both shipping platforms before release assets can be published.
+Both Windows and Linux CI run this gate independently from the broader protocol hardening suite, and the publication workflow runs it again on both shipping platforms before release assets can be published. The WPF UI smoke suite additionally covers shared reference-shell English fallback and Croatian workstation copy.
 
-### 0.1.5 quality work retained
+### Earlier quality work retained
 
-The 0.1.5 listing/parser bounds, non-backtracking LIST parsing, pooled/cleared transfer buffers, lower-overhead progress delivery, coalesced pane refresh, persisted workstation dimensions and visible queue pause/resume action remain part of the 0.1.6 baseline.
+The parser/listing bounds, non-backtracking LIST parsing, pooled/cleared transfer buffers, lower-overhead progress delivery, coalesced pane refresh, bounded queue semantics, staged safe-resume integrity and transfer-workstation controls from 0.1.5–0.1.6 remain part of the 0.1.7 baseline.
 
 ## Supported protocols
 
@@ -98,7 +110,7 @@ The sidecar is local-only, capped at 16 KiB and contains no password, username, 
 
 Resume remains an optimization: when the server cannot provide enough identity information, correctness takes priority and Ghost FTP restarts rather than trusting stale bytes. Untrusted staged state must be removed successfully before a fresh transfer can continue. A verifiable download remains staged until the remote revision is checked again, so integrity failure cannot overwrite an existing destination.
 
-See [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md).
+See [`docs/releases/v0.1.7.md`](docs/releases/v0.1.7.md).
 
 ## Privacy
 
@@ -116,7 +128,7 @@ The shared bounded queue supports configurable concurrency, bounded transient re
 
 ## Windows
 
-The Windows renderer is native WPF with per-monitor DPI awareness, long-path awareness and resizable/persisted workstation panes.
+The Windows renderer is native WPF with per-monitor DPI awareness, long-path awareness, persisted workstation geometry and resizable Local/Remote/Transfer/connection areas. Native WPF editor controls are retained for reliable text selection, keyboard input and accessibility behavior.
 
 ### Windows release files
 
@@ -137,7 +149,7 @@ The same Setup executable is the installed maintenance/uninstall entry. Ghost FT
 
 ## Linux
 
-The Linux renderer is a native C# X11/XWayland desktop client using the system `libX11.so.6` ABI. It shares `GhostFTP.Core` and `GhostFTP.Design` with Windows rather than implementing a separate FTP engine.
+The Linux renderer is a native C# X11/XWayland desktop client using the system `libX11.so.6` ABI. It shares `GhostFTP.Core` and `GhostFTP.Design` with Windows rather than implementing a separate FTP engine. Window dimensions are locally persisted and the renderer publishes its supported minimum workstation size through X11 WM normal hints.
 
 ### Linux release files
 
@@ -159,6 +171,8 @@ Shipping desktop scope is intentionally limited to Windows x64/ARM64 and Linux x
 ## Localization
 
 Ghost FTP provides **29 selectable languages** from local application resources. **English (`en`) is the primary language, default language and final fallback.** No online translation API is used by the client or Setup.
+
+Reference-shell workstation copy currently adds explicit Croatian coverage for the 0.1.7 UI-polish strings and locally falls back to English for configured languages without dedicated reference-shell text.
 
 See [`docs/LOCALIZATION.md`](docs/LOCALIZATION.md).
 
@@ -207,7 +221,7 @@ A Ghost FTP Beta source is not release-ready until the relevant Windows/Linux pi
 - parallel transfer queue self-test;
 - protocol/parser/shutdown hardening self-test;
 - safe download resume-integrity self-test on Windows and Linux;
-- Windows WPF editable-input/localization smoke test;
+- Windows WPF editable-input/localization/reference-copy smoke test;
 - Linux X11/XWayland runtime smoke test;
 - authentic Windows UI capture;
 - Windows and Linux packaging;
@@ -216,7 +230,8 @@ A Ghost FTP Beta source is not release-ready until the relevant Windows/Linux pi
 
 ## Documentation
 
-- [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md) — detailed 0.1.6 Beta release notes
+- [`docs/releases/v0.1.7.md`](docs/releases/v0.1.7.md) — detailed 0.1.7 Beta release notes
+- [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md) — preserved 0.1.6 safe-resume release notes
 - [`CHANGELOG.md`](CHANGELOG.md) — cumulative public version history
 - [`docs/HISTORICAL-CHANGELOG.md`](docs/HISTORICAL-CHANGELOG.md) — preserved pre-reset engineering history
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture and trust boundaries
