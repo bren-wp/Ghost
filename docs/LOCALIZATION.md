@@ -1,6 +1,6 @@
 # Ghost FTP Localization Architecture
 
-The current **Ghost FTP 0.1.4 Beta** line includes a shared dependency-free localization layer used by Windows, Linux and Windows Setup.
+The current **Ghost FTP 0.1.5 Beta** line includes a shared dependency-free localization layer used by Windows, Linux and Windows Setup.
 
 ## Primary language and fallback
 
@@ -12,7 +12,7 @@ A missing technical string must never crash Ghost FTP or leave a blank primary a
 
 Ghost FTP exposes **29 selectable languages** from local application resources. The catalog includes English, Croatian and major European/Asian languages represented in `GhostLocalization.SupportedLanguages`.
 
-The source audit verifies that the catalog count remains 29 for the current release contract.
+Source audit verifies the catalog count remains 29 for the active release contract.
 
 ## Offline-only localization
 
@@ -34,17 +34,17 @@ English is authoritative. Croatian has explicit reference-shell overrides. Other
 
 `GhostTransferText` isolates queue-management labels such as Pause queue, Resume queue, Retry failed, selective cleanup and paused/active state. English remains authoritative; Croatian has explicit overrides and other configured languages receive guaranteed English fallback for missing transfer keys.
 
-0.1.4 retains this localization contract unchanged while hardening Core protocol/session behavior underneath the UI. The new deterministic protocol tests do not introduce user-facing online translation or telemetry dependencies.
+0.1.5 makes Pause queue / Resume queue more visible in the Windows Transfers header without creating a second localization source or changing the fallback contract.
 
 ## Windows Setup localization
 
-Setup uses `GhostLocalization` plus `GhostSetupLocalization` for wizard-specific labels. The language can be selected on the Welcome step and is saved locally for the installed client. Setup language resolution remains entirely local.
+Setup uses `GhostLocalization` plus `GhostSetupLocalization` for wizard-specific labels. Language can be selected on Welcome and is saved locally for the installed client. Setup language resolution remains entirely local.
 
 ## Technical/security strings
 
-Security-sensitive behavior is not inferred from translated labels. Protocol/security mode is represented by typed values (`FtpSecurityMode`) and validated independently of UI language.
+Security-sensitive behavior is not inferred from translated labels. Protocol/security mode is represented by typed `FtpSecurityMode` values and validated independently of UI language.
 
-Plain FTP warnings, TLS validation, malformed-reply rejection, passive-mode validation and destructive confirmations remain functional even when a label falls back to English.
+Plain FTP warnings, TLS validation, malformed-reply rejection, passive-mode validation, parser limits and destructive confirmations remain functional even when a label falls back to English.
 
 ## Linux font/input considerations
 
@@ -57,6 +57,8 @@ Windows uses WPF/Segoe UI Variable/Segoe UI fallback through the shared design l
 ## Setup/layout resilience
 
 The Windows application and Setup are resizable. Layouts use flexible grid columns, wrapping where appropriate and compact controls to reduce clipping risk for languages with longer text.
+
+0.1.5 additionally persists/bounds more workstation splitter state. Localization must not depend on a specific saved splitter size; labels still need to degrade cleanly at the supported minimum layout.
 
 ## Adding or improving a translation
 
@@ -72,7 +74,9 @@ When a language override is extended:
 
 ## Release verification
 
-The source audit verifies English default code, representative language entries, the expected 29-language count and Setup consumption of the shared list. Windows UI smoke tests verify editable controls/localization behavior; Linux CI builds/runs the native renderer with the same language layer.
+Source audit verifies English default code, representative language entries, the expected 29-language count and Setup consumption of the shared list. Windows UI smoke tests verify editable controls/localization behavior; Linux CI builds/runs the native renderer with the same language layer.
+
+Authentic Windows capture is also inspected after meaningful layout changes so longer copy does not cause visible overlap/clipping in the canonical shell.
 
 ## Privacy
 
