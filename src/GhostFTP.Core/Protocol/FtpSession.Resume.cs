@@ -19,11 +19,13 @@ public sealed partial class FtpSession
     {
         EnsureConnected();
 
+        Directory.CreateDirectory(Path.GetDirectoryName(localPath) ?? Directory.GetCurrentDirectory());
         var partPath = localPath + ".ghostftp.part";
         var metadataPath = partPath + ".meta";
         var remoteSize = await TryGetFileSizeAsync(remotePath, cancellationToken).ConfigureAwait(false);
         var remoteModified = await TryGetFileModifiedUtcAsync(remotePath, cancellationToken).ConfigureAwait(false);
         var canIdentifyRemote = remoteSize is not null && remoteModified is not null;
+        long resumeOffset = 0;
 
         if (File.Exists(partPath))
         {
@@ -43,23 +45,41 @@ public sealed partial class FtpSession
 
             if (!validResume)
             {
-                // A pre-0.1.6 partial file, a corrupt sidecar or a changed remote object must not be
-                // appended blindly. Restart from zero instead of risking a mixed/corrupt local file.
-                TryDeleteLocal(partPath);
-                TryDeleteLocal(metadataPath);
+                // Never fall back to the legacy length-only resume path. If an untrusted partial
+                // cannot be removed, abort before issuing REST/RETR instead of risking stale bytes.
+                DeleteLocalRequired(partPath, "Unable to remove an untrusted partial download.");
+                DeleteLocalRequired(metadataPath, "Unable to remove stale download resume metadata.");
             }
             else if (partLength == remoteSize!.Value)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(localPath) ?? Directory.GetCurrentDirectory());
+                // A full-length partial is still staged data. Revalidate the server revision before
+                // it is allowed to replace an existing destination.
+                if (!await RemoteIdentityMatchesAsync(
+                        remotePath,
+                        remoteSize.Value,
+                        remoteModified!.Value,
+                        cancellationToken).ConfigureAwait(false))
+                {
+                    DeleteLocalRequired(partPath, "Unable to discard a stale completed partial download.");
+                    DeleteLocalRequired(metadataPath, "Unable to discard stale download resume metadata.");
+                    throw new IOException("Remote file changed before the staged download could be committed. The existing local destination was preserved.");
+                }
+
                 File.Move(partPath, localPath, true);
                 TryDeleteLocal(metadataPath);
                 progress?.Report((remoteSize.Value, remoteSize.Value));
                 return;
             }
+            else
+            {
+                resumeOffset = partLength;
+            }
         }
-        else
+        else if (File.Exists(metadataPath))
         {
-            TryDeleteLocal(metadataPath);
+            // A sidecar without its partial cannot authorize anything and must not survive into a
+            // later attempt where it could accidentally describe unrelated staged bytes.
+            DeleteLocalRequired(metadataPath, "Unable to remove orphaned download resume metadata.");
         }
 
         if (!File.Exists(partPath) && canIdentifyRemote)
@@ -77,40 +97,111 @@ public sealed partial class FtpSession
 
         try
         {
-            await DownloadFileCoreAsync(remotePath, localPath, progress, cancellationToken).ConfigureAwait(false);
-
-            if (canIdentifyRemote)
+            if (resumeOffset > 0)
             {
-                var postSize = await TryGetFileSizeAsync(remotePath, cancellationToken).ConfigureAwait(false);
-                var postModified = await TryGetFileModifiedUtcAsync(remotePath, cancellationToken).ConfigureAwait(false);
-                if (postSize != remoteSize
-                    || postModified is null
-                    || postModified.Value.UtcTicks != remoteModified!.Value.UtcTicks)
+                var rest = await SendCommandAsync(
+                    "REST " + resumeOffset.ToString(CultureInfo.InvariantCulture),
+                    cancellationToken).ConfigureAwait(false);
+                if (!rest.IsPositiveIntermediate)
                 {
-                    // The server object changed while bytes were in flight. Do not leave a locally
-                    // completed file that may combine different remote revisions.
-                    TryDeleteLocal(localPath);
-                    throw new IOException("Remote file changed while it was being downloaded. The local result was discarded; retry the transfer.");
+                    // The remote revision is still trusted, but this server/session refuses REST.
+                    // Restart from byte zero after proving the old staged bytes are gone.
+                    DeleteLocalRequired(partPath, "Unable to restart a partial download after the server refused REST.");
+                    resumeOffset = 0;
                 }
             }
 
+            await ReceiveDownloadIntoPartAsync(
+                remotePath,
+                partPath,
+                resumeOffset,
+                remoteSize,
+                progress,
+                cancellationToken).ConfigureAwait(false);
+
+            if (canIdentifyRemote
+                && !await RemoteIdentityMatchesAsync(
+                    remotePath,
+                    remoteSize!.Value,
+                    remoteModified!.Value,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                // Keep any pre-existing destination untouched. Only staged bytes are discarded.
+                DeleteLocalRequired(partPath, "Unable to discard a download whose remote revision changed in flight.");
+                DeleteLocalRequired(metadataPath, "Unable to discard resume metadata for a changed remote revision.");
+                throw new IOException("Remote file changed while it was being downloaded. The staged result was discarded and the existing local destination was preserved; retry the transfer.");
+            }
+
+            // Commit is the final step. Until this point localPath has not been replaced, so any
+            // validation error or metadata probe failure cannot destroy the user's previous file.
+            File.Move(partPath, localPath, true);
             TryDeleteLocal(metadataPath);
         }
         catch
         {
-            // Keep a validated partial and its sidecar for a future safe resume. If there is no
-            // trustworthy identity sidecar, remove the partial so a later attempt cannot resume it.
-            if (!File.Exists(partPath))
+            // A validated partial may remain only when a trustworthy sidecar still exists. A fresh
+            // download with no trustworthy identity must not leave bytes that a later run could resume.
+            if (File.Exists(partPath) && (!canIdentifyRemote || !File.Exists(metadataPath)))
             {
-                TryDeleteLocal(metadataPath);
+                DeleteLocalRequired(partPath, "Unable to remove an unverified partial download after failure.");
+                DeleteLocalRequired(metadataPath, "Unable to remove unverified download resume metadata after failure.");
             }
-            else if (!canIdentifyRemote || !File.Exists(metadataPath))
+            else if (!File.Exists(partPath))
             {
-                TryDeleteLocal(partPath);
                 TryDeleteLocal(metadataPath);
             }
             throw;
         }
+    }
+
+    private async Task ReceiveDownloadIntoPartAsync(
+        string remotePath,
+        string partPath,
+        long offset,
+        long? expectedSize,
+        IProgress<(long transferred, long? total)>? progress,
+        CancellationToken cancellationToken)
+    {
+        await using (var output = new FileStream(
+            partPath,
+            offset > 0 ? FileMode.Append : FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan))
+        {
+            await ReceiveDataToStreamAsync(
+                "RETR " + remotePath,
+                output,
+                offset,
+                expectedSize,
+                progress,
+                cancellationToken).ConfigureAwait(false);
+            await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (expectedSize is not null)
+        {
+            var actual = new FileInfo(partPath).Length;
+            if (actual != expectedSize.Value)
+            {
+                throw new IOException(
+                    $"Download integrity check failed. Expected {expectedSize.Value:N0} bytes but received {actual:N0} bytes. The validated partial was kept for a safe resume.");
+            }
+        }
+    }
+
+    private async Task<bool> RemoteIdentityMatchesAsync(
+        string remotePath,
+        long expectedSize,
+        DateTimeOffset expectedModified,
+        CancellationToken cancellationToken)
+    {
+        var currentSize = await TryGetFileSizeAsync(remotePath, cancellationToken).ConfigureAwait(false);
+        var currentModified = await TryGetFileModifiedUtcAsync(remotePath, cancellationToken).ConfigureAwait(false);
+        return currentSize == expectedSize
+            && currentModified is not null
+            && currentModified.Value.UtcTicks == expectedModified.UtcTicks;
     }
 
     private async Task DownloadDirectoryWithResumeIntegrityCoreAsync(
@@ -214,13 +305,31 @@ public sealed partial class FtpSession
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            // Resume metadata is an optimization/integrity aid. A local sidecar write failure must
-            // not prevent a fresh download; the caller will remove any untrusted partial on failure.
+            // Resume metadata is an integrity aid. A write failure does not block a fresh transfer,
+            // but any resulting partial will be removed on failure because no trusted sidecar exists.
         }
         finally
         {
             TryDeleteLocal(tempPath);
         }
+    }
+
+    private static void DeleteLocalRequired(string path, string message)
+    {
+        if (!File.Exists(path))
+            return;
+
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            throw new IOException(message + " Ghost FTP aborted before using untrusted staged data.", ex);
+        }
+
+        if (File.Exists(path))
+            throw new IOException(message + " Ghost FTP aborted before using untrusted staged data.");
     }
 
     private sealed record DownloadResumeMetadata(
