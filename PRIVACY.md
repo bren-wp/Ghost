@@ -1,6 +1,6 @@
 # Ghost FTP Privacy
 
-Ghost FTP **0.1.5 Beta** is designed to operate **without application telemetry**, tracking, advertising or hidden product-network activity. Ghost FTP is developed and published by **BRENDIGO LTD**.
+Ghost FTP **0.1.6 Beta** is designed to operate **without application telemetry**, tracking, advertising or hidden product-network activity. Ghost FTP is developed and published by **BRENDIGO LTD**.
 
 ## What Ghost FTP does not do
 
@@ -10,11 +10,32 @@ Repository audits reject known telemetry/tracking SDK identifiers in shipping C#
 
 ## Network behavior
 
-Application network access is limited to user-directed FTP/FTPS activity and explicit user actions. This includes control connections, FTP data channels, keepalive and diagnostics required for the server the user deliberately selected.
+Application network access is limited to user-directed FTP/FTPS activity and explicit user actions. This includes control connections, FTP data channels, keepalive, diagnostics and file metadata commands required for the server the user deliberately selected.
 
-Keepalive is **server-only**. When enabled, `NOOP` is sent only to the active FTP/FTPS server. Ghost FTP does not redirect keepalive or transfer state through a product cloud service.
+Keepalive is **server-only**. When enabled, `NOOP` is sent only to the active FTP/FTPS server. Ghost FTP does not redirect keepalive, transfer state or resume state through a product cloud service.
 
-The 0.1.5 parser, transfer-buffer and workstation changes introduce no product-side network service. Deterministic hardening tests use process-local loopback listeners only.
+The 0.1.6 resume-integrity work uses standard FTP `SIZE`, `MDTM` and `REST` commands against the user's selected server. It introduces no BRENDIGO LTD endpoint or third-party service.
+
+## Download resume metadata
+
+When a server exposes both usable `SIZE` and `MDTM`, Ghost FTP can store a small local sidecar next to an interrupted download:
+
+```text
+<destination>.ghostftp.part.meta
+```
+
+The sidecar is capped at 16 KiB and contains only the resume identity needed to avoid mixing stale bytes:
+
+- metadata format version;
+- selected FTP host and port;
+- selected FTP security mode;
+- normalized remote path;
+- remote size;
+- remote modification timestamp.
+
+It does **not** contain the username, password, account token or transferred file content. Resume metadata remains on the local device and is never uploaded to BRENDIGO LTD.
+
+If a partial cannot be tied to a trustworthy server identity, Ghost FTP restarts the download rather than retaining unverified resumable state.
 
 ## Quick Connect
 
@@ -35,27 +56,23 @@ Plaintext passwords are not intentionally logged. Sensitive Windows intermediary
 
 ## Portable mode
 
-Portable mode stores Ghost FTP data under the portable executable directory when the portable marker/name is active. That data is local and is not cloud synchronized.
+Portable mode stores Ghost FTP data under the portable executable directory when the portable marker/name is active. That data is local and is not cloud synchronized. Resume sidecars also remain beside the user-selected local transfer destination rather than becoming cloud profile data.
 
 ## Settings
 
-Language, appearance, local path, queue concurrency, retries, timeouts, keepalive, window dimensions and splitter/layout values are local preferences. They are not used for advertising or profiling.
-
-0.1.5 adds persistence for additional workstation dimensions and regression-tests recovery from a corrupted primary settings file through the local bounded `.bak` fallback. No settings data leaves the machine as part of that recovery.
+Language, appearance, local path, queue concurrency, retries, timeouts, keepalive, window dimensions and splitter/layout values are local preferences. They are not used for advertising or profiling. Settings recovery uses local atomic replacement and bounded backup fallback.
 
 ## Transfer queue
 
 Transfer jobs are local runtime state. Pause/resume dispatch, retry/cancellation, queue-history cleanup and progress reporting do not create a server-side queue or cloud coordination service.
 
-0.1.5 reduces local renderer scheduling and coalesces burst completion refreshes. This optimization does not add telemetry or third-party endpoints.
-
 ## Transfer-buffer privacy
 
-FTP data paths now reuse bounded pooled buffers to reduce allocation pressure. Because a buffer may contain user file bytes, it is cleared before being returned to the shared pool. Buffer pooling remains entirely inside the local process.
+FTP data paths reuse bounded pooled buffers to reduce allocation pressure. Because a buffer may contain user file bytes, it is cleared before being returned to the shared pool. Buffer pooling remains entirely inside the local process.
 
 ## Connection log and diagnostics
 
-The connection log is local session information. It is not automatically uploaded. Diagnostics query the connected FTP/FTPS server for operational protocol information and do not deliberately log credentials.
+The connection log is local session information. It is not automatically uploaded. Diagnostics query the connected FTP/FTPS server for operational protocol information and do not deliberately log credentials or resume sidecar content.
 
 ## Windows Setup
 
@@ -65,13 +82,11 @@ Setup remains per-user and local. It sends no install analytics, creates no Ghos
 
 Ghost FTP ships a local **29-language** catalog. English (`en`) is primary/default/fallback. No translation API receives UI text, filenames, server details or credentials.
 
-## Demo mode
+## Local regression tests
 
 The built-in Demo profile is entirely local and opens no external FTP, telemetry or analytics connection.
 
-## Local protocol hardening tests
-
-`GhostFTP.HardeningSelfTest` uses loopback networking only. The 0.1.5 additions test pathological LIST/MLSD input, EPSV/PASV parsing and settings recovery without contacting BRENDIGO LTD or a third-party server.
+`GhostFTP.HardeningSelfTest` and the new `GhostFTP.ResumeSelfTest` use process-local loopback networking only. The resume suite verifies safe REST offset usage, stale-revision restart and in-flight remote mutation handling without contacting BRENDIGO LTD or a third-party server.
 
 ## Live-server smoke testing
 
@@ -79,10 +94,10 @@ The built-in Demo profile is entirely local and opens no external FTP, telemetry
 
 ## Third parties
 
-Ghost FTP does not sell user data to advertisers and contains no advertising-network integration. A third-party FTP/FTPS server naturally receives the protocol traffic and credentials necessary for the user's chosen connection; that server's own privacy/security practices remain outside Ghost FTP's control.
+Ghost FTP does not sell user data to advertisers and contains no advertising-network integration. A third-party FTP/FTPS server naturally receives the protocol traffic, credentials and metadata commands necessary for the user's chosen connection; that server's own privacy/security practices remain outside Ghost FTP's control.
 
 ## Release/privacy verification
 
-Before public release, audits check for telemetry SDK references, unsupported platform drift, private signing material and dependency/version inconsistencies. Windows/Linux CI verifies local Demo, transfer queue, parser/protocol/lifecycle hardening, renderer smoke paths and package integrity.
+Before public release, audits check for telemetry SDK references, unsupported platform drift, private signing material and dependency/version inconsistencies. Windows/Linux CI verifies local Demo, transfer queue, protocol/parser/lifecycle hardening, dedicated safe-resume integrity, renderer smoke paths and package integrity.
 
-For transport-security details see [`SECURITY.md`](SECURITY.md). For current implementation details see [`docs/releases/v0.1.5.md`](docs/releases/v0.1.5.md).
+For transport-security details see [`SECURITY.md`](SECURITY.md). For current implementation details see [`docs/releases/v0.1.6.md`](docs/releases/v0.1.6.md).
